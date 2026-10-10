@@ -25,6 +25,11 @@ export interface GameSummary {
   /** Final scores, highest first. */
   finalScores: number[];
   winnerCorrectVotes: number;
+  /** Swaps allowed per player, and swaps actually used across all players. */
+  swapLimit: number;
+  totalSwaps: number;
+  /** Public swap count before each poster. */
+  colorChanges: number[];
 }
 
 export function summarize(
@@ -56,5 +61,8 @@ export function summarize(
     extraInspects: s.rules.extraInspectPrice ? Math.round(potExtra / s.rules.extraInspectPrice) : 0,
     finalScores,
     winnerCorrectVotes: s.correctVotes[top],
+    swapLimit: s.swapLimit,
+    totalSwaps: Object.values(s.swapsUsed).reduce((a, b) => a + b, 0),
+    colorChanges: s.colorChanges.slice(),
   };
 }

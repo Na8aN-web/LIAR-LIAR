@@ -33,6 +33,8 @@ export interface GameRules {
 export interface RoomSettings {
   /** 'auto' = 3 for 6–11 players, 4 for 12–15. */
   inspectsPerRound: number | 'auto';
+  /** Color changes per player per game. 'auto' = about 1 per 4 posters (see defaultSwaps). 0 = off. */
+  colorSwaps: number | 'auto';
   posterMode: PosterMode;
   timers: PhaseTimers;
   rules: GameRules;
@@ -66,6 +68,13 @@ export interface ChatMessage {
   /** Poster index when sent, null in lobby. */
   poster: number | null;
   at: number;
+}
+
+/** One entry in a player's color history. afterPoster null = starting color. */
+export interface ColorChange {
+  color: ColorId;
+  /** 0-based poster index this change happened after (during its payout). */
+  afterPoster: number | null;
 }
 
 export type OfferStatus = 'pending' | 'accepted' | 'declined' | 'expired';
@@ -116,6 +125,16 @@ export interface GameView {
   boughtEntryIds: string[];
   offersOut: OfferView[];
   offersIn: OfferView[];
+  /** Public: players who changed color before each poster (index = poster). Never says who. */
+  colorChanges: number[];
+  swapLimit: number;
+  swapsUsed: number;
+  /** Your color before this payout's swap, if you swapped this payout (lets you undo). */
+  swapUndoColor: ColorId | null;
+  /** You already used this payout's one swap action (swapped, or swapped and undid). */
+  swapLockedThisPayout: boolean;
+  /** Private: your own color history. */
+  myColorHistory: ColorChange[];
   myVote: PlayerId | null;
   /** Public scores, updated after each payout. */
   scores: Record<PlayerId, number>;
@@ -139,9 +158,12 @@ export interface ReplayPoster {
 }
 
 export interface ReplayView {
+  /** Final colors. */
   colors: Record<PlayerId, ColorId>;
+  colorHistory: Record<PlayerId, ColorChange[]>;
   posters: ReplayPoster[];
-  log: (InspectLogEntry & { result: ColorId[] })[];
+  /** `real` is the target's color at the time of that inspect. */
+  log: (InspectLogEntry & { result: ColorId[]; real: ColorId })[];
   finalScores: Record<PlayerId, number>;
   correctVotes: Record<PlayerId, number>;
   winners: PlayerId[];

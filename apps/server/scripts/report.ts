@@ -33,7 +33,8 @@ export function report(title: string, results: GameSummary[]) {
   console.log(
     `  per game         ${mean(results.map((g) => g.inspects)).toFixed(0)} inspects, ` +
       `${mean(results.map((g) => g.offers.made)).toFixed(1)} offers (${mean(results.map((g) => g.offers.accepted)).toFixed(1)} sold), ` +
-      `${mean(results.map((g) => g.extraInspects)).toFixed(1)} extra inspects`,
+      `${mean(results.map((g) => g.extraInspects)).toFixed(1)} extra inspects, ` +
+      `${mean(results.map((g) => (g.totalSwaps ?? 0) / g.players)).toFixed(2)} color swaps/player (limit ${results[0]?.swapLimit ?? 0})`,
   );
 }
 

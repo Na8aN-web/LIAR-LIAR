@@ -2,6 +2,7 @@
 
 import { useGame, usePlayerName } from '@/lib/store';
 import { ScoreList } from './ScoresPanel';
+import { SwapPicker } from './SwapPicker';
 
 export function PayoutCard() {
   const game = useGame((s) => s.view!.game!);
@@ -29,6 +30,7 @@ export function PayoutCard() {
     <div className="center-card">
       <div className={`card payout ${tone}`}>
         <h2>{headline}</h2>
+        <SwapPicker />
         <ScoreList compact />
       </div>
     </div>

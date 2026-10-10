@@ -11,6 +11,7 @@
     "test": "vitest run",
     "smoke": "tsx scripts/smoke.ts",
     "sim": "tsx scripts/sim.ts",
+    "sweep": "tsx scripts/sweep.ts",
     "stats": "tsx scripts/stats.ts"
   },
   "dependencies": {

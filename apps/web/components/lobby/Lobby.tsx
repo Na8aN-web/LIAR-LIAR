@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   INSPECT_RANGE,
+  SWAP_RANGE,
   ITEM_TYPES,
   PALETTE,
   RULE_LIMITS,
   TIMER_LIMITS,
   colorInfo,
   defaultInspects,
+  defaultSwaps,
   type ColorId,
   type GameRules,
   type PhaseTimers,
@@ -244,6 +246,21 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
             {inspectOptions.map((n) => (
               <option key={n} value={n}>
                 {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Color swaps per player</span>
+          <select
+            disabled={!editable}
+            value={String(settings.colorSwaps)}
+            onChange={(e) => update({ colorSwaps: e.target.value === 'auto' ? 'auto' : Number(e.target.value) })}
+          >
+            <option value="auto">Auto ({defaultSwaps(playerCount)})</option>
+            {Array.from({ length: SWAP_RANGE.max - SWAP_RANGE.min + 1 }, (_, i) => SWAP_RANGE.min + i).map((n) => (
+              <option key={n} value={n}>
+                {n === 0 ? 'Off' : n}
               </option>
             ))}
           </select>

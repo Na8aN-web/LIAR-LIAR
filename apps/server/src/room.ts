@@ -10,8 +10,10 @@ import {
   POSTER_MODES,
   RULE_LIMITS,
   SEAT_HOLD_MS,
+  SWAP_RANGE,
   TIMER_LIMITS,
   defaultInspects,
+  defaultSwaps,
   isColorId,
   type Ack,
   type ChatMessage,
@@ -27,7 +29,7 @@ import {
   type RoomSettings,
   type ServerToClientEvents,
 } from '@wtc/shared';
-import { BotDriver } from './bots/driver';
+import { BotDriver, type BotConfig } from './bots/driver';
 import { summarize, type GameSummary } from './game/summary';
 import * as engine from './game/engine';
 import { makeId, pick, type Rng } from './rng';
@@ -61,6 +63,7 @@ export interface RoomDeps {
   minPlayers: number;
   /** Called once per finished game with anonymous stats. */
   onGameEnd?: (summary: GameSummary) => void;
+  bots?: Partial<BotConfig>;
 }
 
 const CHAT_HISTORY = 150;
@@ -94,7 +97,7 @@ export class Room {
   private readonly bots: BotDriver;
 
   constructor(readonly code: string, private readonly deps: RoomDeps) {
-    this.bots = new BotDriver(this, deps.rng);
+    this.bots = new BotDriver(this, deps.rng, deps.bots);
   }
 
   get rng() {
@@ -267,6 +270,13 @@ export class Room {
       }
       next.inspectsPerRound = v;
     }
+    if (p.colorSwaps !== undefined) {
+      const v = p.colorSwaps;
+      if (v !== 'auto' && !(Number.isInteger(v) && v >= SWAP_RANGE.min && v <= SWAP_RANGE.max)) {
+        return fail(`Color swaps must be ${SWAP_RANGE.min}–${SWAP_RANGE.max} or auto`);
+      }
+      next.colorSwaps = v;
+    }
     if (p.posterMode !== undefined) {
       if (!POSTER_MODES.includes(p.posterMode)) return fail('Unknown poster mode');
       next.posterMode = p.posterMode;
@@ -326,6 +336,8 @@ export class Room {
         inspectLimit: inspectsPerRound === 'auto' ? defaultInspects(players.length) : inspectsPerRound,
         posterMode,
         rules: this.settings.rules,
+        // One poster per player, so 'auto' scales with lobby size.
+        swapLimit: this.settings.colorSwaps === 'auto' ? defaultSwaps(players.length) : this.settings.colorSwaps,
       },
       this.rng,
     );
@@ -339,6 +351,8 @@ export class Room {
     if (id !== this.hostId) return fail('Only the host can do that');
     if (this.phase !== 'ended') return fail('The game is still running');
     this.clearPhaseTimer();
+    // Players keep the color they ended the game with (still unique).
+    if (this.game) for (const s of this.seats.values()) s.color = this.game.colors[s.id] ?? s.color;
     this.game = null;
     this.replay = null;
     this.phase = 'lobby';
@@ -404,6 +418,37 @@ export class Room {
     if (!res.ok) return res;
     this.sendToIds(id);
     return { ok: true };
+  }
+
+  // ---------------------------------------------------------------- color swaps (private: only the swapper gets updates)
+
+  private swapWindow(seat: Seat | undefined): string | null {
+    if (!seat) return 'Not in room';
+    if (!this.game || this.phase !== 'payout') return 'You can only change color between posters, during the payout';
+    if (!engine.hasNextPoster(this.game)) return 'No more posters, so no more color changes';
+    if (!seat.isBot && !seat.connected) return 'Reconnect to change color';
+    return null;
+  }
+
+  /** The server picks a random free color. Only the swapper is told. */
+  swapColor(id: PlayerId): Ack<{ color: ColorId }> {
+    const seat = this.seats.get(id);
+    const err = this.swapWindow(seat);
+    if (err) return fail(err);
+    const res = engine.swapColor(this.game!, id, this.rng);
+    if (!res.ok) return res;
+    this.sendTo(seat!);
+    return { ok: true, color: res.color };
+  }
+
+  undoSwap(id: PlayerId): Ack<{ color: ColorId }> {
+    const seat = this.seats.get(id);
+    const err = this.swapWindow(seat);
+    if (err) return fail(err);
+    const res = engine.undoSwap(this.game!, id);
+    if (!res.ok) return res;
+    this.sendTo(seat!);
+    return { ok: true, color: res.color };
   }
 
   /** End the vote early once everyone who can act has voted. */
@@ -523,7 +568,13 @@ export class Room {
       devMode: this.deps.devMode,
       minPlayers: this.deps.minPlayers,
       maxPlayers: MAX_PLAYERS,
-      you: { id: seat.id, name: seat.name, color: seat.color, item: seat.item, isHost: seat.id === this.hostId },
+      you: {
+        id: seat.id,
+        name: seat.name,
+        color: this.game?.colors[seat.id] ?? seat.color,
+        item: seat.item,
+        isHost: seat.id === this.hostId,
+      },
       players,
       settings: this.settings,
       phase: this.phase,

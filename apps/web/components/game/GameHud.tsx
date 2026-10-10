@@ -27,6 +27,8 @@ export function GameHud() {
   const toast = useGame((s) => s.showToast);
   const [showPoster, setShowPoster] = useState(false);
   const poster = colorInfo(game.posterColor);
+  const changed = game.colorChanges[game.posterIndex] ?? 0;
+  const changedText = changed ? `${changed} player${changed === 1 ? '' : 's'} changed color.` : null;
   useOfferNotices();
 
   if (view.phase === 'ended') return <Replay />;
@@ -43,6 +45,7 @@ export function GameHud() {
           <div className="phase-name">{PHASE_LABEL[view.phase]}</div>
           <div className="phase-sub">
             Poster {game.posterIndex + 1}/{game.posterCount} · Pot ${game.pot}
+            {changedText && ` · ${changed} swapped`}
           </div>
         </div>
         <div className={`timer${secs !== null && secs <= 10 ? ' urgent' : ''}`}>{secs ?? '–'}</div>
@@ -65,6 +68,7 @@ export function GameHud() {
             subtitle={
               game.youAreWanted ? "That's you. Don't get caught." : `Poster ${game.posterIndex + 1} of ${game.posterCount}`
             }
+            note={changedText}
           />
         </div>
       )}

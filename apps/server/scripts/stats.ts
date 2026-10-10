@@ -20,7 +20,7 @@ console.log(`${games.length} games in ${file} (${humanGames.length} with at leas
 const groups = new Map<string, GameSummary[]>();
 for (const g of humanGames.length ? humanGames : games) {
   const r = g.settings.rules;
-  const key = `${g.settings.posterMode}, ${g.players}p, ${g.inspectLimit} inspects, ${r.decoys} decoys, pot ${r.basePot}, escape ${r.escapeBonus}, buy ${r.buyPrice}/${r.extraInspectPrice}, cap ${r.purchaseCap}`;
+  const key = `${g.settings.posterMode}, ${g.players}p, ${g.inspectLimit} inspects, ${r.decoys} decoys, ${g.swapLimit ?? 0} swaps, pot ${r.basePot}, escape ${r.escapeBonus}, buy ${r.buyPrice}/${r.extraInspectPrice}, cap ${r.purchaseCap}`;
   groups.set(key, [...(groups.get(key) ?? []), g]);
 }
 for (const [key, gs] of groups) {

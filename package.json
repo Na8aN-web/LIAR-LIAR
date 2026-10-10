@@ -9,7 +9,10 @@
     "test": "pnpm -r test",
     "smoke": "pnpm --filter @wtc/server smoke",
     "sim": "pnpm --filter @wtc/server sim",
-    "stats": "pnpm --filter @wtc/server stats"
+    "sweep": "pnpm --filter @wtc/server sweep",
+    "stats": "pnpm --filter @wtc/server stats",
+    "playtest": "node tools/playtest.mjs",
+    "proxy": "node tools/proxy.mjs"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

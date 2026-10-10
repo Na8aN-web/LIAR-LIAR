@@ -21,28 +21,69 @@ export function newMind(rng: Rng): Mind {
   return { persona: r < 0.5 ? 'honest' : r < 0.85 ? 'sly' : 'quiet', fakeColor: null, repliesThisPoster: 0, poster: -1, lastLine: null };
 }
 
+export interface StaleEvidence {
+  colors: ColorId[];
+  /** Chance this is still true: shrinks with every round of color swaps since. */
+  reliability: number;
+}
+
 export interface Knowledge {
   me: PlayerId;
   poster: ColorId;
   others: PlayerId[];
-  /** Colors still possible per player, from own + bought results. Missing = never seen. */
+  /** Colors still possible per player from own + bought results since the last swap round. Missing = no fresh look. */
   possible: Map<PlayerId, ColorId[]>;
+  /** Older results (before the last swap round), discounted by how many players swapped since. */
+  stale: Map<PlayerId, StaleEvidence>;
   /** Players this bot knows were already Wanted (it voted right, or was Wanted itself). */
   pastWanted: Set<PlayerId>;
   everyoneOnce: boolean;
 }
 
+/**
+ * Swap rounds split the game into eras. Results only intersect within an era, because
+ * anyone might have changed color in between. The public count of swappers says how
+ * much older eras can still be trusted.
+ */
 export function know(view: PlayerView): Knowledge {
   const game = view.game!;
   const me = view.you.id;
-  const possible = new Map<PlayerId, ColorId[]>();
+  const changes = game.colorChanges;
+  const eraOf = (poster: number) => changes.slice(1, poster + 1).filter((n) => n > 0).length;
+  const currentEra = eraOf(game.posterIndex);
+  const myOwnSwapAfter = new Set(game.myColorHistory.map((h) => h.afterPoster).filter((p) => p !== null));
+
+  // Per target, per era: intersection of results.
+  const byEra = new Map<PlayerId, Map<number, ColorId[]>>();
   for (const e of game.log) {
     const r = game.myResults[e.id];
     if (!r || e.targetId === me) continue;
-    const prev = possible.get(e.targetId);
-    possible.set(e.targetId, prev ? prev.filter((c) => r.includes(c)) : r.slice());
+    const eras = byEra.get(e.targetId) ?? new Map<number, ColorId[]>();
+    const era = eraOf(e.poster);
+    const prev = eras.get(era);
+    eras.set(era, prev ? prev.filter((c) => r.includes(c)) : r.slice());
+    byEra.set(e.targetId, eras);
   }
-  // Propagate: my color and anyone's resolved color can't belong to someone else.
+
+  const possible = new Map<PlayerId, ColorId[]>();
+  const stale = new Map<PlayerId, StaleEvidence>();
+  const otherCount = view.players.filter((p) => p.id !== me).length || 1;
+  for (const [p, eras] of byEra) {
+    const fresh = eras.get(currentEra);
+    if (fresh) possible.set(p, fresh);
+    const older = [...eras.keys()].filter((era) => era < currentEra).sort((a, b) => b - a)[0];
+    if (older === undefined) continue;
+    // Reliability: for each swap round since that era, the chance this player wasn't among the swappers.
+    let reliability = 1;
+    for (let q = 1; q <= game.posterIndex; q++) {
+      if (!changes[q] || eraOf(q) <= older) continue;
+      const othersSwapped = changes[q] - (myOwnSwapAfter.has(q - 1) ? 1 : 0);
+      reliability *= Math.max(0, 1 - othersSwapped / otherCount);
+    }
+    stale.set(p, { colors: eras.get(older)!, reliability });
+  }
+
+  // Propagate within the current era: my color and anyone's resolved color can't belong to someone else.
   for (let pass = 0; pass < 3; pass++) {
     const resolved = new Map<ColorId, PlayerId>();
     for (const [p, cs] of possible) if (cs.length === 1) resolved.set(cs[0], p);
@@ -59,6 +100,7 @@ export function know(view: PlayerView): Knowledge {
     poster: game.posterColor,
     others: view.players.filter((p) => p.id !== me).map((p) => p.id),
     possible,
+    stale,
     pastWanted,
     everyoneOnce: view.settings.posterMode === 'everyoneOnce',
   };
@@ -73,13 +115,19 @@ const isKnownWanted = (k: Knowledge, p: PlayerId) => {
   return !!cs && cs.length === 1 && cs[0] === k.poster;
 };
 
+/** How strongly the evidence points at p being Wanted. Fresh results beat stale ones. */
+function evidence(k: Knowledge, p: PlayerId): number {
+  const cs = k.possible.get(p);
+  if (cs) return cs.includes(k.poster) ? 12 / cs.length : 0;
+  const old = k.stale.get(p);
+  if (!old) return 2; // never seen: neutral prior
+  const r = old.reliability;
+  return old.colors.includes(k.poster) ? r * (12 / old.colors.length) + (1 - r) * 2 : (1 - r) * 2;
+}
+
 /** Players still in the running, best evidence first. */
 export function suspects(k: Knowledge): PlayerId[] {
-  const score = (p: PlayerId) => {
-    const cs = k.possible.get(p);
-    if (!cs) return 1;
-    return isKnownWanted(k, p) ? 100 : 6 - cs.length;
-  };
+  const score = (p: PlayerId) => (isKnownWanted(k, p) ? 100 : evidence(k, p));
   return k.others.filter((p) => !ruledOut(k, p)).sort((a, b) => score(b) - score(a));
 }
 
@@ -107,8 +155,9 @@ export function chooseInspect(view: PlayerView, k: Knowledge, rng: Rng): PlayerI
   // Closest to resolving first: a suspect with 2 possible colors needs one more look.
   const narrowing = open.filter((p) => (k.possible.get(p)?.length ?? 0) > 1);
   if (narrowing.length && chance(rng) < 0.75) return narrowing[0];
+  // Then the strongest lead not looked at this era (suspects are sorted, so stale leads come first).
   const unseen = open.filter((p) => !k.possible.has(p));
-  if (unseen.length) return pick(unseen, rng);
+  if (unseen.length) return unseen[0];
   return pick(open.length ? open : k.others, rng);
 }
 
@@ -124,12 +173,32 @@ export function chooseVote(view: PlayerView, k: Knowledge, chat: ChatMessage[], 
   if (known) return known;
   const pool = suspects(k);
   const candidates = pool.length ? pool : k.others;
-  const weight = (p: PlayerId) => {
-    const cs = k.possible.get(p);
-    const evidence = cs ? 12 / cs.length : 2;
-    return evidence + 3 * (acc.get(p) ?? 0) + chance(rng);
-  };
+  const weight = (p: PlayerId) => evidence(k, p) + 3 * (acc.get(p) ?? 0) + chance(rng);
   return candidates.slice().sort((a, b) => weight(b) - weight(a))[0];
+}
+
+/**
+ * "Exposure" for the swap policy: distinct players who inspected me since my last
+ * color change, plus chat lines naming my current color since then.
+ */
+export function exposure(view: PlayerView, chat: ChatMessage[]): number {
+  const game = view.game!;
+  const me = view.you.id;
+  const last = game.myColorHistory[game.myColorHistory.length - 1];
+  const since = !last || last.afterPoster === null ? 0 : last.afterPoster + 1;
+  const inspectors = new Set(game.log.filter((e) => e.targetId === me && e.poster >= since).map((e) => e.inspectorId));
+  const word = new RegExp(`\\b${colorInfo(view.you.color).name.toLowerCase()}\\b`);
+  const mentions = chat.filter(
+    (m) => m.poster !== null && m.poster >= since && m.playerId !== me && word.test(m.text.toLowerCase()),
+  ).length;
+  return inspectors.size + mentions;
+}
+
+/** Swap once exposure passes the threshold, if swaps are left and this payout's swap is unused. */
+export function shouldSwap(view: PlayerView, chat: ChatMessage[], threshold: number): boolean {
+  const game = view.game!;
+  if (game.swapLockedThisPayout || game.swapsUsed >= game.swapLimit) return false;
+  return exposure(view, chat) >= threshold;
 }
 
 /** One chat line for the investigation phase, shaped by persona. Null = stay quiet. */

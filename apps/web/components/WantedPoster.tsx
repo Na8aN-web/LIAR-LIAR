@@ -4,11 +4,13 @@ interface Props {
   color?: ColorId | null;
   pot?: number;
   subtitle?: string;
+  /** Extra line under the poster, e.g. the public color-change count. */
+  note?: string | null;
   className?: string;
 }
 
 /** The parchment Wanted poster. With no color it shows "???" (menu art). */
-export function WantedPoster({ color, pot = 100, subtitle, className = '' }: Props) {
+export function WantedPoster({ color, pot = 100, subtitle, note, className = '' }: Props) {
   const info = color ? colorInfo(color) : null;
   return (
     <div className={`poster ${className}`}>
@@ -34,6 +36,7 @@ export function WantedPoster({ color, pot = 100, subtitle, className = '' }: Pro
       </div>
       <div className="poster-reward">REWARD ${pot}</div>
       {subtitle && <div className="poster-sub">{subtitle}</div>}
+      {note && <div className="poster-note">{note}</div>}
     </div>
   );
 }

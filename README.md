@@ -12,7 +12,11 @@ apps/server       Node + Socket.io. Authoritative game state, per-player views, 
   src/room.ts     Lobby, phases/timers, reconnects, builds each player's view
 apps/web          Next.js + React Three Fiber. 3D scene + HTML overlay UI
   components/scene/   Placeholder 3D (swap models here; reads the view only)
+tools/            playtest.mjs (remote playtest launcher), proxy.mjs (web + game server on one origin)
+docs/SPEC.md      The build spec (rules)
 ```
+
+Rules: [docs/SPEC.md](docs/SPEC.md).
 
 ## Run
 
@@ -30,7 +34,8 @@ Open http://localhost:3000. In dev, each browser tab is a separate player (token
 ```sh
 pnpm test        # rule tests (vitest)
 pnpm smoke       # full game over real sockets: 2 humans + 4 bots, buying, reconnect, leak checks
-pnpm sim         # bot-only balance simulation (see PLAYTEST.md), e.g. pnpm sim -- --players 12 --decoys 3
+pnpm sim         # bot-only balance simulation (see PLAYTEST.md), e.g. pnpm sim -- --players 12 --decoys 3 --swaps 2
+pnpm sweep       # grid over color swaps x decoys, prints an accuracy table
 pnpm stats       # summarise real games from apps/server/logs/games.jsonl
 pnpm typecheck
 pnpm build
@@ -46,12 +51,12 @@ pnpm build
 | `NODE_ENV=production` | | Disables bots and skip-phase |
 | `GAME_LOG` | `logs/games.jsonl` | Per-game stats (JSON lines). `off` disables |
 
-Web: `NEXT_PUBLIC_SERVER_URL` (defaults to the page's host on port 3001).
+Web: `NEXT_PUBLIC_SERVER_URL`: a URL, or `same-origin`. Unset: port 3001 on the same host when the page is on :3000 (local dev), otherwise the page's own origin (tunnel/proxy, `tools/proxy.mjs`).
 
-Playtesting: see [PLAYTEST.md](PLAYTEST.md).
+Playtesting, including the remote setup (`pnpm playtest`, Cloudflare Tunnel): see [PLAYTEST.md](PLAYTEST.md).
 
 ## Rules of the code
 
 - The server holds every secret. Clients only get `PlayerView` from `room.viewFor()`, never the raw state.
-- Color picks and votes only update the acting player's view, so others can't time who did what.
+- Color picks, color swaps and votes only update the acting player's view, so others can't time who did what. Swaps are announced only as a count at the next poster.
 - Poster order is one swappable function in `apps/server/src/game/posterOrder.ts` (host picks the mode).

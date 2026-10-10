@@ -26,7 +26,7 @@ export function LogPanel() {
     if (!res.ok) toast(res.error);
   };
 
-  let lastPoster = -1;
+  const changesBefore = (poster: number) => game.colorChanges[poster] ?? 0;
   return (
     <>
       {canBuyNow && (
@@ -35,9 +35,10 @@ export function LogPanel() {
         </p>
       )}
       <ul className="log">
-        {entries.map((e) => {
-          const header = e.poster !== lastPoster;
-          lastPoster = e.poster;
+        {entries.map((e, i) => {
+          // Newest first: after the last entry of a poster, mark any color changes that happened before it.
+          const nextPoster = entries[i + 1]?.poster ?? -1;
+          const swapsBefore = nextPoster !== e.poster && e.poster > 0 ? changesBefore(e.poster) : 0;
           const result = game.myResults[e.id];
           const bought = game.boughtEntryIds.includes(e.id);
           const offers = game.offersOut.filter((o) => o.entryId === e.id);
@@ -46,9 +47,9 @@ export function LogPanel() {
           const buyable = canBuyNow && !result && !pending && !refusedNow && e.inspectorId !== me;
           return (
             <li key={e.id} className={e.targetId === me ? 'about-me' : ''}>
-              {header && <div className="log-poster">Poster {e.poster + 1}</div>}
               <div className="log-row">
                 <span className="grow">
+                  <span className="log-poster-tag">Poster {e.poster + 1}:</span>
                   <b>{nameOf(e.inspectorId, 'You')}</b> inspected <b>{nameOf(e.targetId)}</b>
                 </span>
                 {bought && <span className="tag">bought</span>}
@@ -70,6 +71,11 @@ export function LogPanel() {
                   {result.map((c) => (
                     <ColorChip key={c} color={c} />
                   ))}
+                </div>
+              )}
+              {swapsBefore > 0 && (
+                <div className="log-swaps">
+                  ▲ {swapsBefore} player{swapsBefore === 1 ? '' : 's'} changed color before poster {e.poster + 1}. Older results may be stale.
                 </div>
               )}
             </li>

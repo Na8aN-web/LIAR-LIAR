@@ -44,14 +44,23 @@ export function Replay() {
         {tab === 'results' && (
           <ol className="scores">
             {ranked.map(({ p, score, correct }) => (
-              <li key={p.id} className={p.id === view.you.id ? 'me' : ''}>
-                <span className="grow">
-                  {replay.winners.includes(p.id) && '★ '}
-                  {p.name}
-                </span>
-                <ColorChip color={replay.colors[p.id]} />
-                <span className="muted">{correct}✓</span>
-                <span className="score">{score}</span>
+              <li key={p.id} className={`replay-player${p.id === view.you.id ? ' me' : ''}`}>
+                <div className="row">
+                  <span className="grow">
+                    {replay.winners.includes(p.id) && '★ '}
+                    {p.name}
+                  </span>
+                  <span className="muted">{correct}✓</span>
+                  <span className="score">{score}</span>
+                </div>
+                <div className="history">
+                  {(replay.colorHistory[p.id] ?? [{ color: replay.colors[p.id], afterPoster: null }]).map((h, i) => (
+                    <span key={i} className="history">
+                      {i > 0 && <span className="arrow">→ after poster {h.afterPoster! + 1}</span>}
+                      <ColorChip color={h.color} />
+                    </span>
+                  ))}
+                </div>
               </li>
             ))}
           </ol>
@@ -91,12 +100,12 @@ export function Replay() {
             {replay.log.map((e) => (
               <li key={e.id}>
                 <div>
-                  <span className="muted">P{e.poster + 1}</span> <b>{name(e.inspectorId)}</b> inspected{' '}
+                  <span className="log-poster-tag">Poster {e.poster + 1}:</span> <b>{name(e.inspectorId)}</b> inspected{' '}
                   <b>{name(e.targetId)}</b>
                 </div>
                 <div className="chip-row tight">
                   {e.result.map((c) => (
-                    <ColorChip key={c} color={c} strong={c === replay.colors[e.targetId]} dim={c !== replay.colors[e.targetId]} />
+                    <ColorChip key={c} color={c} strong={c === e.real} dim={c !== e.real} />
                   ))}
                 </div>
               </li>

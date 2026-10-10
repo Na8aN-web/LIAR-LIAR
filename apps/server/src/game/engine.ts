@@ -1,5 +1,7 @@
 import {
+  COLOR_IDS,
   DEFAULT_RULES,
+  type ColorChange,
   type ColorId,
   type GameRules,
   type GameView,
@@ -21,9 +23,23 @@ export interface GameState {
   rules: GameRules;
   posterMode: PosterMode;
   playerIds: PlayerId[];
+  /** Current colors. Change only through swapColor, during payouts. */
   colors: Record<PlayerId, ColorId>;
+  colorHistory: Record<PlayerId, ColorChange[]>;
   /** Wanted player per poster. */
   order: PlayerId[];
+  /** Poster color per poster, fixed when that poster starts (after swaps). */
+  posterColors: ColorId[];
+  swapLimit: number;
+  swapsUsed: Record<PlayerId, number>;
+  /** Players who swapped this payout -> their color before it (for undo and the public count). */
+  swapUndo: Record<PlayerId, ColorId>;
+  /** Players who used this payout's one swap action. Cleared each poster. */
+  swapLocked: Record<PlayerId, true>;
+  /** Public count of players who changed color before each poster. */
+  colorChanges: number[];
+  /** Target's real color at the time of each inspect, by log entry id. Server-only. */
+  realAt: Record<string, ColorId>;
   /** Real pot per poster. Extra-inspect money lands here. */
   pots: number[];
   /** Pot shown on the current poster, frozen at poster start so a mid-round
@@ -58,6 +74,8 @@ export interface GameOptions {
   inspectLimit: number;
   posterMode: PosterMode;
   rules?: GameRules;
+  /** Color swaps per player per game. Default 0. */
+  swapLimit?: number;
 }
 
 const perPlayer = <T>(ids: PlayerId[], value: () => T): Record<PlayerId, T> =>
@@ -71,12 +89,21 @@ export function createGame(
   const ids = players.map((p) => p.id);
   const order = posterOrders[opts.posterMode](ids, rng);
   const rules = { ...(opts.rules ?? DEFAULT_RULES) };
+  const colors = Object.fromEntries(players.map((p) => [p.id, p.color]));
   return {
     rules,
     posterMode: opts.posterMode,
     playerIds: ids,
-    colors: Object.fromEntries(players.map((p) => [p.id, p.color])),
+    colors,
+    colorHistory: Object.fromEntries(players.map((p) => [p.id, [{ color: p.color, afterPoster: null }]])),
     order,
+    posterColors: [colors[order[0]]],
+    swapLimit: opts.swapLimit ?? 0,
+    swapsUsed: perPlayer(ids, () => 0),
+    swapUndo: {},
+    swapLocked: {},
+    colorChanges: [0],
+    realAt: {},
     pots: order.map(() => rules.basePot),
     shownPot: rules.basePot,
     posterIndex: 0,
@@ -99,7 +126,7 @@ export function createGame(
 }
 
 export const wantedId = (s: GameState) => s.order[s.posterIndex];
-export const posterColor = (s: GameState) => s.colors[wantedId(s)];
+export const posterColor = (s: GameState) => s.posterColors[s.posterIndex];
 export const hasNextPoster = (s: GameState) => s.posterIndex + 1 < s.order.length;
 const isPlayer = (s: GameState, id: PlayerId) => s.colors[id] !== undefined;
 
@@ -219,7 +246,57 @@ export function inspect(
   s.inspectsUsed[inspectorId] += 1;
   s.log.push(entry);
   s.results[entry.id] = result;
+  s.realAt[entry.id] = s.colors[targetId];
   return { ok: true, entry, result };
+}
+
+// ------------------------------------------------------------------ color swaps
+// A player may change their own color up to swapLimit times per game, only
+// between posters (the Room allows it during payouts). Colors stay unique.
+
+/** Palette colors no player holds right now. */
+export function freeColors(s: GameState): ColorId[] {
+  const held = new Set(Object.values(s.colors));
+  return COLOR_IDS.filter((c) => !held.has(c));
+}
+
+export function swapsLeft(s: GameState, id: PlayerId): number {
+  return s.swapLimit - (s.swapsUsed[id] ?? 0);
+}
+
+/**
+ * Change a player's color to a random free one, chosen by the server. Players
+ * never see the list of free colors: knowing which colors left the free pool
+ * would reveal who swapped. One swap action per player per payout.
+ */
+export function swapColor(s: GameState, id: PlayerId, rng: Rng): Result<{ color: ColorId }> {
+  if (!isPlayer(s, id)) return { ok: false, error: 'Unknown player' };
+  if (s.swapLimit <= 0) return { ok: false, error: 'Color swaps are off in this game' };
+  if (s.swapLocked[id]) return { ok: false, error: 'You already changed color this payout' };
+  if (swapsLeft(s, id) <= 0) return { ok: false, error: 'No color swaps left' };
+  const free = freeColors(s);
+  if (!free.length) return { ok: false, error: 'No free colors right now' };
+  const color = free[rng.int(free.length)];
+  s.swapUndo[id] = s.colors[id];
+  s.swapLocked[id] = true;
+  s.swapsUsed[id] += 1;
+  s.colors[id] = color;
+  return { ok: true, color };
+}
+
+/**
+ * Undo this payout's swap: back to the pre-payout color and the swap is refunded.
+ * Only works while that color is still free. No new swap this payout after an undo,
+ * so swap/undo can't be repeated to sample the free colors.
+ */
+export function undoSwap(s: GameState, id: PlayerId): Result<{ color: ColorId }> {
+  const color = s.swapUndo[id];
+  if (!color) return { ok: false, error: 'Nothing to undo' };
+  if (!freeColors(s).includes(color)) return { ok: false, error: "Can't undo: your old color is no longer free" };
+  s.colors[id] = color;
+  delete s.swapUndo[id];
+  s.swapsUsed[id] -= 1;
+  return { ok: true, color };
 }
 
 export function castVote(s: GameState, voterId: PlayerId, targetId: PlayerId): Result {
@@ -254,7 +331,7 @@ export function resolvePoster(s: GameState): ReplayPoster {
   const record: ReplayPoster = {
     poster: i,
     wantedId: wanted,
-    color: s.colors[wanted],
+    color: posterColor(s),
     pot,
     votes: Object.fromEntries(s.playerIds.map((p) => [p, s.votes[p] ?? null])),
     correctIds,
@@ -284,8 +361,15 @@ export function resolvePoster(s: GameState): ReplayPoster {
   return record;
 }
 
+/** Applies this payout's swaps, then starts the next poster with the Wanted player's current color. */
 export function advancePoster(s: GameState): void {
+  const swapped = Object.keys(s.swapUndo);
+  for (const p of swapped) s.colorHistory[p].push({ color: s.colors[p], afterPoster: s.posterIndex });
+  s.swapUndo = {};
+  s.swapLocked = {};
   s.posterIndex += 1;
+  s.colorChanges[s.posterIndex] = swapped.length;
+  s.posterColors[s.posterIndex] = s.colors[s.order[s.posterIndex]];
   s.shownPot = s.pots[s.posterIndex];
   s.inspectsUsed = perPlayer(s.playerIds, () => 0);
   s.extraInspects = perPlayer(s.playerIds, () => 0);
@@ -310,8 +394,9 @@ export function winners(s: GameState): PlayerId[] {
 export function buildReplay(s: GameState): ReplayView {
   return {
     colors: { ...s.colors },
+    colorHistory: structuredClone(s.colorHistory),
     posters: s.history.slice(),
-    log: s.log.map((e) => ({ ...e, result: s.results[e.id] })),
+    log: s.log.map((e) => ({ ...e, result: s.results[e.id], real: s.realAt[e.id] })),
     finalScores: { ...s.scores },
     correctVotes: { ...s.correctVotes },
     winners: winners(s),
@@ -338,6 +423,12 @@ export function gameViewFor(s: GameState, me: PlayerId): GameView {
     boughtEntryIds: bought.slice(),
     offersOut: s.offers.filter((o) => o.buyerId === me),
     offersIn: s.offers.filter((o) => o.sellerId === me),
+    colorChanges: s.colorChanges.slice(),
+    swapLimit: s.swapLimit,
+    swapsUsed: s.swapsUsed[me] ?? 0,
+    swapUndoColor: s.swapUndo[me] ?? null,
+    swapLockedThisPayout: !!s.swapLocked[me],
+    myColorHistory: structuredClone(s.colorHistory[me] ?? []),
     myVote: s.votes[me] ?? null,
     scores: s.publicScores,
     scoreDeltas: s.scoreDeltas,

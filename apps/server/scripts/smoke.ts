@@ -34,10 +34,12 @@ async function main() {
     new Promise<T>((resolve) => (s.emit as any)(ev, ...args, resolve));
 
   const views: Record<string, PlayerView> = {};
+  let bViewCount = 0;
   const track = (s: C, label: string) =>
     s.on('view', (v) => {
       checkView(v, label);
       views[label] = v;
+      if (label === 'B') bViewCount++;
     });
 
   const a = connect();
@@ -56,7 +58,7 @@ async function main() {
   assert(!notHost.ok, 'non-host cannot start');
 
   const colors: any = await call(b, 'lobby:colors');
-  assert(colors.ok && colors.available.length === 15 - 6 + 1, `available colors ${colors.available?.length}`);
+  assert(colors.ok && colors.available.length === 20 - 6 + 1, `available colors ${colors.available?.length}`);
   assert(((await call(b, 'lobby:setLook', { color: views.A.you.color })) as any).ok === false, 'cannot take a taken color');
 
   assert(((await call(a, 'game:start')) as any).ok, 'start');
@@ -67,13 +69,14 @@ async function main() {
 
   let reconnected = false;
   let bought = false;
+  let swapped = false;
   let expectedRefund: { offerId: string; score: number } | null = null;
   for (let guard = 0; guard < 200 && views.A.phase !== 'ended'; guard++) {
     const v = views.A;
     if (v.phase === 'investigation') {
       const target = v.players.find((p) => p.id !== v.you.id)!;
       const r: any = await call(a, 'game:inspect', { targetId: target.id });
-      assert(r.ok && r.result.length === 3, 'inspect');
+      assert(r.ok && r.result.length === v.settings.rules.decoys + 1, 'inspect: real color + decoys');
       assert(!r.result.includes(v.you.color), 'inspector color in result');
       const self: any = await call(a, 'game:inspect', { targetId: v.you.id });
       assert(!self.ok, 'self inspect blocked');
@@ -136,6 +139,19 @@ async function main() {
       assert(((await call(a, 'game:vote', { targetId: target.id })) as any).ok, 'vote');
       assert(!((await call(a, 'game:vote', { targetId: target.id })) as any).ok, 'double vote blocked');
     }
+    if (v.phase === 'payout' && v.game!.posterIndex === 0 && !swapped) {
+      const bViewsBefore = bViewCount;
+      const sw: any = await call(a, 'swap:color');
+      assert(sw.ok, `swap: ${sw.error}`);
+      assert(!('available' in sw), 'no free-color list in the reply');
+      await sleep(80);
+      assert(views.A.you.color === sw.color, 'swapper sees the assigned color');
+      assert(bViewCount === bViewsBefore, 'other players get no update when someone swaps');
+      swapped = true;
+    }
+    if (v.phase === 'poster' && swapped && v.game!.posterIndex === 1) {
+      assert((views.B.game!.colorChanges[1] ?? 0) >= 1, 'public swap count at next poster');
+    }
     assert(((await call(a, 'dev:skipPhase')) as any).ok, `skip ${v.phase}`);
     await sleep(60);
   }
@@ -144,6 +160,8 @@ async function main() {
   assert(end.phase === 'ended', 'game ended');
   assert(reconnected, 'reconnect exercised');
   assert(bought, 'buying exercised');
+  assert(swapped, 'swap exercised');
+  assert(Object.values(end.replay!.colorHistory).some((h) => h.length > 1), 'replay has color history');
   assert(end.replay!.posters.length === total, 'replay posters');
   assert(end.replay!.winners.length >= 1, 'winners');
   assert(Object.keys(end.replay!.colors).length === 6, 'replay colors');

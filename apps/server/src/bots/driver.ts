@@ -8,11 +8,21 @@ import * as brain from './brain';
  * from their own PlayerView (see brain.ts). Timing scales with phase length,
  * so they also work in fast headless simulations.
  */
+export interface BotConfig {
+  /** Swap color once exposure (distinct inspectors + chat mentions of my color) reaches this. */
+  swapThreshold: number;
+}
+
+export const DEFAULT_BOT_CONFIG: BotConfig = { swapThreshold: 4 };
+
 export class BotDriver {
   private timers: NodeJS.Timeout[] = [];
   private minds = new Map<PlayerId, brain.Mind>();
+  private readonly config: BotConfig;
 
-  constructor(private readonly room: Room, private readonly rng: Rng) {}
+  constructor(private readonly room: Room, private readonly rng: Rng, config: Partial<BotConfig> = {}) {
+    this.config = { ...DEFAULT_BOT_CONFIG, ...config };
+  }
 
   clear() {
     for (const t of this.timers) clearTimeout(t);
@@ -70,6 +80,8 @@ export class BotDriver {
         for (let k = 0; k < talks; k++) at(0.35 + 0.3 * k, 0.6 + 0.3 * k, () => this.chat(bot));
         if (mind.persona !== 'quiet' || chance(this.rng) < 0.4) at(0.3, 0.7, () => this.buyInfo(bot));
         at(0.75, 0.85, () => this.maybeBuyExtraInspect(bot));
+      } else if (phase === 'payout') {
+        at(0.1, 0.6, () => this.maybeSwap(bot));
       } else if (phase === 'vote') {
         if (chance(this.rng) < 0.03) continue; // occasionally miss the vote, like people do
         at(0.1, 0.6, () => this.vote(bot));
@@ -142,6 +154,12 @@ export class BotDriver {
     const k = brain.know(view);
     const close = brain.suspects(k).some((p) => k.possible.get(p)?.length === 2);
     if (close && this.room.buyExtraInspect(bot.id).ok) this.inspect(bot);
+  }
+
+  private maybeSwap(bot: Seat) {
+    const view = this.view(bot);
+    if (!view || !brain.shouldSwap(view, this.room.chat, this.config.swapThreshold)) return;
+    this.room.swapColor(bot.id);
   }
 
   private vote(bot: Seat) {

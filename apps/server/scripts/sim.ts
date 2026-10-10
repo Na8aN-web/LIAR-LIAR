@@ -1,14 +1,12 @@
 // Headless balance simulator: bot-only games with short timers, run in parallel.
-//   pnpm sim                      10 players, 30 games per poster mode
-//   pnpm sim -- --players 15 --games 50 --mode randomRepeats --inspects 2 --decoys 3 --cap 0
+//   pnpm sim                      10 players, 30 games per poster mode, default settings (swaps auto)
+//   pnpm sim -- --players 15 --games 50 --mode randomRepeats --inspects 2 --decoys 3 --cap 0 --swaps 2 --threshold 4
 // Bots only use their own view, so this measures the rules, not bot cheating.
-import { DEFAULT_SETTINGS, POSTER_MODES, type PosterMode, type RoomSettings } from '@wtc/shared';
-import type { GameSummary } from '../src/game/summary';
-import { secureRng } from '../src/rng';
-import { Room } from '../src/room';
+// For a grid of settings, see sweep.ts.
+import { DEFAULT_SETTINGS, POSTER_MODES, type PosterMode } from '@wtc/shared';
+import { DEFAULT_BOT_CONFIG } from '../src/bots/driver';
 import { report } from './report';
-
-const NAMES = ['Hank', 'Dolly', 'Clem', 'Ezra', 'Mae', 'Silas', 'Ruby', 'Jeb', 'Pearl', 'Wyatt', 'Etta', 'Boone', 'Nell', 'Cody', 'June'];
+import { runMany, type SimOptions } from './simlib';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -18,47 +16,23 @@ const players = Number(arg('players', '10'));
 const games = Number(arg('games', '30'));
 const modeArg = arg('mode', 'both');
 const modes: PosterMode[] = modeArg === 'both' ? POSTER_MODES : [modeArg as PosterMode];
-const inspects = arg('inspects', 'auto');
-const rules = {
-  ...DEFAULT_SETTINGS.rules,
-  decoys: Number(arg('decoys', String(DEFAULT_SETTINGS.rules.decoys))),
-  purchaseCap: Number(arg('cap', String(DEFAULT_SETTINGS.rules.purchaseCap))),
+const inspectsArg = arg('inspects', 'auto');
+const base: Omit<SimOptions, 'posterMode'> = {
+  players,
+  inspects: inspectsArg === 'auto' ? 'auto' : Number(inspectsArg),
+  colorSwaps: ((v) => (v === 'auto' ? 'auto' : Number(v)))(arg('swaps', String(DEFAULT_SETTINGS.colorSwaps))),
+  rules: {
+    decoys: Number(arg('decoys', String(DEFAULT_SETTINGS.rules.decoys))),
+    purchaseCap: Number(arg('cap', String(DEFAULT_SETTINGS.rules.purchaseCap))),
+  },
+  bots: { swapThreshold: Number(arg('threshold', String(DEFAULT_BOT_CONFIG.swapThreshold))) },
 };
 
-// Seconds. Bots scale their timing to the phase, so short phases are fine.
-const timers = { poster: 0.05, investigation: 3, vote: 1, payout: 0.05 };
-
-function runGame(mode: PosterMode): Promise<GameSummary> {
-  return new Promise((resolve) => {
-    const room = new Room('SIM00', {
-      send: () => {},
-      rng: secureRng,
-      devMode: true,
-      minPlayers: 2,
-      onGameEnd: (s) => {
-        room.dispose();
-        resolve(s);
-      },
-    });
-    for (let i = 0; i < players; i++) room.addPlayer(NAMES[i], null, true);
-    const host = [...room.seats.values()][0];
-    room.hostId = host.id;
-    const settings: RoomSettings = {
-      ...structuredClone(DEFAULT_SETTINGS),
-      posterMode: mode,
-      timers,
-      rules,
-      inspectsPerRound: inspects === 'auto' ? 'auto' : Number(inspects),
-    };
-    room.settings = settings;
-    const res = room.start(host.id);
-    if (!res.ok) throw new Error(res.error);
-  });
-}
-
 const started = Date.now();
-console.log(`Simulating ${games} games per mode with ${players} bots, inspects ${inspects}, decoys ${rules.decoys}, purchase cap ${rules.purchaseCap}…`);
-const all = await Promise.all(modes.map(async (m) => [m, await Promise.all(Array.from({ length: games }, () => runGame(m)))] as const));
-for (const [m, r] of all) report(`${m}  (${r.length} games, ${players} players)`, r);
+console.log(
+  `Simulating ${games} games per mode with ${players} bots, inspects ${inspectsArg}, decoys ${base.rules.decoys}, ` +
+    `purchase cap ${base.rules.purchaseCap}, swaps ${base.colorSwaps}, bot swap threshold ${base.bots.swapThreshold}…`,
+);
+for (const m of modes) report(`${m}  (${games} games, ${players} players)`, await runMany(games, { ...base, posterMode: m }));
 console.log(`\ndone in ${((Date.now() - started) / 1000).toFixed(0)}s`);
 process.exit(0);

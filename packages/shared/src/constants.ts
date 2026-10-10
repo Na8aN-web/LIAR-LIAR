@@ -24,6 +24,12 @@ export const ITEM_TYPES: ItemType[] = ['poncho', 'cloak', 'bandana'];
 export const POSTER_MODES: PosterMode[] = ['everyoneOnce', 'randomRepeats'];
 
 export const INSPECT_RANGE = { min: 2, max: 5 } as const;
+export const SWAP_RANGE = { min: 0, max: 5 } as const;
+
+/** 'auto' color swaps: about 1 per 4 posters (3 at 10 players, 4 at 15). */
+export function defaultSwaps(posterCount: number): number {
+  return Math.min(SWAP_RANGE.max, Math.ceil(posterCount / 4));
+}
 
 export function defaultInspects(playerCount: number): number {
   return playerCount >= 12 ? 4 : 3;
@@ -51,7 +57,8 @@ export const DEFAULT_RULES: GameRules = {
   buyPrice: BUY_INSPECT_PRICE,
   extraInspectPrice: EXTRA_INSPECT_PRICE,
   purchaseCap: PURCHASE_CAP,
-  decoys: 2,
+  // Playtest default (spec: 2). The simulator found 3 keeps mid/late posters from being solved outright.
+  decoys: 3,
 };
 
 /** [min, max] per balance number. */
@@ -67,7 +74,9 @@ export const RULE_LIMITS: Record<keyof GameRules, [number, number]> = {
 
 export const DEFAULT_SETTINGS: RoomSettings = {
   inspectsPerRound: 'auto',
-  posterMode: 'everyoneOnce',
+  colorSwaps: 'auto',
+  // Playtest default: "everyone once" lets late posters be solved by elimination.
+  posterMode: 'randomRepeats',
   timers: DEFAULT_TIMERS,
   rules: DEFAULT_RULES,
 };

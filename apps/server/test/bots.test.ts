@@ -35,10 +35,13 @@ describe('bot knowledge', () => {
   });
 
   it('intersects repeated inspects and propagates resolved colors', () => {
-    const g = engine.createGame(players(8), { inspectLimit: 5, posterMode: 'everyoneOnce' }, secureRng);
-    // Inspect p1 until resolved.
-    for (let i = 0; i < 5; i++) engine.inspect(g, 'p0', 'p1', secureRng);
-    const k = brain.know(viewOf(g, 'p0'));
+    const g = engine.createGame(players(8), { inspectLimit: 20, posterMode: 'everyoneOnce' }, secureRng);
+    // Inspect p1 until resolved (random decoys, so this takes a few looks).
+    let k = brain.know(viewOf(g, 'p0'));
+    for (let i = 0; i < 20 && k.possible.get('p1')?.length !== 1; i++) {
+      engine.inspect(g, 'p0', 'p1', secureRng);
+      k = brain.know(viewOf(g, 'p0'));
+    }
     expect(k.possible.get('p1')).toEqual([g.colors.p1]);
   });
 
@@ -56,6 +59,27 @@ describe('bot knowledge', () => {
     const k = brain.know(viewOf(g, voter));
     expect(k.pastWanted.has(wanted)).toBe(true);
     expect(brain.suspects(k)).not.toContain(wanted);
+  });
+
+  it('treats results from before a swap round as stale, discounted by the public count', () => {
+    const g = engine.createGame(players(6), { inspectLimit: 3, posterMode: 'everyoneOnce', swapLimit: 2 }, secureRng);
+    engine.inspect(g, 'p0', 'p1', secureRng);
+    engine.resolvePoster(g);
+    expect(engine.swapColor(g, 'p2', secureRng).ok).toBe(true);
+    engine.advancePoster(g);
+    expect(g.colorChanges[1]).toBe(1);
+    const k = brain.know(viewOf(g, 'p0'));
+    expect(k.possible.has('p1')).toBe(false);
+    expect(k.stale.get('p1')?.reliability).toBeCloseTo(1 - 1 / 5);
+  });
+
+  it('swap policy fires once exposure reaches the threshold', () => {
+    const g = engine.createGame(players(6), { inspectLimit: 3, posterMode: 'everyoneOnce', swapLimit: 1 }, secureRng);
+    for (const p of ['p1', 'p2', 'p3']) engine.inspect(g, p, 'p0', secureRng);
+    const v = viewOf(g, 'p0');
+    expect(brain.exposure(v, [])).toBe(3);
+    expect(brain.shouldSwap(v, [], 3)).toBe(true);
+    expect(brain.shouldSwap(v, [], 4)).toBe(false);
   });
 
   it('counts accusations from chat, ignoring denials and the bot itself', () => {
