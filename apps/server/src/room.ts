@@ -441,15 +441,6 @@ export class Room {
     return { ok: true, color: res.color };
   }
 
-  undoSwap(id: PlayerId): Ack<{ color: ColorId }> {
-    const seat = this.seats.get(id);
-    const err = this.swapWindow(seat);
-    if (err) return fail(err);
-    const res = engine.undoSwap(this.game!, id);
-    if (!res.ok) return res;
-    this.sendTo(seat!);
-    return { ok: true, color: res.color };
-  }
 
   /** End the vote early once everyone who can act has voted. */
   private checkVotesDone() {

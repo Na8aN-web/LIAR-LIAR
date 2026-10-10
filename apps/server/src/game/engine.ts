@@ -32,10 +32,8 @@ export interface GameState {
   posterColors: ColorId[];
   swapLimit: number;
   swapsUsed: Record<PlayerId, number>;
-  /** Players who swapped this payout -> their color before it (for undo and the public count). */
-  swapUndo: Record<PlayerId, ColorId>;
-  /** Players who used this payout's one swap action. Cleared each poster. */
-  swapLocked: Record<PlayerId, true>;
+  /** Players who changed color this payout (one each, final). Gives the public count. Cleared each poster. */
+  swappedThisPayout: Record<PlayerId, true>;
   /** Public count of players who changed color before each poster. */
   colorChanges: number[];
   /** Target's real color at the time of each inspect, by log entry id. Server-only. */
@@ -100,8 +98,7 @@ export function createGame(
     posterColors: [colors[order[0]]],
     swapLimit: opts.swapLimit ?? 0,
     swapsUsed: perPlayer(ids, () => 0),
-    swapUndo: {},
-    swapLocked: {},
+    swappedThisPayout: {},
     colorChanges: [0],
     realAt: {},
     pots: order.map(() => rules.basePot),
@@ -267,35 +264,19 @@ export function swapsLeft(s: GameState, id: PlayerId): number {
 /**
  * Change a player's color to a random free one, chosen by the server. Players
  * never see the list of free colors: knowing which colors left the free pool
- * would reveal who swapped. One swap action per player per payout.
+ * would reveal who swapped. One swap per player per payout, and it's final.
  */
 export function swapColor(s: GameState, id: PlayerId, rng: Rng): Result<{ color: ColorId }> {
   if (!isPlayer(s, id)) return { ok: false, error: 'Unknown player' };
   if (s.swapLimit <= 0) return { ok: false, error: 'Color swaps are off in this game' };
-  if (s.swapLocked[id]) return { ok: false, error: 'You already changed color this payout' };
+  if (s.swappedThisPayout[id]) return { ok: false, error: 'You already changed color this payout' };
   if (swapsLeft(s, id) <= 0) return { ok: false, error: 'No color swaps left' };
   const free = freeColors(s);
   if (!free.length) return { ok: false, error: 'No free colors right now' };
   const color = free[rng.int(free.length)];
-  s.swapUndo[id] = s.colors[id];
-  s.swapLocked[id] = true;
+  s.swappedThisPayout[id] = true;
   s.swapsUsed[id] += 1;
   s.colors[id] = color;
-  return { ok: true, color };
-}
-
-/**
- * Undo this payout's swap: back to the pre-payout color and the swap is refunded.
- * Only works while that color is still free. No new swap this payout after an undo,
- * so swap/undo can't be repeated to sample the free colors.
- */
-export function undoSwap(s: GameState, id: PlayerId): Result<{ color: ColorId }> {
-  const color = s.swapUndo[id];
-  if (!color) return { ok: false, error: 'Nothing to undo' };
-  if (!freeColors(s).includes(color)) return { ok: false, error: "Can't undo: your old color is no longer free" };
-  s.colors[id] = color;
-  delete s.swapUndo[id];
-  s.swapsUsed[id] -= 1;
   return { ok: true, color };
 }
 
@@ -363,10 +344,9 @@ export function resolvePoster(s: GameState): ReplayPoster {
 
 /** Applies this payout's swaps, then starts the next poster with the Wanted player's current color. */
 export function advancePoster(s: GameState): void {
-  const swapped = Object.keys(s.swapUndo);
+  const swapped = Object.keys(s.swappedThisPayout);
   for (const p of swapped) s.colorHistory[p].push({ color: s.colors[p], afterPoster: s.posterIndex });
-  s.swapUndo = {};
-  s.swapLocked = {};
+  s.swappedThisPayout = {};
   s.posterIndex += 1;
   s.colorChanges[s.posterIndex] = swapped.length;
   s.posterColors[s.posterIndex] = s.colors[s.order[s.posterIndex]];
@@ -426,8 +406,7 @@ export function gameViewFor(s: GameState, me: PlayerId): GameView {
     colorChanges: s.colorChanges.slice(),
     swapLimit: s.swapLimit,
     swapsUsed: s.swapsUsed[me] ?? 0,
-    swapUndoColor: s.swapUndo[me] ?? null,
-    swapLockedThisPayout: !!s.swapLocked[me],
+    swappedThisPayout: !!s.swappedThisPayout[me],
     myColorHistory: structuredClone(s.colorHistory[me] ?? []),
     myVote: s.votes[me] ?? null,
     scores: s.publicScores,

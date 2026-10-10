@@ -49,7 +49,7 @@ A free-for-all, real-time multiplayer browser social deduction game for **6–15
 - **What to:** the server assigns a **random free color** (one in the palette that no player currently holds). Colors stay unique at all times. Requests are handled one at a time, so two swaps can never land on the same color.
 - **No free-color list is shown to anyone.** Knowing which colors left or joined the free pool would reveal who swapped (e.g. "Red is free now, so Bob changed").
 - **Who decides:** only the player themselves decides *whether* to swap. Nobody can change another player's color.
-- **One swap per payout.** A player may **undo** it during the same payout, which restores their pre-payout color and refunds the swap, but only while that color is still free. After an undo they can't swap again until the next payout, so swap/undo can't be repeated to sample the free colors.
+- **One swap per payout, and it's final.** The button asks for confirmation first ("Spend 1 of your 3 swaps?"). There is no undo: a take-back would need extra rules and could reveal that someone took your old color.
 - **Announcement:** at the start of the next poster, everyone sees a public count only, e.g. "2 players changed color." Never who. If nobody swapped, nothing is shown.
 - The swapping player sees their new color immediately, with a remaining-swaps counter.
 - **Wanted selection:** the next poster is built after swaps are applied, so the poster always shows the Wanted player's current color.
@@ -149,7 +149,7 @@ This is a deduction game. If a secret ever reaches a client, players will find i
 
 - The server is authoritative for everything: colors, the Wanted order, inspect results, purchases, votes, swaps and scores.
 - **Never broadcast the full game state.** Build a per-player view for each client.
-- Clients send intents ("inspect player X", "vote for Y", "change my color", "undo my color change") and the server validates every one: whose turn, enough inspects left, enough points, under the purchase cap, valid target, swap window, free color, swaps left.
+- Clients send intents ("inspect player X", "vote for Y", "change my color") and the server validates every one: whose turn, enough inspects left, enough points, under the purchase cap, valid target, swap window, free color, swaps left.
 - Decoys are generated on the server.
 
 | Data | Who receives it |

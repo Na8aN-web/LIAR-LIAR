@@ -129,10 +129,8 @@ export interface GameView {
   colorChanges: number[];
   swapLimit: number;
   swapsUsed: number;
-  /** Your color before this payout's swap, if you swapped this payout (lets you undo). */
-  swapUndoColor: ColorId | null;
-  /** You already used this payout's one swap action (swapped, or swapped and undid). */
-  swapLockedThisPayout: boolean;
+  /** You already changed color this payout (one per payout, final). */
+  swappedThisPayout: boolean;
   /** Private: your own color history. */
   myColorHistory: ColorChange[];
   myVote: PlayerId | null;

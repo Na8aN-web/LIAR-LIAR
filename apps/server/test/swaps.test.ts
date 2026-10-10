@@ -93,45 +93,21 @@ describe('color swaps', () => {
     expect(Object.keys(failed).sort()).toEqual(['error', 'ok']);
   });
 
-  it('allows one swap per payout; undo refunds it but no re-roll after', async () => {
+  it('allows one swap per payout, and it is final', async () => {
     const { room, ids, goTo } = await startedRoom(2);
     const p = ids[1];
     await goTo('payout');
-    const original = room.game!.colors[p];
-    expect(room.swapColor(p).ok).toBe(true);
-    expect(room.swapColor(p).ok).toBe(false); // no second swap
-    expect(room.game!.swapsUsed[p]).toBe(1);
-    const undo = room.undoSwap(p);
-    expect(undo.ok).toBe(true);
-    expect(room.game!.colors[p]).toBe(original);
-    expect(room.game!.swapsUsed[p]).toBe(0);
-    // Locked for the rest of this payout, so swap/undo can't be used to sample free colors.
+    const first = room.swapColor(p);
+    expect(first.ok).toBe(true);
     const again = room.swapColor(p);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.error).toMatch(/already changed color this payout/);
-    expect(room.undoSwap(p).ok).toBe(false);
-  });
-
-  it("can't undo back to a color someone else has taken since", async () => {
-    // Deterministic: 15 players leave exactly 5 free colors; swap others until one lands on a's old color.
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const { room, ids, goTo, unique } = await startedRoom(5, 15);
-      await goTo('payout');
-      const a = ids[1];
-      const original = room.game!.colors[a];
-      expect(room.swapColor(a).ok).toBe(true);
-      for (const id of ids.filter((x) => x !== a)) {
-        if (Object.values(room.game!.colors).includes(original)) break;
-        room.swapColor(id);
-      }
-      expect(unique()).toBe(true);
-      if (!Object.values(room.game!.colors).includes(original)) continue; // nobody landed on it; retry
-      const undo = room.undoSwap(a);
-      expect(undo.ok).toBe(false);
-      if (!undo.ok) expect(undo.error).toMatch(/no longer free/);
-      return;
-    }
-    throw new Error('never got a collision to test');
+    expect(room.game!.swapsUsed[p]).toBe(1);
+    if (first.ok) expect(room.game!.colors[p]).toBe(first.color);
+    // Next payout: allowed again.
+    await goTo('poster');
+    await goTo('payout');
+    expect(room.swapColor(p).ok).toBe(true);
   });
 
   it('enforces the per-game limit across payouts', async () => {
@@ -206,7 +182,7 @@ describe('color swaps', () => {
         expect(JSON.stringify(v)).not.toContain(`"${newColor}"`);
         if (v.game) {
           expect(v.game.myColorHistory).toEqual([{ color: room.game!.colorHistory[id][0].color, afterPoster: null }]);
-          expect(v.game.swapUndoColor).toBeNull();
+          expect(v.game.swappedThisPayout).toBe(false);
           expect(v.game.swapsUsed).toBe(0);
         }
       }

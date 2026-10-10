@@ -46,11 +46,15 @@ describe('bot knowledge', () => {
   });
 
   it('votes for a resolved Wanted player and rules out past Wanted in everyoneOnce mode', () => {
-    const g = engine.createGame(players(6), { inspectLimit: 6, posterMode: 'everyoneOnce' }, secureRng);
+    const g = engine.createGame(players(6), { inspectLimit: 40, posterMode: 'everyoneOnce' }, secureRng);
     const wanted = engine.wantedId(g);
     const voter = g.playerIds.find((p) => p !== wanted)!;
-    for (let i = 0; i < 6; i++) engine.inspect(g, voter, wanted, secureRng);
-    const v = viewOf(g, voter);
+    // Inspect until the color resolves (decoys are random, so the number of looks varies).
+    let v = viewOf(g, voter);
+    for (let i = 0; i < 40 && brain.know(v).possible.get(wanted)?.length !== 1; i++) {
+      engine.inspect(g, voter, wanted, secureRng);
+      v = viewOf(g, voter);
+    }
     expect(brain.chooseVote(v, brain.know(v), [], secureRng)).toBe(wanted);
 
     engine.castVote(g, voter, wanted);

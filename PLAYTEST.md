@@ -96,7 +96,7 @@ The bot simulator (`pnpm sim`, `pnpm sweep`) makes predictions worth checking wi
    40% / 55% / 65% early / mid / late at 10 players, but still ~93% late at 15 players. Does it feel like
    knowledge builds up without being certain? Is the 15-player late game too easy?
 3. **Random color assignment.** Swapping gives you a random free color. Does that feel fair, or do people
-   want to choose? Does anyone use Undo?
+   want to choose? Does anyone regret a swap?
 4. **The scoreboard leaks.** A lone +50 means that player escaped as Wanted, and −20/+20/−50 jumps show buying or selling.
 5. **20 colors on phones.** Which ones blur together at night?
 

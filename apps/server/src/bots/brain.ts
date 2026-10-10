@@ -197,7 +197,7 @@ export function exposure(view: PlayerView, chat: ChatMessage[]): number {
 /** Swap once exposure passes the threshold, if swaps are left and this payout's swap is unused. */
 export function shouldSwap(view: PlayerView, chat: ChatMessage[], threshold: number): boolean {
   const game = view.game!;
-  if (game.swapLockedThisPayout || game.swapsUsed >= game.swapLimit) return false;
+  if (game.swappedThisPayout || game.swapsUsed >= game.swapLimit) return false;
   return exposure(view, chat) >= threshold;
 }
 

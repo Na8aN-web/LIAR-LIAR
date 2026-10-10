@@ -29,10 +29,8 @@ export interface ClientToServerEvents {
   'buy:offer': (p: { entryId: string }, ack: AckFn<{ offerId: string }>) => void;
   'buy:respond': (p: { offerId: string; accept: boolean }, ack: AckFn) => void;
   'buy:extraInspect': (ack: AckFn) => void;
-  /** Payout phase only. The server assigns a random free color (no free-color list is ever sent). One per payout. */
+  /** Payout phase only. The server assigns a random free color (no free-color list is ever sent). One per payout, final. */
   'swap:color': (ack: AckFn<{ color: ColorId }>) => void;
-  /** Payout phase only. Back to your pre-payout color, if it's still free. Refunds the swap. */
-  'swap:undo': (ack: AckFn<{ color: ColorId }>) => void;
   'game:backToLobby': (ack: AckFn) => void;
 
   'chat:send': (p: { text: string }, ack: AckFn) => void;

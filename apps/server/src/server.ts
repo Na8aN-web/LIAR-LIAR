@@ -169,7 +169,6 @@ export function createGameServer(opts: GameServerOptions) {
     ));
     socket.on('buy:extraInspect', handle((ack) => withSeat(ack, ({ room, seat }) => room.buyExtraInspect(seat.id))));
     socket.on('swap:color', handle((ack) => withSeat(ack, ({ room, seat }) => room.swapColor(seat.id))));
-    socket.on('swap:undo', handle((ack) => withSeat(ack, ({ room, seat }) => room.undoSwap(seat.id))));
     socket.on('game:backToLobby', handle((ack) => withSeat(ack, ({ room, seat }) => room.backToLobby(seat.id))));
     socket.on('chat:send', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.sendChat(seat.id, p?.text))));
     socket.on('dev:skipPhase', handle((ack) => withSeat(ack, ({ room, seat }) => room.skipPhase(seat.id))));
