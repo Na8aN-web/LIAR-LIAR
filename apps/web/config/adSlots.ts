@@ -7,7 +7,8 @@
 // on the ground, +x to the right as seen from the square, +y up, +z out toward the square.
 // Facades sit behind the porch, at about z = -2.2 (store), -2.1 (saloon) and -1.5 (barn).
 // Lots are named in components/scene/town/layout.ts (LOTS). The sheriff's office and its
-// neighbours (store, saloon) are kept free: the Wanted poster hangs there.
+// neighbours (store, saloon) are kept free of sponsors: the Wanted poster hangs there. The one
+// exception is the house slot (`reserved`): 3042Official's own poster, which is never sold.
 
 export type AdAspect = '2:1' | '16:9' | '2:3';
 
@@ -21,7 +22,9 @@ export type AdKind =
   /** Framed board on posts above a roof. */
   | 'rooftop'
   /** Poster board on the porch, next to a door, at eye level. */
-  | 'door';
+  | 'door'
+  /** Freestanding board on two posts in the street. */
+  | 'standing';
 
 export interface AdSlot {
   id: string;
@@ -36,9 +39,33 @@ export interface AdSlot {
   image: string;
   /** Who's advertising, for alt text and reporting. */
   advertiser: string;
+  /** Turn about the vertical, radians (lot frame), e.g. to face the default camera. */
+  rotationY?: number;
+  /**
+   * Reserved for the house: never sold, never replaced by sponsor ads. Drawn in code (the art
+   * in `image` plus this copy) rather than shown as a finished image.
+   */
+  reserved?: true;
+  house?: { title: string; line: string; handle: string };
 }
 
 export const AD_SLOTS: AdSlot[] = [
+  // RESERVED: 3042Official's own poster. Permanent; never sold or replaced by sponsor ads.
+  // Freestanding in the alley between the saloon and the sheriff's office: right where the default
+  // camera looks, on desktop and phones, without covering the Wanted poster.
+  {
+    id: 'house-3042',
+    kind: 'standing',
+    lot: 'saloon',
+    position: [-7.2, 2.85, 2.6],
+    size: [2.8, 4.2],
+    aspect: '2:3',
+    image: '/branding/crew-print.webp',
+    advertiser: '3042Official (house, reserved)',
+    rotationY: 0.3,
+    reserved: true,
+    house: { title: '3042 GANG', line: 'Ride with us', handle: '@3042official' },
+  },
   // Rooftop billboards
   {
     id: 'roof-hotel',
@@ -115,6 +142,9 @@ export const AD_SLOTS: AdSlot[] = [
 ];
 
 /** Slots whose size doesn't match their aspect ratio (checked in dev). */
+/** Slots that can be sold to sponsors (everything not reserved for the house). */
+export const SPONSOR_SLOTS = (slots = AD_SLOTS) => slots.filter((s) => !s.reserved);
+
 export function badAdSlots(slots = AD_SLOTS): string[] {
   return slots.filter((s) => Math.abs(s.size[0] / s.size[1] / AD_ASPECTS[s.aspect] - 1) > 0.02).map((s) => s.id);
 }

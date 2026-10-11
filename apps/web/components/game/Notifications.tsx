@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { call } from '@/lib/socket';
-import { playSound, type SoundKind } from '@/lib/sound';
+import { playSfx, type Sfx } from '@/lib/audio/sfx';
 import { useGame, usePlayerName } from '@/lib/store';
 
 // Slide-down notifications. Only three things ever pop up:
@@ -10,9 +10,15 @@ import { useGame, usePlayerName } from '@/lib/store';
 //   2. players inspected you (batched over a few seconds)
 //   3. a new poster starts (pot, and how many players changed color)
 
+type NoteKind = 'offer' | 'inspected' | 'poster';
+
+/** Each telegram has its own sound: telegraph + bell for an offer, a crow when someone
+ *  searched you, paper slapped on a post for a new poster. */
+const SOUND: Record<NoteKind, Sfx> = { offer: 'offer', inspected: 'crow', poster: 'poster' };
+
 interface Note {
   id: string;
-  kind: SoundKind;
+  kind: NoteKind;
   title: string;
   body?: string;
   offerId?: string;
@@ -35,7 +41,7 @@ export function Notifications() {
 
   const push = (n: Note) => {
     setNotes((all) => [...all.filter((x) => x.id !== n.id), n]);
-    playSound(n.kind);
+    playSfx(SOUND[n.kind]);
   };
   const dismiss = (id: string) => setNotes((all) => all.filter((n) => n.id !== id));
 

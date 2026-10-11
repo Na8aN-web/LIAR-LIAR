@@ -1,16 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { AdditiveBlending, CanvasTexture, DoubleSide, RepeatWrapping, SRGBColorSpace, type Group, type Object3D } from 'three';
-import { useTexture } from '@react-three/drei';
+import { AdditiveBlending, CanvasTexture, DoubleSide, SRGBColorSpace, type Group, type Object3D } from 'three';
 import type { ColorId } from '@wtc/shared';
 import { useCanvasFonts } from '@/lib/canvasFonts';
 import { AD_SLOTS, badAdSlots } from '@/config/adSlots';
 import anchors from '../sceneryAnchors.json';
 import { AdBoard } from './AdBoard';
+import { BrandBoard } from './BrandBoard';
 import { Campfire } from './Campfire';
 import { WARM, glowTexture } from './glow';
 import { BUILDING_SCALE, SIGN_SPOTS, along, facing, placeLots, polar, ringRadius, type PlacedLot } from './layout';
+import { Ground } from './Ground';
 import { EmptyPosterSpot, PosterPanel } from './PosterPanel';
 import { PropInstances, type Placement } from './PropInstances';
 import { useScenery, type Scenery } from './useScenery';
@@ -160,7 +161,7 @@ export interface Seat {
 }
 
 /** Prop sizes (from the scenery file) and the footprint each seat should have, metres. */
-const SEAT_FIT: Record<SeatType, { prop: string; size: [number, number, number]; footprint: [number, number] }> = {
+export const SEAT_FIT: Record<SeatType, { prop: string; size: [number, number, number]; footprint: [number, number] }> = {
   crate: { prop: 'crate', size: [1.09, 1.11, 1.09], footprint: [0.68, 0.68] },
   barrel: { prop: 'barrel', size: [1.26, 1.42, 1.23], footprint: [0.64, 0.62] },
   stump: { prop: 'stump', size: [0.96, 0.68, 1.03], footprint: [0.7, 0.74] },
@@ -168,7 +169,7 @@ const SEAT_FIT: Record<SeatType, { prop: string; size: [number, number, number];
 };
 
 /** Seats under the scarecrows, instanced per type and stretched to each seat's height. */
-function Seats({ scenery, seats }: { scenery: Scenery; seats: Seat[] }) {
+export function Seats({ scenery, seats }: { scenery: Scenery; seats: Seat[] }) {
   const byType = useMemo(() => {
     const out: Record<string, Placement[]> = {};
     for (const s of seats) {
@@ -202,12 +203,14 @@ export function Town({ circleRadius, poster, seats }: { circleRadius: number; po
   const R = ringRadius(circleRadius);
   const { lots, alleys } = useMemo(() => placeLots(R), [R]);
   const layout = useLayout(R, circleRadius, alleys, lots);
-  const ground = useTexture('/textures/ground.webp');
-  useMemo(() => {
-    ground.wrapS = ground.wrapT = RepeatWrapping;
-    ground.repeat.set(30, 30);
-    ground.colorSpace = SRGBColorSpace;
-  }, [ground]);
+  // Wheel ruts run out through three of the alleys, roughly a third of the way round from each other.
+  const rutAngles = useMemo(
+    () =>
+      [10, 130, 250].map((want) =>
+        alleys.reduce((best, a) => (Math.abs(((a - want + 540) % 360) - 180) < Math.abs(((best - want + 540) % 360) - 180) ? a : best), alleys[0]),
+      ),
+    [alleys],
+  );
 
   // Nothing in town moves except the fire, so stop three.js recomputing ~1,000 matrices a
   // frame: compute each once, then freeze. Runs after every render, so anything moved or
@@ -248,10 +251,7 @@ export function Town({ circleRadius, poster, seats }: { circleRadius: number; po
         <FakeLight key={i} position={p} size={1.7} />
       ))}
 
-      <mesh rotation-x={-Math.PI / 2} position-y={-0.01}>
-        <circleGeometry args={[R + 30, 48]} />
-        <meshStandardMaterial map={ground} color="#7a6d5e" roughness={1} />
-      </mesh>
+      <Ground radius={R + 30} circleRadius={circleRadius} rutAngles={rutAngles} rutFrom={circleRadius + 2.5} rutTo={R + 1} stones={50} tufts={80} />
 
       {lots.map((lot) => {
         const info = anchors.buildings[lot.model];
@@ -301,7 +301,7 @@ export function Town({ circleRadius, poster, seats }: { circleRadius: number; po
               // Ads are sized in metres, so they sit in the lot's unscaled frame.
               <group position={polar(lot.angle, R)} rotation-y={facing(lot.angle)}>
                 {ads.map((s) => (
-                  <AdBoard key={s.id} slot={s} />
+                  s.reserved ? <BrandBoard key={s.id} slot={s} /> : <AdBoard key={s.id} slot={s} />
                 ))}
               </group>
             )}

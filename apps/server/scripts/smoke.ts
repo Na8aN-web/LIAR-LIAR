@@ -57,9 +57,15 @@ async function main() {
   const notHost: any = await call(b, 'game:start');
   assert(!notHost.ok, 'non-host cannot start');
 
+  // Colors given out on joining are only suggestions: they don't show as taken (that would
+  // reveal each newcomer's color). A color someone picked does.
   const colors: any = await call(b, 'lobby:colors');
-  assert(colors.ok && colors.available.length === 20 - 6 + 1, `available colors ${colors.available?.length}`);
-  assert(((await call(b, 'lobby:setLook', { color: views.A.you.color })) as any).ok === false, 'cannot take a taken color');
+  assert(colors.ok && colors.available.length === 20, `suggested colors aren't reserved (${colors.available?.length})`);
+  const aPick = colors.available.find((c: string) => c !== views.B?.you.color);
+  assert(((await call(a, 'lobby:setLook', { color: aPick })) as any).ok, 'pick a color');
+  const after: any = await call(b, 'lobby:colors');
+  assert(after.ok && after.available.length === 19 && !after.available.includes(aPick), 'a picked color is taken');
+  assert(((await call(b, 'lobby:setLook', { color: aPick })) as any).ok === false, 'cannot take a picked color');
 
   assert(((await call(a, 'game:start')) as any).ok, 'start');
   await sleep(100);

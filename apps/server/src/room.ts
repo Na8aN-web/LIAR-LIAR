@@ -5,9 +5,13 @@ import {
   HOST_GRACE_MS,
   INSPECT_RANGE,
   ITEM_TYPES,
+  parseCosmetics,
+  randomCosmetics,
+  type Cosmetics,
   MAX_PLAYERS,
   NAME_MAX,
   POSTER_MODES,
+  PRACTICE,
   RULE_LIMITS,
   SEAT_HOLD_MS,
   SWAP_RANGE,
@@ -33,13 +37,25 @@ import { BotDriver, type BotConfig } from './bots/driver';
 import { summarize, type GameSummary } from './game/summary';
 import * as engine from './game/engine';
 import { makeId, pick, type Rng } from './rng';
+import { HOWTO_STATUSES, parseFeedback, type FeedbackAnswers, type HowtoStatus } from './playtest';
+import { sameToken } from './security';
 
 export interface Seat {
   id: PlayerId;
   token: string;
   name: string;
   item: ItemType;
+  /** Hat and head detail: public, purely visual. */
+  cosmetics: Cosmetics;
   color: ColorId;
+  /**
+   * The player chose this color in the lobby. Until then it's only a suggestion: it isn't
+   * reserved, so the lobby's free-color list never reveals the color a player got when they
+   * joined. Clashes are re-rolled at game start.
+   */
+  colorPicked: boolean;
+  /** Random id from the player's browser (handshake), for one seat per browser. */
+  browserId: string | null;
   seat: number;
   isBot: boolean;
   socketId: string | null;
@@ -48,6 +64,11 @@ export interface Seat {
   connectedSince: number;
   holdTimer: NodeJS.Timeout | null;
   lastChatAt: number;
+  /** Playtest stats for the current game: connection drops and returns. */
+  disconnects: number;
+  reconnects: number;
+  /** What the player did with How to Play, as their browser reports it. */
+  howto: HowtoStatus | null;
 }
 
 export type Send = <E extends keyof ServerToClientEvents>(
@@ -63,7 +84,25 @@ export interface RoomDeps {
   minPlayers: number;
   /** Called once per finished game with anonymous stats. */
   onGameEnd?: (summary: GameSummary) => void;
+  /** A practice room: one human plus bots, short game, not counted in the stats. */
+  practice?: boolean;
+  /** Created by the playtest check script: its game summary is marked `check`. */
+  check?: boolean;
   bots?: Partial<BotConfig>;
+  /** Called when the last human has left a room in the lobby: the room (and its code) can go. */
+  onEmpty?: () => void;
+  /** Tell a kicked player's connection, then drop it. */
+  kick?: (socketId: string) => void;
+  /** Called with each player's answers to the end-of-game feedback form. */
+  onFeedback?: (entry: FeedbackEntry) => void;
+}
+
+/** One player's feedback after a game. The display name only: never ids or tokens. */
+export interface FeedbackEntry {
+  at: string;
+  gameId: string;
+  name: string;
+  answers: FeedbackAnswers;
 }
 
 const CHAT_HISTORY = 150;
@@ -72,9 +111,20 @@ const BOT_NAMES = ['Hank', 'Dolly', 'Clem', 'Ezra', 'Mae', 'Silas', 'Ruby', 'Jeb
 
 const fail = (error: string) => ({ ok: false as const, error });
 
+/**
+ * Plain text from a client: control characters, invisible characters and text-direction
+ * overrides removed (they can disguise a name as someone else's), whitespace collapsed,
+ * length capped. It is always rendered as text, never as HTML.
+ */
 export function cleanText(raw: unknown, max: number): string {
   if (typeof raw !== 'string') return '';
-  return raw.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+  return raw
+    .slice(0, max * 4)
+    .normalize('NFC')
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
 }
 
 export class Room {
@@ -88,6 +138,15 @@ export class Room {
   chat: ChatMessage[] = [];
   /** Set while no human is connected; used by the room sweeper. */
   idleSince: number | null = null;
+  /** Host setting: no new players may join (seated players can still reconnect). */
+  locked = false;
+  /** Browsers kicked from this room: they can't join it again. */
+  private readonly banned = new Set<string>();
+  /** Current game: random id (links the stats line and feedback), and when each poster began. */
+  private gameId = '';
+  private posterStarts: number[] = [];
+  /** Seats that already sent feedback for this game. */
+  private readonly feedbackFrom = new Set<PlayerId>();
 
   private phaseTimer: NodeJS.Timeout | null = null;
   private gameStartedAt = 0;
@@ -106,12 +165,22 @@ export class Room {
 
   // ---------------------------------------------------------------- membership
 
-  addPlayer(rawName: string, socketId: string | null, isBot = false): Ack<{ seat: Seat }> {
+  get practice(): boolean {
+    return !!this.deps.practice;
+  }
+
+  addPlayer(rawName: string, socketId: string | null, isBot = false, browserId: string | null = null): Ack<{ seat: Seat }> {
     if (this.phase !== 'lobby') return fail('That game has already started');
+    if (this.practice && !isBot && [...this.seats.values()].some((s) => !s.isBot)) return fail("That's someone's practice game");
+    if (!isBot && this.locked) return fail('This room is locked');
+    if (browserId && this.banned.has(browserId)) return fail('You were removed from this room');
+    // One seat per browser: a second tab can't take a second seat (it can resume the first).
+    if (browserId && !isBot && [...this.seats.values()].some((s) => s.browserId === browserId)) return fail("You're already in this room");
     if (this.seats.size >= MAX_PLAYERS) return fail('Room is full');
     const name = this.uniqueName(cleanText(rawName, NAME_MAX));
     if (!name) return fail('Enter a name');
 
+    // A suggestion only (see Seat.colorPicked): drawn from colors nobody has picked.
     const free = this.freeColors();
     const now = Date.now();
     const seat: Seat = {
@@ -119,7 +188,10 @@ export class Room {
       token: makeId(18),
       name,
       item: pick(ITEM_TYPES, this.rng),
+      cosmetics: randomCosmetics((n) => this.rng.int(n)),
       color: pick(free, this.rng),
+      colorPicked: false,
+      browserId: isBot ? null : browserId,
       seat: this.nextSeat++,
       isBot,
       socketId,
@@ -128,6 +200,9 @@ export class Room {
       connectedSince: now,
       holdTimer: null,
       lastChatAt: 0,
+      disconnects: 0,
+      reconnects: 0,
+      howto: null,
     };
     this.seats.set(seat.id, seat);
     if (!this.hostId && !isBot) this.hostId = seat.id;
@@ -136,9 +211,16 @@ export class Room {
     return { ok: true, seat };
   }
 
+  /** The human seat a session token belongs to (constant-time compare), or null. */
+  seatByToken(token: unknown): Seat | null {
+    if (typeof token !== 'string' || token.length < 16 || token.length > 64) return null;
+    return [...this.seats.values()].find((s) => !s.isBot && sameToken(s.token, token)) ?? null;
+  }
+
   resume(token: string, socketId: string): Seat | null {
-    const seat = [...this.seats.values()].find((s) => !s.isBot && s.token === token);
+    const seat = this.seatByToken(token);
     if (!seat) return null;
+    if (this.game && this.phase !== 'lobby' && !seat.connected) seat.reconnects++;
     if (seat.holdTimer) clearTimeout(seat.holdTimer);
     seat.holdTimer = null;
     seat.socketId = socketId;
@@ -158,6 +240,7 @@ export class Room {
     if (!seat || seat.socketId !== socketId) return;
     seat.socketId = null;
     seat.connected = false;
+    if (this.game && this.phase !== 'lobby' && this.phase !== 'ended') seat.disconnects++;
     seat.holdTimer = setTimeout(() => {
       seat.holdTimer = null;
       if (this.phase === 'lobby') this.removeSeat(id);
@@ -196,6 +279,45 @@ export class Room {
     this.seats.delete(id);
     if (this.hostId === id) this.transferHost();
     this.broadcast();
+    // Last human gone from the lobby: close the room so its code stops working.
+    if (this.phase === 'lobby' && !this.humans().length) this.deps.onEmpty?.();
+  }
+
+  /**
+   * Host removes a player. In the lobby the seat goes; mid-game it stays (still counted, can't
+   * act) because removing it would change the game. Either way the player's connection is
+   * dropped, their session stops working and their browser can't join this room again.
+   */
+  kick(id: PlayerId, targetId: unknown): Ack {
+    if (id !== this.hostId) return fail('Only the host can remove players');
+    if (typeof targetId !== 'string' || !this.seats.has(targetId)) return fail('Unknown player');
+    if (targetId === id) return fail("You can't remove yourself");
+    const seat = this.seats.get(targetId)!;
+    if (seat.browserId) this.banned.add(seat.browserId);
+    seat.token = makeId(18); // the old session no longer resumes anything
+    const socketId = seat.socketId;
+    if (this.phase === 'lobby') {
+      this.removeSeat(targetId);
+    } else {
+      if (seat.holdTimer) clearTimeout(seat.holdTimer);
+      seat.holdTimer = null;
+      seat.socketId = null;
+      seat.connected = false;
+      seat.away = true;
+      this.broadcast();
+      this.checkVotesDone();
+    }
+    if (socketId) this.deps.kick?.(socketId);
+    return { ok: true };
+  }
+
+  /** Host setting: lock the room to new players. */
+  setLocked(id: PlayerId, locked: unknown): Ack {
+    if (id !== this.hostId) return fail('Only the host can lock the room');
+    if (typeof locked !== 'boolean') return fail('Bad setting');
+    this.locked = locked;
+    this.broadcast();
+    return { ok: true };
   }
 
   /** Host passes to the longest-connected human. */
@@ -234,12 +356,19 @@ export class Room {
 
   // ---------------------------------------------------------------- lobby
 
+  /** Colors nobody has picked (suggested colors from joining don't count, see Seat.colorPicked). */
   freeColors(exceptId?: PlayerId): ColorId[] {
-    const taken = new Set([...this.seats.values()].filter((s) => s.id !== exceptId).map((s) => s.color));
+    const taken = new Set([...this.seats.values()].filter((s) => s.id !== exceptId && s.colorPicked).map((s) => s.color));
     return COLOR_IDS.filter((c) => !taken.has(c));
   }
 
-  setLook(id: PlayerId, p: { item?: unknown; color?: unknown }): Ack {
+  /** The lobby's color list, for the picker. Lobby only: mid-game it would describe the starting colors. */
+  lobbyColors(id: PlayerId): Ack<{ available: ColorId[] }> {
+    if (this.phase !== 'lobby') return fail('Colors are locked once the game starts');
+    return { ok: true, available: this.freeColors(id) };
+  }
+
+  setLook(id: PlayerId, p: { item?: unknown; color?: unknown; cosmetics?: unknown }): Ack {
     const seat = this.seats.get(id);
     if (!seat) return fail('Not in room');
     if (this.phase !== 'lobby') return fail('Your look is locked once the game starts');
@@ -248,9 +377,23 @@ export class Room {
       if (!isColorId(p.color)) return fail('Unknown color');
       if (!this.freeColors(id).includes(p.color)) return fail('That color was just taken');
     }
-    const itemChanged = p.item !== undefined && p.item !== seat.item;
+    const cosmetics = p.cosmetics === undefined ? {} : parseCosmetics(p.cosmetics);
+    if (!cosmetics) return fail('Unknown hat or head detail');
+    // Item and cosmetics are public, so their changes go to everyone.
+    const itemChanged = (p.item !== undefined && p.item !== seat.item) || Object.keys(cosmetics).length > 0;
+    seat.cosmetics = { ...seat.cosmetics, ...cosmetics };
     if (p.item !== undefined) seat.item = p.item as ItemType;
-    if (p.color !== undefined) seat.color = p.color as ColorId;
+    if (p.color !== undefined) {
+      seat.color = p.color as ColorId;
+      seat.colorPicked = true;
+      // Anyone merely suggested this color gets another suggestion.
+      for (const s of this.seats.values()) {
+        if (s !== seat && !s.colorPicked && s.color === seat.color) {
+          s.color = pick(this.freeColors(s.id).filter((c) => c !== seat.color), this.rng);
+          this.sendTo(s);
+        }
+      }
+    }
     // A color change only goes to its owner, so others can't time who took what.
     if (itemChanged) this.broadcast();
     else this.sendTo(seat);
@@ -307,7 +450,7 @@ export class Room {
   }
 
   addBot(id: PlayerId): Ack {
-    if (!this.deps.devMode) return fail('Bots are dev-only');
+    if (!this.deps.devMode && !this.practice) return fail('Bots are dev-only');
     if (id !== this.hostId) return fail('Only the host can add bots');
     const used = new Set([...this.seats.values()].map((s) => s.name));
     // Plain names ("Hank"), same style as people; the lobby marks bots with a BOT tag.
@@ -331,6 +474,13 @@ export class Room {
     const players = [...this.seats.values()].sort((a, b) => a.seat - b.seat);
     if (players.length < this.deps.minPlayers) return fail(`Need at least ${this.deps.minPlayers} players`);
 
+    // Settle colors: picked colors are unique already; suggested ones that clash get a fresh one.
+    const used = new Set(players.filter((s) => s.colorPicked).map((s) => s.color));
+    for (const s of players.filter((p) => !p.colorPicked)) {
+      if (used.has(s.color)) s.color = pick(COLOR_IDS.filter((c) => !used.has(c)), this.rng);
+      used.add(s.color);
+    }
+
     const { inspectsPerRound, posterMode } = this.settings;
     this.game = engine.createGame(
       players.map((s) => ({ id: s.id, color: s.color })),
@@ -339,14 +489,33 @@ export class Room {
         posterMode,
         rules: this.settings.rules,
         // One poster per player, so 'auto' scales with lobby size.
-        swapLimit: this.settings.colorSwaps === 'auto' ? defaultSwaps(players.length) : this.settings.colorSwaps,
+        swapLimit: this.settings.colorSwaps === 'auto' ? defaultSwaps(this.practice ? PRACTICE.posters : players.length) : this.settings.colorSwaps,
+        posterLimit: this.practice ? PRACTICE.posters : undefined,
       },
       this.rng,
     );
     this.replay = null;
     this.gameStartedAt = Date.now();
+    this.gameId = makeId(9);
+    this.posterStarts = [];
+    this.feedbackFrom.clear();
+    for (const s of this.seats.values()) {
+      s.disconnects = 0;
+      s.reconnects = 0;
+    }
     this.enterPhase('poster');
     return { ok: true };
+  }
+
+  /** Seats the bots and starts at once, with the practice timers. */
+  startPractice(humanId: PlayerId): Ack {
+    if (!this.practice) return fail('Not a practice room');
+    this.settings = { ...this.settings, timers: { ...PRACTICE.timers }, posterMode: 'randomRepeats' };
+    for (let i = 0; i < PRACTICE.bots; i++) {
+      const res = this.addBot(humanId);
+      if (!res.ok) return res;
+    }
+    return this.start(humanId);
   }
 
   backToLobby(id: PlayerId): Ack {
@@ -360,6 +529,7 @@ export class Room {
     this.phase = 'lobby';
     this.phaseEndsAt = null;
     for (const s of [...this.seats.values()]) if (s.away) this.seats.delete(s.id);
+    for (const s of this.seats.values()) s.colorPicked = false; // back to suggestions
     this.bots.onPhase('lobby');
     this.broadcast();
     return { ok: true };
@@ -477,6 +647,30 @@ export class Room {
     return { ok: true };
   }
 
+  /** The player's browser reports what they did with How to Play (for playtest stats). */
+  setHowto(id: PlayerId, status: unknown): Ack {
+    const seat = this.seats.get(id);
+    if (!seat) return fail('Not in room');
+    if (!HOWTO_STATUSES.includes(status as HowtoStatus)) return fail('Bad status');
+    // Only ever upgrades: never -> skipped -> finished.
+    const rank = (s: HowtoStatus | null) => (s ? HOWTO_STATUSES.indexOf(s) : -1);
+    if (rank(status as HowtoStatus) > rank(seat.howto)) seat.howto = status as HowtoStatus;
+    return { ok: true };
+  }
+
+  /** End-of-game feedback form: once per player per game, plain text, capped. */
+  submitFeedback(id: PlayerId, raw: unknown): Ack {
+    const seat = this.seats.get(id);
+    if (!seat || seat.isBot) return fail('Not in room');
+    if (this.phase !== 'ended' || !this.gameId) return fail('Feedback opens when the game ends');
+    if (this.feedbackFrom.has(id)) return fail('Thanks, we already have yours');
+    const answers = parseFeedback(raw);
+    if (!answers) return fail('Bad feedback');
+    this.feedbackFrom.add(id);
+    this.deps.onFeedback?.({ at: new Date().toISOString(), gameId: this.gameId, name: seat.name, answers });
+    return { ok: true };
+  }
+
   skipPhase(id: PlayerId): Ack {
     if (!this.deps.devMode) return fail('Dev only');
     if (id !== this.hostId) return fail('Host only');
@@ -494,6 +688,7 @@ export class Room {
     const ms = this.settings.timers[phase] * 1000;
     this.phaseEndsAt = Date.now() + ms;
     this.phaseTimer = setTimeout(() => this.onPhaseEnd(), ms);
+    if (phase === 'poster' && this.game) this.posterStarts[this.game.posterIndex] = Date.now();
     this.bots.onPhase(phase);
     this.broadcast();
   }
@@ -523,11 +718,18 @@ export class Room {
         engine.setEndReactions(game, this.deps.rng);
         this.bots.onPhase('ended');
         try {
-          this.deps.onGameEnd?.(
+          if (!this.practice) this.deps.onGameEnd?.(
             summarize(game, {
+              gameId: this.gameId,
+              check: !!this.deps.check,
               startedAt: this.gameStartedAt,
               settings: this.settings,
               isBot: (id) => !!this.seats.get(id)?.isBot,
+              posterStarts: this.posterStarts,
+              seat: (id) => {
+                const s = this.seats.get(id);
+                return { disconnects: s?.disconnects ?? 0, reconnects: s?.reconnects ?? 0, howto: s?.howto ?? null, away: !!s?.away };
+              },
             }),
           );
         } catch (err) {
@@ -551,6 +753,7 @@ export class Room {
         id: s.id,
         name: s.name,
         item: s.item,
+        cosmetics: { ...s.cosmetics },
         seat: s.seat,
         isHost: s.id === this.hostId,
         isBot: s.isBot,
@@ -576,6 +779,8 @@ export class Room {
       phaseEndsAt: this.phaseEndsAt,
       game: this.game && this.phase !== 'lobby' ? engine.gameViewFor(this.game, seat.id) : null,
       replay: this.phase === 'ended' ? this.replay : null,
+      practice: this.practice,
+      locked: this.locked,
     };
   }
 

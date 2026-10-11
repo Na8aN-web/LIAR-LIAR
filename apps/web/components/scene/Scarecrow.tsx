@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimationMixer, DoubleSide, LoopOnce, LoopRepeat, Matrix4, MeshBasicMaterial, MeshStandardMaterial, Quaternion, Vector3, type AnimationAction, type Bone } from 'three';
+import { AnimationMixer, Color, DoubleSide, LoopOnce, LoopRepeat, MeshStandardMaterial, Quaternion, Vector3, type AnimationAction, type Bone } from 'three';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import type { ItemType } from '@wtc/shared';
+import { DEFAULT_COSMETICS, type Cosmetics, type ItemType } from '@wtc/shared';
 import { NameLabel } from './NameLabel';
+import { neutralItemMaterial } from './neutralMaterial';
 import { MODEL_HEIGHT, SEATED_TOP, SIT_HIPS, createInstance, useScarecrowModel, type ClipName, type SitPose } from './scarecrowModel';
 
 /** A server-decided reaction to play once (payout or end of game). `key` changes per event. */
@@ -22,6 +23,8 @@ export interface LookCue {
 interface Props {
   name: string;
   item: ItemType;
+  /** Hat and head detail (public). */
+  cosmetics?: Cosmetics;
   /** Your own color. Null for everyone else: their item renders one neutral color (the client never has their colors). */
   colorHex: string | null;
   position: [number, number, number];
@@ -37,6 +40,8 @@ interface Props {
   seed: number;
   reaction?: ReactionCue | null;
   look?: LookCue | null;
+  /** Name plate above the head (off on the homepage). */
+  label?: boolean;
 }
 
 /** World height of a standing scarecrow. */
@@ -45,9 +50,9 @@ export const SCALE = HEIGHT / MODEL_HEIGHT;
 /** Top of a seated scarecrow's head, world units. */
 export const SEATED_HEIGHT = SEATED_TOP * SCALE;
 
-const STRAW = '#a07c4f';
-/** Everyone else's item, under any light: unlit, so its color can't shift with fire or moon. */
-const NEUTRAL_ITEM = '#38353a';
+
+/** Light response of cosmetics (linear multiplier on their tones). */
+const COSMETIC_LIGHT = new Color(0.7, 0.7, 0.7);
 
 const FADE_IN = 0.45;
 const FADE_OUT = 0.7;
@@ -65,35 +70,45 @@ const smooth = (t: number) => t * t * (3 - 2 * t);
  * mixer, plus their item skinned to the torso. Clicks and hover go to an invisible capsule,
  * so the pointer never raycasts the skinned mesh. Local +z faces front.
  */
-export function Scarecrow({ name, item, colorHex, position, rotationY, selected, faded, eyeCount, onSelect, pose, seed, reaction, look }: Props) {
+export function Scarecrow({ name, item, cosmetics = DEFAULT_COSMETICS, colorHex, position, rotationY, selected, faded, eyeCount, onSelect, pose, seed, reaction, look, label = true }: Props) {
   const model = useScarecrowModel();
   const [hover, setHover] = useState(false);
-  const inst = useMemo(() => createInstance(model, item), [model, item]);
+  const inst = useMemo(
+    () => createInstance(model, item, cosmetics),
+    [model, item, cosmetics.hat, cosmetics.face], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const mixer = useMemo(() => new AnimationMixer(inst.root), [inst]);
 
-  // Materials: straw for every body (not secret), your color on your item, one neutral tone on everyone else's.
-  const bodyMat = useMemo(() => new MeshStandardMaterial({ color: STRAW, roughness: 1 }), []);
+  // Materials: the painted body (not secret), your color on your item, undyed burlap on
+  // everyone else's, and earthy cosmetics (public) drawn from their vertex colors.
+  // The body's clothes are vertex colors baked by tools/paint-scarecrow.mjs.
+  const bodyMat = useMemo(() => new MeshStandardMaterial({ vertexColors: true, roughness: 1 }), []);
   const itemMat = useMemo(
-    () =>
-      colorHex
-        ? new MeshStandardMaterial({ color: colorHex, roughness: 0.9, side: DoubleSide })
-        : new MeshBasicMaterial({ color: NEUTRAL_ITEM, side: DoubleSide }),
-    [colorHex],
+    () => (colorHex ? new MeshStandardMaterial({ color: colorHex, roughness: 0.9, side: DoubleSide }) : neutralItemMaterial(model.bind.unit)),
+    [colorHex, model],
   );
+  // Cosmetics take a little less light than the body, so the fire can't wash the straw hat
+  // toward Tan or Yellow on screen (same hue, just darker; the tones themselves are tested).
+  const extraMat = useMemo(() => new MeshStandardMaterial({ vertexColors: true, color: COSMETIC_LIGHT, roughness: 0.95, side: DoubleSide }), []);
   useEffect(() => {
     inst.body.material = bodyMat;
     inst.item.material = itemMat;
     inst.body.raycast = noRaycast;
     inst.item.raycast = noRaycast;
-  }, [inst, bodyMat, itemMat]);
+    if (inst.cosmetics) {
+      inst.cosmetics.material = extraMat;
+      inst.cosmetics.raycast = noRaycast;
+    }
+  }, [inst, bodyMat, itemMat, extraMat]);
   useEffect(() => {
-    for (const m of [bodyMat, itemMat]) {
+    for (const m of [bodyMat, itemMat, extraMat]) {
       m.transparent = faded;
       m.opacity = faded ? 0.35 : 1;
       m.needsUpdate = true;
     }
-  }, [faded, bodyMat, itemMat]);
+  }, [faded, bodyMat, itemMat, extraMat]);
   useEffect(() => () => bodyMat.dispose(), [bodyMat]);
+  useEffect(() => () => extraMat.dispose(), [extraMat]);
   useEffect(() => () => itemMat.dispose(), [itemMat]);
 
   // Sitting idle: starts at a random point, runs at a slightly different speed per player.
@@ -140,7 +155,7 @@ export function Scarecrow({ name, item, colorHex, position, rotationY, selected,
 
   const modelGroup = useRef<import('three').Group>(null);
   const outer = useRef<import('three').Group>(null);
-  const tmp = useMemo(() => ({ v: new Vector3(), q: new Quaternion(), pq: new Quaternion(), axis: new Vector3(), inv: new Matrix4() }), []);
+  const tmp = useMemo(() => ({ v: new Vector3(), q: new Quaternion(), pq: new Quaternion(), axis: new Vector3() }), []);
   const hips = SIT_HIPS[pose];
 
   useFrame((_, dt) => {
@@ -237,6 +252,7 @@ export function Scarecrow({ name, item, colorHex, position, rotationY, selected,
         </mesh>
       )}
 
+      {label && (
       <NameLabel
         name={name}
         position={[0, SEATED_HEIGHT + 0.35, 0]}
@@ -245,6 +261,7 @@ export function Scarecrow({ name, item, colorHex, position, rotationY, selected,
         eyeCount={eyeCount}
         faded={faded}
       />
+      )}
     </group>
   );
 }

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/index.ts --dev",
     "start": "node dist/index.js",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -12,7 +12,9 @@
     "smoke": "tsx scripts/smoke.ts",
     "sim": "tsx scripts/sim.ts",
     "sweep": "tsx scripts/sweep.ts",
-    "stats": "tsx scripts/stats.ts"
+    "stats": "tsx scripts/stats.ts",
+    "feedback": "tsx scripts/feedback.ts",
+    "playtest:check": "tsx scripts/playtest-check.ts"
   },
   "dependencies": {
     "@wtc/shared": "workspace:*",

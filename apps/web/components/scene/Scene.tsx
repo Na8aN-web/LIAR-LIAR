@@ -8,6 +8,7 @@ import { colorInfo, type GameView, type Phase, type PlayerView } from '@wtc/shar
 import { useBrightness } from '@/lib/brightness';
 import { eyeCounts } from '@/lib/inspections';
 import { useGame } from '@/lib/store';
+import { fitCircle, measureInsets, type Insets } from './framing';
 import { PerfProbe } from './PerfProbe';
 import { SCALE, SEATED_HEIGHT, Scarecrow, type LookCue, type ReactionCue } from './Scarecrow';
 import { SEAT_BELOW_HIPS, SIT_CLIPS, SIT_HIPS, type SitPose } from './scarecrowModel';
@@ -16,9 +17,8 @@ import { Town, ringRadius, type PosterState, type Seat, type SeatType } from './
 // The game scene. Reads the client view only; swap models freely without touching game logic.
 
 const SELECTABLE: Phase[] = ['investigation', 'vote'];
-// Keep in sync with the desktop breakpoint and side panel width in globals.css.
+// Keep in sync with the desktop breakpoint in globals.css.
 const DESKTOP_MIN = 900;
-const SIDE_PANEL_PX = 380;
 const FOG_COLOR = '#0c0e1a';
 const TARGET = new Vector3(0, 1.6, 0);
 const SEAT_TYPES: SeatType[] = ['log', 'crate', 'barrel', 'stump'];
@@ -100,6 +100,7 @@ export default function Scene() {
   const select = useGame((s) => s.select);
   const brightness = useBrightness();
   const [moved, setMoved] = useState(false);
+  const [homeDistance, setHomeDistance] = useState(0);
 
   const players = view?.players ?? [];
   const me = view?.you;
@@ -159,6 +160,7 @@ export default function Scene() {
                 key={p.id}
                 name={isMe ? 'You' : p.name}
                 item={isMe ? me!.item : p.item}
+                cosmetics={p.cosmetics}
                 colorHex={isMe ? colorInfo(me!.color).hex : null}
                 position={s.position}
                 rotationY={s.rotationY}
@@ -176,7 +178,8 @@ export default function Scene() {
         </Suspense>
 
         <PerfProbe />
-        <CameraRig radius={radius} ringR={ringR} sidePanel={view?.phase !== 'lobby' && view?.phase !== 'ended'} onMoved={setMoved} />
+        <ScreenProbe seats={seats} me={me?.id} eyes={eyes} />
+        <CameraRig radius={radius} ringR={ringR} onMoved={setMoved} onHome={setHomeDistance} />
         <OrbitControls
           makeDefault
           enablePan={false}
@@ -184,7 +187,8 @@ export default function Scene() {
           target={TARGET}
           minDistance={5}
           // Stays inside the ring of buildings (ringRadius), so nothing ever blocks the fire.
-          maxDistance={radius + 16}
+          // Never closer to the buildings than the framing needs; the framing stays inside the ring.
+          maxDistance={Math.max(radius + 16, homeDistance + 1)}
           minPolarAngle={0.35}
           // Never level with the ground, never below it.
           maxPolarAngle={1.36}
@@ -210,35 +214,82 @@ function Exposure({ value }: { value: number }) {
 }
 
 /**
- * Frames the circle for the screen shape. On portrait phones the camera pulls back
- * and the image shifts up slightly, so the circle sits above the bottom panel. On desktop
- * the image shifts left to center in the space beside the side panel. The player can orbit
- * all the way round; "Reset view" glides back to this framing.
+ * Frames the circle for the screen shape. On portrait phones the camera pulls back and the
+ * image shifts up slightly, so the circle sits above the bottom panel. On desktop the camera
+ * finds the framing that fits every seat into the area between the panels, and the picture
+ * is centred there. The player can orbit all the way round; "Reset view" glides back here.
  */
-function CameraRig({ radius, ringR, sidePanel, onMoved }: { radius: number; ringR: number; sidePanel: boolean; onMoved: (moved: boolean) => void }) {
-  const camera = useThree((s) => s.camera);
+function CameraRig({
+  radius,
+  ringR,
+  onMoved,
+  onHome,
+}: {
+  radius: number;
+  ringR: number;
+  onMoved: (moved: boolean) => void;
+  onHome: (distance: number) => void;
+}) {
+  const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const scene = useThree((s) => s.scene);
   const size = useThree((s) => s.size);
-  const controls = useThree((s) => s.controls) as { update?: () => void; target?: Vector3 } | null;
+  const controls = useThree((s) => s.controls) as { update?: () => void; maxDistance?: number } | null;
   const portrait = size.width < size.height;
-  const home = useMemo(() => {
+  const desktop = !portrait && size.width >= DESKTOP_MIN;
+  const insets = useInsets(desktop, size.width, size.height);
+
+  const frame = useMemo(() => {
+    if (desktop && insets) {
+      return fitCircle({
+        radius,
+        labelTop: SEATED_HEIGHT + 0.7,
+        target: TARGET,
+        width: size.width,
+        height: size.height,
+        fov: camera.fov,
+        insets,
+        // Stay well inside the ring of buildings.
+        maxHorizontal: ringR - 3,
+        minElevation: 0.36,
+      });
+    }
     const pull = portrait ? Math.min(1.9, 0.75 / (size.width / size.height)) : 1;
     // High enough to look over your own seated scarecrow at the fire.
-    return new Vector3(0, 6.6 * pull, (radius + 6.5) * pull);
-  }, [portrait, size.width, size.height, radius]);
+    return {
+      position: new Vector3(0, 6.6 * pull, (radius + 6.5) * pull),
+      offsetX: 0,
+      offsetY: portrait ? size.height * 0.06 : 0,
+    };
+  }, [desktop, insets, portrait, size.width, size.height, radius, ringR, camera]);
+  const home = frame.position;
   const glide = useRef<{ from: Vector3; t: number } | null>(null);
   const wasMoved = useRef(false);
+  const prevHome = useRef<Vector3 | null>(null);
 
   useEffect(() => {
-    camera.position.copy(home);
-    camera.lookAt(TARGET);
-    controls?.update?.();
+    onHome(home.distanceTo(TARGET));
+    // Re-frame when the layout changes, unless the player has moved the camera away from the
+    // old framing themselves. (Compared with the old framing, not the moved flag: a frame can
+    // run between the new layout and this effect and would count as a move.)
+    const follow = !prevHome.current || camera.position.distanceTo(prevHome.current) < 0.6;
+    prevHome.current = home.clone();
+    // Let the controls reach the new framing before placing the camera there (the prop catches up a render later).
+    if (controls && controls.maxDistance !== undefined) controls.maxDistance = Math.max(controls.maxDistance, home.distanceTo(TARGET) + 1);
+    if (follow) {
+      if (wasMoved.current) {
+        wasMoved.current = false;
+        onMoved(false);
+      }
+      camera.position.copy(home);
+      camera.lookAt(TARGET);
+      controls?.update?.();
+    }
     // Fog follows the camera distance, so the far side of the circle stays a half-visible
-    // silhouette even when a portrait phone pulls the camera back.
+    // silhouette even when the camera pulls back.
     const toCentre = home.length();
     // It ends just past the ring of buildings: the town square is visible, the desert beyond is not.
     scene.fog = new Fog(FOG_COLOR, toCentre * 0.75, toCentre + ringR + 16);
-  }, [camera, controls, scene, home, ringR]);
+  }, [camera, controls, scene, home, ringR, onHome, onMoved]);
 
   useEffect(() => {
     const reset = () => (glide.current = { from: camera.position.clone(), t: 0 });
@@ -274,15 +325,76 @@ function CameraRig({ radius, ringR, sidePanel, onMoved }: { radius: number; ring
   });
 
   useEffect(() => {
-    const cam = camera as PerspectiveCamera;
     const { width: w, height: h } = size;
-    // Phones: nudge the picture up a little so the circle clears the action panel; the side
-    // panel starts collapsed, so a small shift keeps the town and its poster below the top bar.
-    if (portrait) cam.setViewOffset(w, h, 0, h * 0.06, w, h);
-    else if (sidePanel && w >= DESKTOP_MIN) cam.setViewOffset(w, h, SIDE_PANEL_PX / 2, 0, w, h);
-    else cam.clearViewOffset();
-    cam.updateProjectionMatrix();
-  }, [camera, size, portrait, sidePanel]);
+    if (frame.offsetX || frame.offsetY) camera.setViewOffset(w, h, frame.offsetX, frame.offsetY, w, h);
+    else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+  }, [camera, size, frame]);
 
+  return null;
+}
+
+/** Desktop only: what the panels cover, re-measured as they open, close and resize. */
+function useInsets(enabled: boolean, w: number, h: number): Insets | null {
+  const [insets, setInsets] = useState<Insets | null>(null);
+  useEffect(() => {
+    if (!enabled) return setInsets(null);
+    const read = () =>
+      setInsets((prev) => {
+        const next = measureInsets(w, h);
+        return prev && prev.left === next.left && prev.right === next.right && prev.top === next.top && prev.bottom === next.bottom ? prev : next;
+      });
+    read();
+    // Panels mount and fold without resizing the window, so check a few times a second.
+    const id = setInterval(read, 400);
+    return () => clearInterval(id);
+  }, [enabled, w, h]);
+  return insets;
+}
+
+declare global {
+  interface Window {
+    /** Where a player's scarecrow is on screen (CSS px; 'me' for your own): for scripted screenshots (pnpm howto:screens). */
+    __wtcScreen?: (id: string) => { x: number; y: number; r: number } | null;
+    /** Screen box around the whole circle of seats. */
+    __wtcCircle?: () => { x: number; y: number; w: number; h: number } | null;
+    /** Name plates showing an eye badge (searched this poster), on screen. */
+    __wtcEyes?: () => { id: string; x: number; y: number; count: number }[];
+  }
+}
+
+/** Exposes on-screen positions of the seats (public information) for the screenshot script. */
+function ScreenProbe({ seats, me, eyes }: { seats: Map<string, SeatInfo>; me?: string; eyes: Map<string, number> }) {
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  useEffect(() => {
+    const project = (p: [number, number, number]) => {
+      const v = new Vector3(...p).project(camera);
+      return { x: ((v.x + 1) / 2) * size.width, y: ((1 - v.y) / 2) * size.height };
+    };
+    window.__wtcScreen = (id) => {
+      const s = seats.get(id === 'me' && me ? me : id);
+      if (!s) return null;
+      const top = project([s.position[0], SEATED_HEIGHT, s.position[2]]);
+      const feet = project([s.position[0], 0, s.position[2]]);
+      return { x: (top.x + feet.x) / 2, y: (top.y + feet.y) / 2, r: Math.abs(feet.y - top.y) * 0.7 };
+    };
+    window.__wtcEyes = () =>
+      [...seats.entries()]
+        .filter(([id]) => (eyes.get(id) ?? 0) > 0)
+        .map(([id, s]) => ({ id, count: eyes.get(id)!, ...project([s.position[0], SEATED_HEIGHT + 0.35, s.position[2]]) }));
+    window.__wtcCircle = () => {
+      const pts = [...seats.values()].flatMap((s) => [project([s.position[0], 0, s.position[2]]), project([s.position[0], SEATED_HEIGHT, s.position[2]])]);
+      if (!pts.length) return null;
+      const xs = pts.map((p) => p.x);
+      const ys = pts.map((p) => p.y);
+      return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    };
+    return () => {
+      delete window.__wtcScreen;
+      delete window.__wtcCircle;
+      delete window.__wtcEyes;
+    };
+  }, [camera, size, seats, me, eyes]);
   return null;
 }

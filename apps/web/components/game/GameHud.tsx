@@ -9,6 +9,7 @@ import { WantedPoster } from '../WantedPoster';
 import { ActionBar } from './ActionBar';
 import { Notifications } from './Notifications';
 import { PayoutCard } from './PayoutCard';
+import { PracticeHints } from './PracticeHints';
 import { Replay } from './Replay';
 import { SidePanel } from './SidePanel';
 
@@ -73,6 +74,7 @@ export function GameHud() {
       )}
 
       <Notifications />
+      <PracticeHints />
 
       {view.phase === 'payout' && <PayoutCard />}
 
@@ -80,7 +82,8 @@ export function GameHud() {
       <ActionBar key={`${view.phase}-${game.posterIndex}`} />
       <SidePanel />
 
-      {view.devMode && view.you.isHost && (
+      {/* Dev tool: compiled out of production builds (and production servers refuse it anyway). */}
+      {process.env.NODE_ENV !== 'production' && view.devMode && view.you.isHost && (
         <button
           className="dev-skip"
           onClick={async () => {

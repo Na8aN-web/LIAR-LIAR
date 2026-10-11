@@ -58,6 +58,8 @@ export interface GameState {
   results: Record<string, ColorId[]>;
   /** Extra inspects bought this round. */
   extraInspects: Record<PlayerId, number>;
+  /** Extra inspects bought over the whole game (stats). */
+  extraInspectsTotal: Record<PlayerId, number>;
   /** Completed purchases this round (accepted offers + extra inspects). */
   purchases: Record<PlayerId, number>;
   offers: OfferView[];
@@ -84,6 +86,8 @@ export interface GameOptions {
   rules?: GameRules;
   /** Color swaps per player per game. Default 0. */
   swapLimit?: number;
+  /** Play only this many posters (practice games). Default: one per player. */
+  posterLimit?: number;
 }
 
 const perPlayer = <T>(ids: PlayerId[], value: () => T): Record<PlayerId, T> =>
@@ -95,7 +99,7 @@ export function createGame(
   rng: Rng,
 ): GameState {
   const ids = players.map((p) => p.id);
-  const order = posterOrders[opts.posterMode](ids, rng);
+  const order = posterOrders[opts.posterMode](ids, rng).slice(0, opts.posterLimit ?? ids.length);
   const rules = { ...(opts.rules ?? DEFAULT_RULES) };
   const colors = Object.fromEntries(players.map((p) => [p.id, p.color]));
   return {
@@ -119,6 +123,7 @@ export function createGame(
     inspectLimit: opts.inspectLimit,
     inspectsUsed: perPlayer(ids, () => 0),
     extraInspects: perPlayer(ids, () => 0),
+    extraInspectsTotal: perPlayer(ids, () => 0),
     purchases: perPlayer(ids, () => 0),
     offers: [],
     bought: perPlayer(ids, () => []),
@@ -138,7 +143,12 @@ export function createGame(
 export const wantedId = (s: GameState) => s.order[s.posterIndex];
 export const posterColor = (s: GameState) => s.posterColors[s.posterIndex];
 export const hasNextPoster = (s: GameState) => s.posterIndex + 1 < s.order.length;
-const isPlayer = (s: GameState, id: PlayerId) => s.colors[id] !== undefined;
+/**
+ * Whether an id (from a client: could be anything) is a player in this game. Checked against the
+ * player list, never as an object key: ids like "constructor" or "__proto__" would otherwise
+ * match built-in properties.
+ */
+const isPlayer = (s: GameState, id: unknown): id is PlayerId => typeof id === 'string' && s.playerIds.includes(id);
 
 export function inspectsLeft(s: GameState, id: PlayerId): number {
   return s.inspectLimit + (s.extraInspects[id] ?? 0) - (s.inspectsUsed[id] ?? 0);
@@ -235,6 +245,7 @@ export function buyExtraInspect(s: GameState, id: PlayerId): Result {
   if (s.scores[id] < s.rules.extraInspectPrice) return { ok: false, error: 'Not enough points' };
   s.scores[id] -= s.rules.extraInspectPrice;
   s.extraInspects[id] += 1;
+  s.extraInspectsTotal[id] += 1;
   s.purchases[id] += 1;
   s.pots[Math.min(s.posterIndex + 1, s.pots.length - 1)] += s.rules.extraInspectPrice;
   return { ok: true };

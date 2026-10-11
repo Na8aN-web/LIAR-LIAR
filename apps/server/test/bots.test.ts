@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COLOR_IDS, DEFAULT_SETTINGS, type PlayerView } from '@wtc/shared';
+import { COLOR_IDS, DEFAULT_COSMETICS, DEFAULT_SETTINGS, type PlayerView } from '@wtc/shared';
 import * as engine from '../src/game/engine';
 import * as brain from '../src/bots/brain';
 import { secureRng, type Rng } from '../src/rng';
@@ -14,12 +14,14 @@ function viewOf(g: engine.GameState, me: string, posterMode = DEFAULT_SETTINGS.p
     minPlayers: 2,
     maxPlayers: 15,
     you: { id: me, name: me, color: g.colors[me], item: 'poncho', isHost: false },
-    players: g.playerIds.map((id, seat) => ({ id, name: `Name${id}`, item: 'poncho', seat, isHost: false, isBot: true, connected: true, away: false })),
+    players: g.playerIds.map((id, seat) => ({ id, name: `Name${id}`, item: 'poncho', cosmetics: DEFAULT_COSMETICS, seat, isHost: false, isBot: true, connected: true, away: false })),
     settings: { ...DEFAULT_SETTINGS, posterMode },
     phase: 'investigation',
     phaseEndsAt: null,
     game: engine.gameViewFor(g, me),
     replay: null,
+    practice: false,
+    locked: false,
   };
 }
 

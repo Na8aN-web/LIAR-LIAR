@@ -7,6 +7,8 @@ import { NAME_MAX } from '@wtc/shared';
 import { call, getSocket } from '@/lib/socket';
 import { session } from '@/lib/session';
 import { useGame } from '@/lib/store';
+import { useGameAudio } from '@/lib/audio/useGameAudio';
+import { reportHowtoStatus } from '@/lib/howtoStatus';
 import { Lobby } from './lobby/Lobby';
 import { GameHud } from './game/GameHud';
 import { Toast } from './Toast';
@@ -17,6 +19,12 @@ type Stage = 'connecting' | 'needName' | 'in';
 
 export function RoomScreen({ code }: { code: string }) {
   const [stage, setStage] = useState<Stage>('connecting');
+  // Music, ambience and game sounds for whatever this player can see.
+  useGameAudio();
+  // Playtest stats: tell the room what this player did with How to Play, once seated.
+  useEffect(() => {
+    if (stage === 'in') reportHowtoStatus();
+  }, [stage]);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const view = useGame((s) => s.view);
@@ -52,6 +60,14 @@ export function RoomScreen({ code }: { code: string }) {
     socket.on('view', s.setView);
     socket.on('chat', s.addChat);
     socket.on('chatHistory', s.setChat);
+    // Removed by the host: forget this room's session and go back to the menu.
+    const onKicked = () => {
+      session.setToken(code, null);
+      useGame.getState().reset();
+      setError('The host removed you from this room.');
+      setStage('needName');
+    };
+    socket.on('kicked', onKicked);
     if (socket.connected) onConnect();
     return () => {
       socket.off('connect', onConnect);
@@ -59,8 +75,9 @@ export function RoomScreen({ code }: { code: string }) {
       socket.off('view', s.setView);
       socket.off('chat', s.addChat);
       socket.off('chatHistory', s.setChat);
+      socket.off('kicked', onKicked);
     };
-  }, [resume]);
+  }, [resume, code]);
 
   const join = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -43,6 +43,16 @@ export const TIMER_LIMITS: Record<keyof PhaseTimers, [number, number]> = {
   payout: [5, 30],
 };
 
+/**
+ * Practice with bots (from How to Play): a short game, one human and bots, slower timers so
+ * there's time to read the hints. Normal games never use these.
+ */
+export const PRACTICE = {
+  bots: 7,
+  posters: 3,
+  timers: { poster: 8, investigation: 210, vote: 45, payout: 20 } satisfies PhaseTimers,
+};
+
 export const DEFAULT_TIMERS: PhaseTimers = {
   poster: 5,
   investigation: 120,

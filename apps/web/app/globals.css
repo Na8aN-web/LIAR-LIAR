@@ -237,16 +237,7 @@ input:disabled, select:disabled { opacity: 0.65; }
   background: radial-gradient(ellipse at 50% 120%, #4a2a14 0%, #160e09 45%, #070504 100%);
   display: flex; align-items: flex-end; padding: calc(24px + var(--safe-top)) var(--gutter) calc(32px + var(--safe-bottom));
 }
-.menu-fog {
-  position: absolute; inset: -20%; pointer-events: none; opacity: 0.5;
-  background: radial-gradient(ellipse at 30% 70%, rgba(190, 160, 120, 0.14), transparent 60%),
-    radial-gradient(ellipse at 80% 40%, rgba(150, 130, 110, 0.1), transparent 55%);
-  animation: drift 26s ease-in-out infinite alternate;
-}
-@keyframes drift { to { transform: translate3d(6%, -3%, 0) scale(1.08); } }
-@media (prefers-reduced-motion: reduce) { .menu-fog { animation: none; } }
 
-.menu-poster { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding-top: calc(40px + var(--safe-top)); opacity: 0.32; filter: blur(1px); pointer-events: none; }
 .menu-nav { position: relative; z-index: 1; display: flex; flex-direction: column; width: 100%; max-width: 380px; }
 .game-title { font-size: 2.4rem; line-height: 1.05; color: var(--brass-light); text-shadow: 0 2px 0 #3a2208, 0 4px 22px rgba(240, 170, 70, 0.3); margin-bottom: 14px; }
 .game-title span { display: block; color: var(--cream); font-size: 1.65rem; }
@@ -273,7 +264,6 @@ input:disabled, select:disabled { opacity: 0.65; }
 .poster-svg.big { width: min(76vw, 330px); }
 .poster-svg.thumb { width: 44px; }
 .poster-svg.thumb svg { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6)); }
-.menu-poster .poster-svg { width: min(80vw, 380px); transform: rotate(-3deg); }
 
 /* =====================================================================
    Room / scene
@@ -553,8 +543,6 @@ input:disabled, select:disabled { opacity: 0.65; }
 
 @media (min-width: 900px) {
   .menu { align-items: center; padding: 48px 6vw; }
-  .menu-poster { position: relative; inset: auto; order: 2; flex: 1; align-items: center; opacity: 1; filter: none; padding: 0; pointer-events: auto; }
-  .menu-poster .poster-svg { width: min(30vw, 400px); }
   .menu-nav { order: 1; max-width: 420px; }
   .game-title { font-size: 3.4rem; }
   .game-title span { font-size: 2.2rem; }
@@ -595,3 +583,145 @@ input:disabled, select:disabled { opacity: 0.65; }
 /* Reset-view button: appears once the camera has been moved. */
 .view-reset { position: absolute; z-index: 25; right: var(--gutter); top: 36%; background: rgba(20, 12, 6, 0.72); color: var(--cream); border-color: var(--cream-soft); }
 @media (min-width: 900px) { .view-reset { right: 396px; top: auto; bottom: 120px; } }
+/* Cosmetics picker (lobby): wrapping row of stamped chips. */
+.cosmetic-row { align-items: flex-start; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 220px; justify-content: flex-end; }
+.chip { min-height: 36px; padding: 6px 10px; border: 1.5px solid var(--ink); border-radius: 3px; background: rgba(255, 248, 230, 0.35); color: var(--ink); font-size: 0.8rem; }
+.chip.on { background: var(--oxblood); border-color: #3d0d0d; color: var(--cream); font-weight: 700; }
+/* Audio settings: mute switch and a slider per bus. */
+.audio-settings { display: flex; flex-direction: column; gap: 4px; }
+.volume .brightness-row { gap: 12px; }
+.volume.off { opacity: 0.5; }
+.volume-value { min-width: 2.2em; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-soft, inherit); }
+
+/* =====================================================================
+   Homepage: live campfire behind the menu, poster on a post (desktop)
+   ===================================================================== */
+.menu { background: #0b0d19; }
+.menu-scene { position: absolute; inset: 0; }
+.menu-scene .home-scene { position: absolute !important; inset: 0; }
+/* Darkens the bottom (phones) so the menu reads over the fire. */
+.menu-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(5, 4, 3, 0.1) 0%, rgba(5, 4, 3, 0.15) 40%, rgba(5, 4, 3, 0.82) 78%, rgba(5, 4, 3, 0.92) 100%); }
+.menu-poster { display: none; }
+.tagline { margin: -6px 0 14px; font-family: var(--font-telegram), monospace; color: var(--cream-soft); letter-spacing: 0.04em; font-size: 0.98rem; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8); }
+.quick-join { display: flex; gap: 8px; margin: 0 0 10px; }
+.quick-join .code-input { flex: 1; min-width: 0; font-size: 1.05rem; letter-spacing: 0.25em; background: rgba(245, 230, 200, 0.92); }
+.quick-join .code-input::placeholder { letter-spacing: 0.12em; font-size: 0.85rem; color: rgba(60, 40, 20, 0.55); }
+
+@media (min-width: 900px) {
+  .menu-shade { background: linear-gradient(90deg, rgba(5, 4, 3, 0.86) 0%, rgba(5, 4, 3, 0.55) 30%, rgba(5, 4, 3, 0) 55%); }
+  .menu-poster { display: flex; position: absolute; inset: auto; right: 6vw; top: 0; bottom: 0; width: min(30vw, 400px); flex-direction: column; align-items: center; justify-content: flex-start; opacity: 1; filter: none; padding: 0; pointer-events: none; z-index: 1; }
+  /* A weathered post running off the bottom, the poster nailed near its top. */
+  .menu-poster .post {
+    position: absolute; top: 9vh; bottom: -2vh; width: 46px; left: 50%; transform: translateX(-50%) rotate(1deg);
+    background: linear-gradient(90deg, #1d120a, #4a311d 30%, #5a3c23 50%, #3a2615 75%, #1a1009),
+      repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 23px);
+    border-radius: 3px; box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+  }
+  .menu-poster .poster-svg { position: relative; margin-top: 14vh; width: min(26vw, 340px); transform: rotate(-3deg); }
+  .tagline { font-size: 1.15rem; }
+}
+
+/* =====================================================================
+   How to Play walkthrough
+   ===================================================================== */
+.modal.walk { max-width: none; }
+.walk { width: min(940px, 100%); max-height: 100dvh; display: flex; flex-direction: column; padding: 14px 16px calc(14px + var(--safe-bottom)); }
+.walk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.walk-head h2 { margin: 0; }
+.walk-body { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; touch-action: pan-y; user-select: none; }
+.walk-shot { margin: 0; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.walk-shot img { max-width: 100%; max-height: 52dvh; border-radius: 6px; border: 2px solid var(--ink); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45); background: #0b0d19; }
+.walk-text h3 { margin: 2px 0 6px; font-family: var(--font-display), serif; font-size: 1.35rem; color: var(--oxblood); }
+.walk-text p { margin: 0; line-height: 1.45; }
+.walk-step { font-family: var(--font-telegram), monospace; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft, #6b5236); }
+.walk-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; }
+.walk-dots { display: flex; gap: 7px; list-style: none; margin: 0; padding: 0; }
+.walk-dots button { width: 11px; height: 11px; padding: 0; border-radius: 50%; border: 1.5px solid var(--ink); background: transparent; }
+.walk-dots button.done { background: rgba(60, 40, 20, 0.45); }
+.walk-dots button.on { background: var(--oxblood); border-color: var(--oxblood); transform: scale(1.25); }
+@media (min-width: 900px) {
+  .walk-body { flex-direction: row; align-items: center; gap: 24px; }
+  .walk-shot { flex: 0 0 auto; }
+  .walk-shot img { max-height: 64dvh; }
+  .walk-text { flex: 1; }
+  .walk-text h3 { font-size: 1.7rem; }
+  .walk-text p { font-size: 1.08rem; }
+}
+/* Walkthrough text blocks: worked examples and tips set apart from the rule. */
+.walk-text p + p, .walk-text p + ul, .walk-text ul + p { margin-top: 8px; }
+.walk-example { font-style: italic; color: var(--ink-soft, #5a4127); border-left: 3px solid rgba(60, 40, 20, 0.35); padding-left: 10px; }
+.walk-tip { font-family: var(--font-telegram), monospace; font-size: 0.92em; background: rgba(123, 30, 30, 0.08); border: 1px dashed rgba(123, 30, 30, 0.45); padding: 6px 9px; border-radius: 3px; }
+.walk-list { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 6px; line-height: 1.4; }
+.walk-text { overflow-y: auto; }
+@media (max-width: 899px) { .walk-text { max-height: 34dvh; } .walk-shot img { max-height: 44dvh; } }
+/* Practice games: a hint bubble for the next thing to try. */
+.practice-hint {
+  position: fixed; z-index: 40; left: var(--gutter); right: var(--gutter); max-width: 420px; margin: 0 auto;
+  display: flex; align-items: flex-start; gap: 8px; padding: 10px 10px 10px 12px;
+  background: var(--telegram, #f2e5b4); color: var(--ink); border: 2px solid var(--ink); border-radius: 6px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55); font-size: 0.92rem; line-height: 1.35; pointer-events: auto;
+  animation: hint-in 0.35s ease-out;
+}
+.practice-hint p { margin: 0; flex: 1; }
+.practice-hint .icon-btn { color: var(--ink); flex: none; }
+.practice-tag { flex: none; font-family: var(--font-telegram), monospace; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; background: var(--oxblood); color: var(--cream); padding: 2px 6px; border-radius: 2px; margin-top: 1px; }
+.practice-hint.at-top { top: calc(96px + var(--safe-top)); }
+.practice-hint.at-bottom { bottom: calc(196px + var(--safe-bottom)); }
+.practice-hint.at-side { bottom: calc(66px + var(--safe-bottom)); }
+@keyframes hint-in { from { opacity: 0; transform: translateY(8px); } }
+@media (min-width: 900px) {
+  .practice-hint { left: 16px; right: auto; width: min(420px, calc(100vw - 420px)); margin: 0; }
+  .practice-hint.at-top { top: 120px; }
+  .practice-hint.at-bottom { bottom: 190px; left: calc((100vw - 380px) / 2 - 210px); }
+  .practice-hint.at-side { top: 64px; bottom: auto; left: auto; right: 396px; }
+}
+
+/* =====================================================================
+   Credits (3042Official) and the homepage Discord link
+   ===================================================================== */
+.modal.wide { max-width: 720px; }
+.credits { display: flex; flex-direction: column; gap: 14px; }
+.credits-head { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.crew-art { width: min(100%, 300px); height: auto; border: 3px solid var(--ink); border-radius: 4px; box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4), inset 0 0 0 2px rgba(255, 240, 210, 0.4); transform: rotate(-1.5deg); }
+.credits-byline p { margin: 0; }
+.credits-built { font-family: var(--font-display), serif; font-size: 1.35rem; color: var(--ink); }
+.credits-built b { color: var(--oxblood); font-weight: 400; }
+.credits-studio { font-family: var(--font-telegram), monospace; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.85rem; margin-top: 4px !important; }
+.socials { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.btn.social { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; padding: 8px 12px; min-height: 44px; --social-cut: var(--parchment, #ecdcb4); }
+.btn.social .social-icon { flex: none; }
+.credits-group h3 { margin: 0 0 6px; font-family: var(--font-display), serif; font-size: 1.05rem; color: var(--oxblood); }
+.credits-group ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.credits-group li { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; padding-bottom: 6px; border-bottom: 1px dotted rgba(60, 40, 20, 0.35); font-size: 0.9rem; line-height: 1.35; }
+.credit-name { font-weight: 700; }
+.credit-name a { color: inherit; }
+.credit-use { grid-column: 1; grid-row: 2; color: var(--ink-soft, #5a4127); font-size: 0.84rem; }
+.credit-license { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-family: var(--font-telegram), monospace; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; border: 1px solid rgba(60, 40, 20, 0.5); padding: 2px 6px; border-radius: 2px; white-space: nowrap; }
+.credits-foot { text-align: center; margin: 4px 0 0; }
+.menu-social { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--cream-soft); font-size: 0.9rem; text-decoration: none; border-bottom: 1px dashed rgba(240, 225, 190, 0.35); align-self: flex-start; padding-bottom: 2px; }
+.menu-social:hover, .menu-social:focus-visible { color: var(--brass-light); }
+.menu-social .social-icon { width: 18px; height: 18px; --social-cut: #160e09; }
+@media (min-width: 900px) {
+  .credits-head { flex-direction: row; text-align: left; gap: 20px; }
+  .crew-art { width: 220px; }
+  .credits-built { font-size: 1.6rem; }
+  .socials { justify-content: flex-start; }
+}
+.btn.social.primary { --social-cut: #7b1e1e; }
+.kick-btn { min-height: 30px; padding: 3px 8px; font-size: 0.7rem; }
+.lock-row { margin: 4px 0 10px; }
+.kick-x { font-size: 0.8rem; opacity: 0.55; padding: 0 2px; }
+.kick-x:hover, .kick-x:focus-visible { opacity: 1; color: var(--oxblood); }
+/* End-of-game feedback form: a telegram home. */
+.feedback { margin: 14px 0 6px; padding: 14px 14px 12px; background: var(--telegram, #f2e5b4); color: var(--ink); border: 2px solid var(--ink); border-radius: 4px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35); display: flex; flex-direction: column; gap: 10px; }
+.feedback-head h2 { margin: 2px 0 2px; font-family: var(--font-display), serif; font-size: 1.25rem; color: var(--oxblood); }
+.feedback-head .hint { margin: 0; }
+.feedback-tag { font-family: var(--font-telegram), monospace; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.feedback-q span { font-family: var(--font-telegram), monospace; font-size: 0.86rem; }
+.feedback-q textarea { width: 100%; resize: vertical; min-height: 44px; font: inherit; background: rgba(255, 252, 240, 0.7); border: 1px solid rgba(60, 40, 20, 0.45); border-radius: 3px; padding: 6px 8px; color: var(--ink); }
+.feedback-again { border: 0; padding: 0; margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.feedback-again legend { font-family: var(--font-telegram), monospace; font-size: 0.86rem; float: left; }
+.feedback-actions { gap: 8px; }
+.feedback-thanks { margin: 14px 0; text-align: center; font-family: var(--font-telegram), monospace; color: var(--cream); }
+.feedback-reopen { margin: 12px auto 0; display: block; }

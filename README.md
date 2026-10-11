@@ -51,6 +51,11 @@ share one skeleton, and writes `apps/web/public/models/scarecrow.glb`: one skinn
 (~8k triangles, 34 joints) with six clips (`sit-relaxed`, `sit-hunched`, `sit-leaning`,
 `despair-1`, `despair-2`, `victory`), quantized and meshopt-compressed (~270 KB).
 
+Neither the source model (Meshy's untextured "white mesh") nor the Mixamo files carry textures,
+UVs or colors, so `tools/paint-scarecrow.mjs` paints the clothes on as vertex colors from the
+rig (dark patched shirt, rope belt, brown trousers, burlap head, straw tufts, wooden hands,
+boots). Replace it with the real texture once a textured export exists.
+
 Every scarecrow is a cheap clone with its own bones and mixer and shared geometry. Items
 (poncho, cloak, bandana) are built in code in `components/scene/items.ts` and skinned to the
 torso at load time, each player with their own material. Reactions are decided by the
@@ -62,6 +67,24 @@ Every sponsor surface in town (rooftop billboards, painted wall signs, door post
 defined in `apps/web/config/adSlots.ts`: id, lot, position, size, aspect ratio (2:1, 16:9 or
 2:3) and image. Placeholder ads live in `apps/web/public/ads/`. To sell a slot, add the
 sponsor's image at the slot's ratio and point `image` at it.
+
+## Sound
+
+Every UI sound effect is synthesized in code (`apps/web/lib/audio/sfx.ts`); audition them at
+`/dev/sounds`. Music and ambience come from `assets/source/audio/` (never modified): `pnpm audio`
+sorts the files by name (music, fire, wind, crow), cuts long ambience to a one-minute loop,
+re-encodes for the web, normalises loudness, and writes `apps/web/public/audio/` plus a
+`manifest.json` the game reads. Sound starts on the first tap; Settings has a mute switch and
+music, effects and ambience sliders.
+
+## How to Play screenshots
+
+`pnpm howto:screens` plays a scripted bot game (as Ada, with seven bots, on a phone-sized
+screen), rings the relevant part of each moment, and writes the eight walkthrough images to
+`apps/web/public/howto/` (PNG copies in `screenshots/howto/`). Rerun it after UI changes.
+It uses the dev server (starting it if needed) and installed Edge or Chrome
+(`HOWTO_BROWSER=path` to choose). Slide text is in `apps/web/components/howto/slides.ts` and
+reads its numbers (prices, decoys, bounty) from the game rules.
 
 ## Town scenery
 
@@ -85,10 +108,13 @@ Asset credits: [CREDITS.md](CREDITS.md).
 | Var | Default | |
 | --- | --- | --- |
 | `PORT` | 3001 | |
-| `MIN_PLAYERS` | 2 in dev, 6 in prod | |
-| `CORS_ORIGIN` | any | Comma-separated origins in prod |
-| `NODE_ENV=production` | | Disables bots and skip-phase |
-| `GAME_LOG` | `logs/games.jsonl` | Per-game stats (JSON lines). `off` disables |
+| `--dev` (command-line flag) | off | Dev tools: bots, skip-phase, small lobbies. `pnpm dev` passes it; refused when `NODE_ENV=production`. Without it the server is a production server. |
+| `MIN_PLAYERS` | 2 | Dev only; production always needs 6 |
+| `ALLOWED_ORIGINS` | this server's own host | Production: sites allowed to connect, comma-separated (`https://wanted.example.com`, or `https://*.example.com`). Must be https. |
+| `TRUST_PROXY` | off | `1` behind a proxy/tunnel you run, so rate limits see real client IPs (Cloudflare / X-Forwarded-For). Never set it without a proxy: clients could fake their IP. |
+| `GAME_LOG` | `logs/games.jsonl` | Per-game stats (JSON lines, anonymous). `off` disables. Kept next to the server, never served. |
+
+**Security:** see [SECURITY.md](SECURITY.md) for what the server enforces, the limits, and how to deploy safely (HTTPS, origins).
 
 Web: `NEXT_PUBLIC_SERVER_URL`: a URL, or `same-origin`. Unset: port 3001 on the same host when the page is on :3000 (local dev), otherwise the page's own origin (tunnel/proxy, `tools/proxy.mjs`).
 

@@ -19,8 +19,32 @@ export function serverUrl() {
   return location.port === '3000' ? `${location.protocol}//${location.hostname}:3001` : location.origin;
 }
 
+/**
+ * A random id for this browser, sent when connecting. The server allows one seat per browser in
+ * a room and remembers browsers the host removed. It identifies nothing about the person.
+ */
+function browserId(): string {
+  const make = () => {
+    const b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  };
+  try {
+    // Dev: per tab (sessionStorage), so several tabs can be different players while testing.
+    const store = process.env.NODE_ENV === 'development' ? sessionStorage : localStorage;
+    let id = store.getItem('wtc:browser');
+    if (!id || !/^[A-Za-z0-9_-]{16,64}$/.test(id)) {
+      id = make();
+      store.setItem('wtc:browser', id);
+    }
+    return id;
+  } catch {
+    return make();
+  }
+}
+
 export function getSocket(): GameSocket {
-  if (!socket) socket = io(serverUrl(), { transports: ['websocket'] });
+  if (!socket) socket = io(serverUrl(), { transports: ['websocket'], auth: { browserId: browserId() } });
   return socket;
 }
 

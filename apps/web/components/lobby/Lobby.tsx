@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  COSMETIC_SLOTS,
+  NO_COSMETIC,
+  cosmeticsFor,
   INSPECT_RANGE,
   SWAP_RANGE,
   ITEM_TYPES,
@@ -13,6 +16,8 @@ import {
   defaultInspects,
   defaultSwaps,
   type ColorId,
+  type CosmeticSlot,
+  type Cosmetics,
   type GameRules,
   type PhaseTimers,
   type RoomSettings,
@@ -21,9 +26,10 @@ import { call } from '@/lib/socket';
 import { session } from '@/lib/session';
 import { useGame } from '@/lib/store';
 import { ChatPanel } from '../game/ChatPanel';
-import { SoundToggle } from '../ui/SoundToggle';
+import { AudioSettings } from '../ui/AudioSettings';
 import { BrightnessSlider } from '../ui/BrightnessSlider';
 import { useIsDesktop } from '@/lib/useIsDesktop';
+import { Walkthrough, hasSeenWalkthrough } from '../howto/Walkthrough';
 
 const FILL_TO = 10;
 
@@ -35,6 +41,9 @@ export function Lobby() {
   const isHost = you.isHost;
   const enough = players.length >= minPlayers;
   const desktop = useIsDesktop();
+  // Before a player's first game: offer the walkthrough once (Skip closes it for good).
+  const [intro, setIntro] = useState(false);
+  useEffect(() => setIntro(!hasSeenWalkthrough()), []);
 
   const inviteLink = typeof window !== 'undefined' ? `${location.origin}/r/${view.code}` : '';
   const share = async () => {
@@ -78,6 +87,17 @@ export function Lobby() {
               ✕
             </button>
           )}
+          {isHost && !p.isBot && p.id !== you.id && (
+            <button
+              className="btn small kick-btn"
+              aria-label={`Remove ${p.name} from the room`}
+              onClick={() => {
+                if (window.confirm(`Remove ${p.name}? They won't be able to rejoin this room.`)) act(call('lobby:kick', { playerId: p.id }));
+              }}
+            >
+              Remove
+            </button>
+          )}
         </li>
       ))}
     </ul>
@@ -85,6 +105,7 @@ export function Lobby() {
 
   return (
     <div className="lobby">
+      {intro && <Walkthrough intro numbers={{ settings, playerCount: players.length }} onClose={() => setIntro(false)} />}
       <section className="panel lobby-main">
         <header className="lobby-head">
           <div>
@@ -135,6 +156,9 @@ export function Lobby() {
         <Fold title="Your garment & color" open={desktop}>
           <LookPicker />
         </Fold>
+        <Fold title="Hat & face" open={desktop}>
+          <CosmeticsPicker />
+        </Fold>
         <Fold
           title={
             <>
@@ -143,13 +167,31 @@ export function Lobby() {
           }
           open={desktop}
         >
+          {isHost && (
+            <label className="sound-switch lock-row">
+              <span className="grow">
+                <b>Lock the room</b>
+                <span className="hint"> {view.locked ? 'No one new can join. Players already here can reconnect.' : 'Anyone with the code can join.'}</span>
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={view.locked}
+                className={`btn small${view.locked ? ' primary' : ''}`}
+                onClick={() => act(call('lobby:lock', { locked: !view.locked }))}
+              >
+                {view.locked ? 'Locked' : 'Open'}
+              </button>
+            </label>
+          )}
+          {!isHost && view.locked && <p className="hint">The host has locked this room.</p>}
           {posseRows}
         </Fold>
         <Fold title={`House rules${isHost ? '' : ' (host sets these)'}`} open={desktop && isHost}>
           <SettingsForm settings={settings} editable={isHost} playerCount={players.length} />
         </Fold>
         <Fold title="Sound & picture" open={false}>
-          <SoundToggle />
+          <AudioSettings />
           <BrightnessSlider />
         </Fold>
       </section>
@@ -254,7 +296,43 @@ function LookPicker() {
           })}
         </div>
       )}
-      <p className="hint">Only you can see your color. Everyone else sees a shadow in the dark.</p>
+      <p className="hint">Only you can see your true color.</p>
+    </div>
+  );
+}
+
+const SLOT_LABELS: Record<CosmeticSlot, string> = { hat: 'Hat', face: 'Head detail' };
+
+/** Hat and head detail: everyone sees them, so the posse can tell scarecrows apart. Built from the catalog. */
+function CosmeticsPicker() {
+  const mine = useGame((s) => s.view!.players.find((p) => p.id === s.view!.you.id)?.cosmetics);
+  const toast = useGame((s) => s.showToast);
+  const set = async (next: Partial<Cosmetics>) => {
+    const res = await call('lobby:setLook', { cosmetics: next });
+    if (!res.ok) toast(res.error);
+  };
+  if (!mine) return null;
+  return (
+    <div className="look">
+      {COSMETIC_SLOTS.map((slot) => (
+        <div className="look-row cosmetic-row" key={slot}>
+          <span className="label">{SLOT_LABELS[slot]}</span>
+          <div className="chips" role="radiogroup" aria-label={SLOT_LABELS[slot]}>
+            {[{ id: NO_COSMETIC, name: 'None' }, ...cosmeticsFor(slot)].map((c) => (
+              <button
+                key={c.id}
+                role="radio"
+                aria-checked={mine[slot] === c.id}
+                className={`chip${mine[slot] === c.id ? ' on' : ''}`}
+                onClick={() => mine[slot] !== c.id && set({ [slot]: c.id })}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <p className="hint">Everyone sees these, so the posse can tell you apart. Earth tones only, never a player's color.</p>
     </div>
   );
 }

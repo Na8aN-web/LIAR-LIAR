@@ -164,6 +164,8 @@ This is a deduction game. If a secret ever reaches a client, players will find i
 - **Never broadcast the full game state.** Build a per-player view for each client.
 - Clients send intents ("inspect player X", "vote for Y", "change my color") and the server validates every one: whose turn, enough inspects left, enough points, under the purchase cap, valid target, swap window, free color, swaps left.
 - Decoys are generated on the server.
+- **Lobby colors:** the color a player gets on joining is only a suggestion and isn't reserved, so the lobby's free-color list can't reveal it. Picked colors are reserved; clashing suggestions are re-rolled at game start. The free-color list is lobby-only and rate limited.
+- Abuse limits, room locking, removing players, one seat per browser, connection checks and production hardening are described in [SECURITY.md](../SECURITY.md).
 
 | Data | Who receives it |
 | --- | --- |
@@ -180,6 +182,7 @@ This is a deduction game. If a secret ever reaches a client, players will find i
 | Votes | Nobody, until the end-of-game replay |
 | Whether a vote was correct | That voter |
 | Scores | Everyone, after each poster |
+| Garment type, hat and head detail | Everyone (public, purely visual) |
 | Payout reactions (3.9) | Everyone, but the Wanted player always shows despair; their true reaction goes only to them |
 | End-of-game reactions | Everyone (winners are public by then) |
 
@@ -202,13 +205,18 @@ Bots change color based only on their own view: they estimate "exposure" (distin
 ## 6. Look and feel
 
 - **Style:** 3D, low-poly, so it loads fast and runs on cheap phones.
-- **Setting:** the Wild West at night. A ghost town lit by lanterns, with dust and fog. Other players appear as dark, half-visible silhouettes.
+- **Setting:** the Wild West at night. A ghost town lit by a campfire and lanterns, with dust and fog. Other players' colored items appear in one neutral tone (see Colored item).
 - **Characters:** faceless scarecrows.
-- **Colored item:** each scarecrow wears one customizable item (poncho, cloak or bandana) that carries the player's color.
+- **Colored item:** each scarecrow wears one customizable item (poncho, cloak or bandana) that carries the player's color. On your screen only your own item shows its color; everyone else's is drawn as dark, undyed jute with a visible weave, so it reads as "unknown" rather than as a color. It's unlit so no light can tint it, and every shade of it stays far from all 20 palette colors and every cosmetic tone (tested). Their real colors never reach your client.
+- **Cosmetics (identity):** separate from the colored item, each player picks a hat (none, straw hat, battered cowboy hat, top hat, bowler) and a head detail (none, stitched grin, cross-stitch scar, button eye, eye patch) in the lobby, so scarecrows are easy to tell apart, also for people watching a video. Cosmetics are public and purely visual. They use earthy natural tones only, each measurably far from all 20 palette colors (CIEDE2000 ≥ 16, tested), so they can never be mistaken for a player's color. The neutral item tone follows the same rule. The catalog is data-driven (`packages/shared/src/cosmetics.ts`), so more items can be added later.
 - **Crows and vultures:** small crows and vultures wander and occasionally land on a scarecrow's shoulder or hat. This is purely for atmosphere. Where they perch must be random and must never hint at who is Wanted or anyone's color.
 - **Main menu:** dark and eerie. Options: Play, How to Play, Settings, Profile, Credits. No Quit button, since a browser game can't close its own tab.
-  - Desktop: menu on the left, a Wanted poster on the right.
-  - Mobile: the Wanted poster fills the background behind the menu.
+  - Background: the live campfire scene, a few scarecrows sitting around the fire, embers rising, the camera slowly circling.
+  - Under the title: "Everyone lies. Find the outlaw." and a room-code box to join directly.
+  - Desktop: menu on the left, the Wanted poster nailed to a post on the right.
+  - Mobile: the scene sits behind the menu, with the fire above it.
+- **How to Play:** an 8-slide walkthrough (the hunt, your color, the poster, searching, talking and lying, buying, voting and the bounty, colors and winning), one screenshot and a sentence or two each, with Next/Back, swipe, progress dots and Skip. Numbers come from the game rules. It's offered automatically before a player's first game. Screenshots are regenerated with `pnpm howto:screens`.
+- **Sound:** UI effects are synthesized in code (wooden knock, telegraph clicks, bell for offers, a crow when you're searched, paper slap and sting for a new poster, clock ticks for the last 10 seconds, a stamp when your vote locks, coins at the payout, victory and despair stings for your own reaction, cloth rustle when you change color, a longer sting at game end). Music and ambience (fire, wind, crows) loop quietly: music plays low in the lobby, quieter while searching, with a tension layer for the last 20 seconds and the vote. Settings has a mute switch and separate music, effects and ambience volumes. Audio starts on the first tap. Sounds only ever reflect what this player's screen already shows.
 
 ### 20-color palette
 Red, maroon, orange, tan, brown, yellow, olive, lime, green, mint, teal, cyan, sky, blue, lavender, purple, magenta, pink, white, gray.

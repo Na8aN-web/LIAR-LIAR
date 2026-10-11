@@ -1,3 +1,4 @@
+import type { Cosmetics } from './cosmetics';
 import type { ColorId } from './palette';
 
 export type PlayerId = string;
@@ -45,6 +46,8 @@ export interface PublicPlayer {
   id: PlayerId;
   name: string;
   item: ItemType;
+  /** Hat and head detail. Public: everyone sees everyone's. */
+  cosmetics: Cosmetics;
   seat: number;
   isHost: boolean;
   isBot: boolean;
@@ -201,4 +204,8 @@ export interface PlayerView {
   phaseEndsAt: number | null;
   game: GameView | null;
   replay: ReplayView | null;
+  /** A practice game against bots: the client shows hint bubbles. */
+  practice: boolean;
+  /** Host has locked the room to new players. */
+  locked: boolean;
 }

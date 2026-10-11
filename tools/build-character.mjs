@@ -10,6 +10,7 @@
 //   sit-relaxed  <- Sitting2.fbx        (upright, hands on knees)
 //   sit-hunched  <- Sitting.fbx         (bent forward, head down)
 //   sit-leaning  <- Sittingcross.fbx    (leaning back, legs crossed)
+//   sit-talking  <- Sitting Talking.fbx (gesturing as if in conversation)
 //   despair-1    <- Sitting Disbelief.fbx
 //   despair-2    <- Sitting Disbelief2.fbx
 //   victory      <- Sitting Victory.fbx
@@ -27,6 +28,7 @@ import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { meshopt, prune, quantize, resample, simplify, weld } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
+import { paintBody } from './paint-scarecrow.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 function arg(name, fallback) {
@@ -43,6 +45,7 @@ const CLIPS = [
   ['sit-relaxed', 'Sitting2.fbx'],
   ['sit-hunched', 'Sitting.fbx'],
   ['sit-leaning', 'Sittingcross.fbx'],
+  ['sit-talking', 'Sitting Talking.fbx'],
   ['despair-1', 'Sitting Disbelief.fbx'],
   ['despair-2', 'Sitting Disbelief2.fbx'],
   ['victory', 'Sitting Victory.fbx'],
@@ -79,20 +82,29 @@ const nodesByName = (d) => new Map(d.getRoot().listNodes().map((n) => [n.getName
 const baseNodes = nodesByName(doc);
 const baseJoints = root.listSkins()[0].listJoints().map((j) => j.getName());
 const close = (a, b, eps) => a.every((v, i) => Math.abs(v - b[i]) <= eps);
+/** Files rigged on a different skeleton: hips-translation scale to apply when copying the clip. */
+const retarget = new Map();
 for (const [name, file] of CLIPS) {
   const other = docs.get(file);
   const joints = other.getRoot().listSkins()[0]?.listJoints().map((j) => j.getName()) ?? [];
   const missing = baseJoints.filter((j) => !joints.includes(j));
   if (missing.length) throw new Error(`${file}: skeleton differs (missing ${missing.join(', ')})`);
   const theirs = nodesByName(other);
-  for (const j of baseJoints) {
+  const differs = baseJoints.filter((j) => {
     const a = baseNodes.get(j);
     const b = theirs.get(j);
-    if (!close(a.getTranslation(), b.getTranslation(), 1e-5) || !close(a.getRotation(), b.getRotation(), 1e-3)) {
-      throw new Error(`${file}: rest pose of ${j} differs from ${BASE}`);
-    }
+    return !close(a.getTranslation(), b.getTranslation(), 1e-5) || !close(a.getRotation(), b.getRotation(), 1e-3);
+  });
+  if (!differs.length) {
+    console.log(`skeleton ok   ${name.padEnd(12)} ${file}`);
+    continue;
   }
-  console.log(`skeleton ok   ${name.padEnd(12)} ${file}`);
+  // Rigged separately (Mixamo re-rigged the upload): same bone names and axis conventions,
+  // different bone lengths. Retarget: rotations are copied as they are, and the hips' movement
+  // is scaled by the ratio of leg lengths, so the pose sits on our skeleton.
+  const legLength = (nodes) => ['LeftLeg', 'LeftFoot'].reduce((s, b) => s + Math.hypot(...nodes.get(`mixamorig:${b}`).getTranslation()), 0);
+  retarget.set(file, legLength(baseNodes) / legLength(theirs));
+  console.log(`retargeted    ${name.padEnd(12)} ${file} (${differs.length} joints differ; hips scaled x${retarget.get(file).toFixed(3)})`);
 }
 
 // ---------------------------------------------------------------- copy clips onto it
@@ -116,7 +128,14 @@ for (const [name, file] of CLIPS) {
     const s = ch.getSampler();
     const input = copyAccessor(s.getInput());
     end = Math.max(end, input.getMax([])[0]);
-    const sampler = doc.createAnimationSampler().setInput(input).setOutput(copyAccessor(s.getOutput())).setInterpolation(s.getInterpolation());
+    const output = copyAccessor(s.getOutput());
+    const scale = retarget.get(file);
+    if (scale !== undefined && ch.getTargetPath() === 'translation') {
+      // Only the hips move by translation in Mixamo clips; other bones keep our lengths.
+      if (!/Hips$/.test(target.getName())) continue;
+      output.setArray(output.getArray().map((v) => v * scale));
+    }
+    const sampler = doc.createAnimationSampler().setInput(input).setOutput(output).setInterpolation(s.getInterpolation());
     anim.addSampler(sampler).addChannel(doc.createAnimationChannel().setTargetNode(target).setTargetPath(ch.getTargetPath()).setSampler(sampler));
   }
   durations[name] = end;
@@ -144,6 +163,9 @@ const [P, J, W] = ['POSITION', 'JOINTS_0', 'WEIGHTS_0'].map((s) => prim.getAttri
 const lo = [Infinity, Infinity, Infinity];
 const hi = [-Infinity, -Infinity, -Infinity];
 const v = [], jj = [], ww = [];
+const restRaw = [];
+const dominantJoint = [];
+const jointNames = skin.listJoints().map((j) => j.getName().replace('mixamorig:', ''));
 for (let i = 0; i < P.getCount(); i++) {
   P.getElement(i, v);
   J.getElement(i, jj);
@@ -158,6 +180,10 @@ for (let i = 0; i < P.getCount(); i++) {
     lo[r] = Math.min(lo[r], out[r]);
     hi[r] = Math.max(hi[r], out[r]);
   }
+  restRaw.push(out);
+  let best = 0;
+  for (let n = 1; n < 4; n++) if (ww[n] > ww[best]) best = n;
+  dominantJoint.push(jointNames[jj[best]]);
 }
 const [minX, minY, minZ] = lo;
 const [maxX, maxY, maxZ] = hi;
@@ -166,7 +192,16 @@ const k = MODEL_HEIGHT / (maxY - minY);
 console.log(`rest pose     ${(maxX - minX).toFixed(4)} x ${(maxY - minY).toFixed(4)} x ${(maxZ - minZ).toFixed(4)} source units, scale x${k.toFixed(2)}`);
 sceneRoot.setName('Scarecrow').setScale([k, k, k]);
 meshNode.setName('Body');
-root.listMaterials().forEach((m) => m.setName('Straw').setBaseColorFactor([0.63, 0.49, 0.31, 1]).setRoughnessFactor(1).setMetallicFactor(0));
+
+// ---------------------------------------------------------------- paint
+// The sources carry no textures or colors (see tools/paint-scarecrow.mjs), so paint the
+// clothes on as vertex colors, from the rig's rest pose. Simplify keeps them per vertex.
+const toModel = (q) => [q[0] * k, (q[1] - minY) * k, q[2] * k];
+// Joint world positions already include the root scale set above; take it back out first.
+const jointRest = Object.fromEntries(skin.listJoints().map((j, n) => [jointNames[n], toModel(j.getWorldTranslation().map((c) => c / k))]));
+const colors = paintBody(restRaw.map(toModel), dominantJoint, jointRest);
+prim.setAttribute('COLOR_0', doc.createAccessor('color').setType('VEC3').setArray(colors).setBuffer(root.listBuffers()[0]));
+root.listMaterials().forEach((m) => m.setName('Scarecrow').setBaseColorFactor([1, 1, 1, 1]).setRoughnessFactor(1).setMetallicFactor(0));
 
 // ---------------------------------------------------------------- optimize
 const triangles = () => root.listMeshes().reduce((n, m) => n + m.listPrimitives().reduce((t, p) => t + (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3, 0), 0);
@@ -190,6 +225,6 @@ console.table({
   triangles: { source: before.triangles, output: triangles() },
   vertices: { source: before.vertices, output: vertices() },
   joints: { source: baseJoints.length, output: root.listSkins()[0].listJoints().length },
-  'file size': { source: `${kb(sourceBytes)} (6 FBX)`, output: kb(outBytes) },
+  'file size': { source: `${kb(sourceBytes)} (${CLIPS.length} FBX)`, output: kb(outBytes) },
 });
 console.table(Object.fromEntries(root.listAnimations().map((a) => [a.getName(), { seconds: +durations[a.getName()].toFixed(2), channels: a.listChannels().length }])));

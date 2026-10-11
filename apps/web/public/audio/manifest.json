@@ -1,0 +1,44 @@
+{
+  "music": [
+    {
+      "file": "/audio/music-westernmusic.mp3",
+      "seconds": 108
+    }
+  ],
+  "ambience": {
+    "crows": {
+      "file": "/audio/crows-crow.mp3",
+      "seconds": 10.8
+    },
+    "fire": {
+      "file": "/audio/fire-fire.mp3",
+      "seconds": 60
+    },
+    "wind": {
+      "file": "/audio/wind-wind.mp3",
+      "seconds": 42.7
+    }
+  },
+  "sources": [
+    {
+      "source": "assets/source/audio/crow.mp3",
+      "kind": "crows",
+      "output": "crows-crow.mp3"
+    },
+    {
+      "source": "assets/source/audio/fire.mp3",
+      "kind": "fire",
+      "output": "fire-fire.mp3"
+    },
+    {
+      "source": "assets/source/audio/westernmusic.mp3",
+      "kind": "music",
+      "output": "music-westernmusic.mp3"
+    },
+    {
+      "source": "assets/source/audio/wind.mp3",
+      "kind": "wind",
+      "output": "wind-wind.mp3"
+    }
+  ]
+}

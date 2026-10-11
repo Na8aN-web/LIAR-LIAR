@@ -10,10 +10,11 @@ import { ScoreList } from './ScoresPanel';
 
 type Tab = 'chat' | 'log' | 'notes' | 'scores';
 const TABS: { id: Tab; label: string }[] = [
+  // Rankings first: the ledger is what people look for between posters.
+  { id: 'scores', label: 'Ledger' },
   { id: 'chat', label: 'Talk' },
   { id: 'log', label: 'Searches' },
   { id: 'notes', label: 'Notebook' },
-  { id: 'scores', label: 'Ledger' },
 ];
 
 /**
@@ -21,7 +22,7 @@ const TABS: { id: Tab; label: string }[] = [
  * just the tab strip (unread counts stay visible on the tabs); desktop is always open.
  */
 export function SidePanel() {
-  const [tab, setTab] = useState<Tab>('chat');
+  const [tab, setTab] = useState<Tab>('scores');
   const desktop = useIsDesktop();
   const [openOnPhone, setOpen] = useState(false);
   const open = desktop || openOnPhone;

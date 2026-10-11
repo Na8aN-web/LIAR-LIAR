@@ -1,4 +1,5 @@
-import { BufferGeometry, Float32BufferAttribute } from 'three';
+import { BufferGeometry, Float32BufferAttribute, IcosahedronGeometry } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { ItemType } from '@wtc/shared';
 
 // Low-poly colored items, built in code and fitted to scarecrow.glb.
@@ -55,44 +56,102 @@ function poncho() {
     [
       { y: 1.63, rx: 0.16, rz: 0.15 },
       { y: 1.52, rx: 0.33, rz: 0.21 },
-      { y: 1.2, rx: 0.53, rz: 0.27, pointDrop: 0.12, zigzag: 0.035 },
+      { y: 1.23, rx: 0.53, rz: 0.27, pointDrop: 0.07, zigzag: 0.035 },
     ],
     14,
   );
 }
 
 function cloak() {
-  // Back half only, from the shoulders to the knees.
+  // Back half only, a short cape from the shoulders to the waist. It stops above the seat
+  // so it can't sink into a log or crate when the scarecrow sits.
   return loft(
     [
       { y: 1.58, rx: 0.2, rz: 0.16 },
-      { y: 1.5, rx: 0.32, rz: 0.2 },
-      { y: 0.75, rx: 0.42, rz: 0.3, zigzag: 0.04 },
+      { y: 1.5, rx: 0.33, rz: 0.21 },
+      { y: 1.14, rx: 0.4, rz: 0.27, zigzag: 0.035 },
     ],
-    10,
+    12,
     Math.PI / 2,
     Math.PI,
   );
 }
 
-function bandana() {
-  // A band over the collar plus a triangle hanging at the front.
-  const band = loft(
-    [
-      { y: 1.67, rx: 0.2, rz: 0.19 },
-      { y: 1.57, rx: 0.22, rz: 0.2 },
-    ],
-    12,
-  );
-  const pos = Array.from(band.getAttribute('position').array);
-  const idx = Array.from(band.getIndex()!.array);
-  const base = pos.length / 3;
-  const z = CZ + 0.205;
-  pos.push(CX - 0.12, 1.6, z, CX + 0.12, 1.6, z, CX, 1.4, z + 0.04);
-  idx.push(base, base + 2, base + 1);
+/** A curved kerchief panel hanging at the front: a triangle subdivided so it can bulge over the chest. */
+function kerchief(): BufferGeometry {
+  const rows = 5;
+  const top = 1.63;
+  const height = 0.36;
+  const halfW = 0.21;
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const at = (r: number, c: number) => (r * (r + 1)) / 2 + c; // row r has r+1 points, tip first
+  for (let r = 0; r <= rows; r++) {
+    const t = r / rows; // 0 at the tip, 1 at the top edge
+    const y = top - height * (1 - t);
+    for (let c = 0; c <= r; c++) {
+      const u = r === 0 ? 0 : (c / r) * 2 - 1;
+      const x = CX + u * halfW * t;
+      // Hangs out over the chest, most at the middle.
+      const z = CZ + 0.195 + 0.06 * (1 - t) + 0.03 * (1 - u * u) * t;
+      pos.push(x, y, z);
+    }
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c <= r; c++) {
+      idx.push(at(r, c), at(r + 1, c), at(r + 1, c + 1));
+      if (c < r) idx.push(at(r, c), at(r + 1, c + 1), at(r, c + 1));
+    }
+  }
   const g = new BufferGeometry();
   g.setAttribute('position', new Float32BufferAttribute(pos, 3));
   g.setIndex(idx);
+  return g.toNonIndexed();
+}
+
+/** One tail of the knot: a tapering strip hanging from the back of the neck. */
+function tail(side: number): BufferGeometry {
+  const steps = 4;
+  const pos: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = CX + side * (0.02 + 0.08 * t);
+    const y = 1.62 - 0.24 * t;
+    const z = CZ - 0.21 - 0.03 * t;
+    const w = 0.04 * (1 - 0.55 * t);
+    // The strip turns a little as it falls.
+    const a = side * 0.5 * t;
+    pos.push(x - w * Math.cos(a), y, z - w * Math.sin(a), x + w * Math.cos(a), y, z + w * Math.sin(a));
+  }
+  const idx: number[] = [];
+  for (let i = 0; i < steps; i++) idx.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3);
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  return g.toNonIndexed();
+}
+
+function bandana() {
+  // A wide band over the straw collar, a big kerchief at the front, and a knot with two
+  // hanging tails at the back, so it reads from across the fire.
+  const band = loft(
+    [
+      // Rolled cloth: fuller in the middle than at the edges.
+      { y: 1.685, rx: 0.19, rz: 0.18 },
+      { y: 1.645, rx: 0.215, rz: 0.2 },
+      { y: 1.6, rx: 0.205, rz: 0.19 },
+    ],
+    16,
+  ).toNonIndexed();
+  const knot = new IcosahedronGeometry(0.05, 0);
+  knot.scale(1.3, 0.9, 0.8);
+  knot.translate(CX, 1.64, CZ - 0.205);
+  const parts = [band, kerchief(), knot, tail(-1), tail(1)].map((g) => {
+    g.deleteAttribute('normal');
+    g.deleteAttribute('uv');
+    return g;
+  });
+  const g = mergeGeometries(parts)!;
   g.computeVertexNormals();
   return g;
 }

@@ -5,4 +5,8 @@ allowBuilds:
   esbuild: true
   sharp: true
   fbx2gltf: true
+  ffmpeg-static: true
   unrs-resolver: false
+overrides:
+  # Security: GHSA-g7r4-m6w7-qqqr (esbuild dev server file read on Windows). Dev tooling only.
+  esbuild: ">=0.28.1"

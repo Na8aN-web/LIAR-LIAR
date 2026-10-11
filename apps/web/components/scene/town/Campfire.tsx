@@ -199,7 +199,7 @@ export function Campfire() {
         </sprite>
         <mesh rotation-x={-Math.PI / 2} position-y={0.02}>
           <planeGeometry args={[9, 9]} />
-          <meshBasicMaterial map={tex} color={FIRE_COLOR} blending={AdditiveBlending} transparent depthWrite={false} opacity={0.45} />
+          <meshBasicMaterial map={tex} color={FIRE_COLOR} blending={AdditiveBlending} transparent depthWrite={false} opacity={0.28} />
         </mesh>
       </group>
     </group>

@@ -14,14 +14,23 @@
     "playtest": "node tools/playtest.mjs",
     "proxy": "node tools/proxy.mjs",
     "model": "node tools/build-character.mjs",
-    "scenery": "node tools/build-scenery.mjs"
+    "scenery": "node tools/build-scenery.mjs",
+    "audio": "node tools/build-audio.mjs",
+    "howto:screens": "node tools/howto-screens.mjs",
+    "ground": "node tools/build-ground.mjs",
+    "branding": "node tools/build-branding.mjs",
+    "feedback": "pnpm --filter @wtc/server feedback",
+    "playtest:check": "pnpm --filter @wtc/server playtest:check"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",
     "@gltf-transform/extensions": "^4.5.1",
     "@gltf-transform/functions": "^4.5.1",
     "fbx2gltf": "0.9.7-p1",
+    "ffmpeg-static": "5.2.0",
     "meshoptimizer": "^1.3.0",
+    "playwright-core": "1.64.0",
+    "qrcode": "1.5.4",
     "sharp": "^0.35.5",
     "typescript": "^5.9.3"
   }

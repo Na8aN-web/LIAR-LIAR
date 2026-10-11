@@ -6,6 +6,7 @@ import { call } from '@/lib/socket';
 import { session } from '@/lib/session';
 import { useGame } from '@/lib/store';
 import { ColorChip } from '../Chip';
+import { FeedbackForm } from './FeedbackForm';
 
 type Tab = 'results' | 'rounds' | 'log';
 
@@ -123,6 +124,8 @@ export function Replay() {
             {!replay.log.length && <li className="muted">Nobody searched anybody.</li>}
           </ul>
         )}
+
+        {!view.practice && <FeedbackForm />}
 
         <div className="row replay-actions">
           {view.you.isHost && (

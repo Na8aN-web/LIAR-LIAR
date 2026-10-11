@@ -1,16 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { NAME_MAX, ROOM_CODE_LENGTH } from '@wtc/shared';
 import { WantedPoster } from '@/components/WantedPoster';
-import { HowToPlay } from '@/components/HowToPlay';
+import { Walkthrough } from '@/components/howto/Walkthrough';
+import { Credits } from '@/components/credits/Credits';
+import { SocialIcon } from '@/components/credits/SocialIcon';
+import { YOUTUBE_URL } from '@/config/brand';
 import { Modal } from '@/components/Modal';
 import { Rope } from '@/components/ui/western';
-import { SoundToggle } from '@/components/ui/SoundToggle';
+import { AudioSettings } from '@/components/ui/AudioSettings';
 import { BrightnessSlider } from '@/components/ui/BrightnessSlider';
 import { call } from '@/lib/socket';
 import { session } from '@/lib/session';
+import { useMood } from '@/lib/audio/soundscape';
+
+// The live campfire behind the menu (client-only WebGL).
+const HomeScene = dynamic(() => import('@/components/home/HomeScene'), { ssr: false });
 
 type Panel = 'play' | 'how' | 'settings' | 'profile' | 'credits' | null;
 
@@ -23,6 +31,16 @@ export default function MainMenu() {
   const [error, setError] = useState('');
 
   useEffect(() => setName(session.getName()), []);
+  // Menu music and the campfire, from the first tap.
+  useMood('menu');
+
+  // Join straight from the homepage: the room asks for a name if this device has none.
+  const [quickCode, setQuickCode] = useState('');
+  const quickJoin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const c = quickCode.trim().toUpperCase();
+    if (c.length === ROOM_CODE_LENGTH) router.push(`/r/${c}`);
+  };
 
   const enter = async (mode: 'create' | 'join') => {
     const trimmed = name.trim();
@@ -40,6 +58,16 @@ export default function MainMenu() {
     router.push(`/r/${res.code}`);
   };
 
+  // Practice with bots (end of How to Play): straight into a short game against bots.
+  const practice = async () => {
+    const trimmed = name.trim() || session.getName() || 'Greenhorn';
+    session.setName(trimmed);
+    const res = await call('room:practice', { name: trimmed });
+    if (!res.ok) return setError(res.error);
+    session.setToken(res.code, res.token);
+    router.push(`/r/${res.code}`);
+  };
+
   const items: { id: Exclude<Panel, null>; label: string }[] = [
     { id: 'play', label: 'Play' },
     { id: 'how', label: 'How to Play' },
@@ -50,8 +78,13 @@ export default function MainMenu() {
 
   return (
     <main className="menu">
-      <div className="menu-fog" aria-hidden />
-      <div className="menu-poster">
+      <div className="menu-scene" aria-hidden>
+        <HomeScene />
+      </div>
+      <div className="menu-shade" aria-hidden />
+      {/* Desktop: the poster nailed to a post on the right. */}
+      <div className="menu-poster" aria-hidden>
+        <div className="post" />
         <WantedPoster />
       </div>
       <nav className="menu-nav">
@@ -59,6 +92,23 @@ export default function MainMenu() {
           Wanted:
           <span>True Colors</span>
         </h1>
+        <p className="tagline">Everyone lies. Find the outlaw.</p>
+        <form className="quick-join" onSubmit={quickJoin} aria-label="Join a room">
+          <input
+            className="code-input"
+            value={quickCode}
+            maxLength={ROOM_CODE_LENGTH}
+            placeholder="ROOM CODE"
+            aria-label="Room code"
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(e) => setQuickCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+          />
+          <button className="btn primary" disabled={quickCode.length !== ROOM_CODE_LENGTH}>
+            Join
+          </button>
+        </form>
         {items.map((it, i) => (
           <div key={it.id}>
             {i > 0 && <Rope />}
@@ -67,6 +117,10 @@ export default function MainMenu() {
             </button>
           </div>
         ))}
+        <a className="menu-social" href={YOUTUBE_URL} target="_blank" rel="noopener noreferrer">
+          <SocialIcon id="youtube" />
+          Watch 3042Official on YouTube
+        </a>
       </nav>
 
       {panel === 'play' && (
@@ -104,14 +158,10 @@ export default function MainMenu() {
           {error && <p className="error">{error}</p>}
         </Modal>
       )}
-      {panel === 'how' && (
-        <Modal title="How to Play" onClose={() => setPanel(null)}>
-          <HowToPlay />
-        </Modal>
-      )}
+      {panel === 'how' && <Walkthrough onClose={() => setPanel(null)} onPractice={practice} />}
       {panel === 'settings' && (
         <Modal title="Settings" onClose={() => setPanel(null)}>
-          <SoundToggle />
+          <AudioSettings />
           <BrightnessSlider />
         </Modal>
       )}
@@ -132,8 +182,8 @@ export default function MainMenu() {
         </Modal>
       )}
       {panel === 'credits' && (
-        <Modal title="Credits" onClose={() => setPanel(null)}>
-          <p className="muted">Wanted: True Colors. A work in progress.</p>
+        <Modal title="Credits" wide onClose={() => setPanel(null)}>
+          <Credits />
         </Modal>
       )}
     </main>
