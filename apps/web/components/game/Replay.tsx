@@ -19,7 +19,12 @@ export function Replay() {
   const name = (id: string | null) => (id ? view.players.find((p) => p.id === id)?.name ?? '?' : 'no vote');
 
   const ranked = view.players
-    .map((p) => ({ p, score: replay.finalScores[p.id] ?? 0, correct: replay.correctVotes[p.id] ?? 0 }))
+    .map((p) => ({
+      p,
+      score: replay.finalScores[p.id] ?? 0,
+      correct: replay.correctVotes[p.id] ?? 0,
+      escape: replay.escapeBonuses?.[p.id] ?? 0,
+    }))
     .sort((a, b) => b.score - a.score || b.correct - a.correct);
   const winnerNames = replay.winners.map(name).join(' & ');
 
@@ -27,31 +32,36 @@ export function Replay() {
     <div className="replay">
       <div className="replay-inner">
         <header className="replay-head">
-          <div className="label">Game over</div>
+          <div className="label">The dust settles</div>
           <h1>
-            {replay.winners.includes(view.you.id) ? 'You win!' : `${winnerNames} ${replay.winners.length > 1 ? 'share the win' : 'wins'}`}
+            {replay.winners.includes(view.you.id) ? 'You win the bounty!' : `${winnerNames} ${replay.winners.length > 1 ? 'share the win' : 'wins'}`}
           </h1>
         </header>
 
-        <nav className="tabs replay-tabs">
+        <nav className="tabs replay-tabs wood">
           {(['results', 'rounds', 'log'] as Tab[]).map((t) => (
             <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
-              {t === 'results' ? 'True colors' : t === 'rounds' ? 'Posters' : 'Inspect log'}
+              {t === 'results' ? 'True colors' : t === 'rounds' ? 'Posters' : 'Every search'}
             </button>
           ))}
         </nav>
 
         {tab === 'results' && (
           <ol className="scores">
-            {ranked.map(({ p, score, correct }) => (
+            {ranked.map(({ p, score, correct, escape }) => (
               <li key={p.id} className={`replay-player${p.id === view.you.id ? ' me' : ''}`}>
                 <div className="row">
                   <span className="grow">
                     {replay.winners.includes(p.id) && '★ '}
                     {p.name}
                   </span>
+                  {escape > 0 && (
+                    <span className="tag escape-tag" title="Escape rewards, paid at the end of the game">
+                      +${escape} escapes
+                    </span>
+                  )}
                   <span className="muted">{correct}✓</span>
-                  <span className="score">{score}</span>
+                  <span className="score">${score}</span>
                 </div>
                 <div className="history">
                   {(replay.colorHistory[p.id] ?? [{ color: replay.colors[p.id], afterPoster: null }]).map((h, i) => (
@@ -76,12 +86,12 @@ export function Replay() {
                   <span>
                     → <b>{name(r.wantedId)}</b>
                   </span>
-                  <span className="muted">pot ${r.pot}</span>
+                  <span className="muted">bounty ${r.pot}</span>
                 </div>
                 <div className="round-outcome">
                   {r.escaped
-                    ? `Escaped: +${view.settings.rules.escapeBonus} to ${name(r.wantedId)}`
-                    : `Found by ${r.correctIds.map(name).join(', ')} (+${r.payoutEach} each)`}
+                    ? `${name(r.wantedId)} escaped · +$${view.settings.rules.escapeBonus}, paid at the end`
+                    : `Caught by ${r.correctIds.map(name).join(', ')} · +$${r.payoutEach} each`}
                 </div>
                 <div className="votes">
                   {Object.entries(r.votes).map(([voter, target]) => (
@@ -100,7 +110,7 @@ export function Replay() {
             {replay.log.map((e) => (
               <li key={e.id}>
                 <div>
-                  <span className="log-poster-tag">Poster {e.poster + 1}:</span> <b>{name(e.inspectorId)}</b> inspected{' '}
+                  <span className="log-poster-tag">Poster {e.poster + 1}:</span> <b>{name(e.inspectorId)}</b> searched{' '}
                   <b>{name(e.targetId)}</b>
                 </div>
                 <div className="chip-row tight">
@@ -110,7 +120,7 @@ export function Replay() {
                 </div>
               </li>
             ))}
-            {!replay.log.length && <li className="muted">Nobody inspected anyone.</li>}
+            {!replay.log.length && <li className="muted">Nobody searched anybody.</li>}
           </ul>
         )}
 
@@ -123,7 +133,7 @@ export function Replay() {
                 if (!r.ok) toast(r.error);
               }}
             >
-              Back to lobby
+              Back to the saloon
             </button>
           )}
           <button

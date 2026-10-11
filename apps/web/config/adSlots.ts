@@ -1,0 +1,120 @@
+// Ad slots for future sponsors: every billboard surface in the town, in one place.
+//
+// To sell a slot, replace its `image` with the sponsor's artwork (PNG, JPG, WebP or SVG in
+// public/ads/) at the slot's aspect ratio. Nothing else needs to change.
+//
+// Coordinates are metres in the lot's own frame: origin at the middle of the lot's front edge
+// on the ground, +x to the right as seen from the square, +y up, +z out toward the square.
+// Facades sit behind the porch, at about z = -2.2 (store), -2.1 (saloon) and -1.5 (barn).
+// Lots are named in components/scene/town/layout.ts (LOTS). The sheriff's office and its
+// neighbours (store, saloon) are kept free: the Wanted poster hangs there.
+
+export type AdAspect = '2:1' | '16:9' | '2:3';
+
+/** Width / height for each supported ratio. Standard outdoor and screen sizes:
+ *  2:1 = 48-sheet billboard, 16:9 = widescreen, 2:3 = 6-sheet / door poster (portrait). */
+export const AD_ASPECTS: Record<AdAspect, number> = { '2:1': 2, '16:9': 16 / 9, '2:3': 2 / 3 };
+
+export type AdKind =
+  /** Painted on a building's upper wall. */
+  | 'wall'
+  /** Framed board on posts above a roof. */
+  | 'rooftop'
+  /** Poster board on the porch, next to a door, at eye level. */
+  | 'door';
+
+export interface AdSlot {
+  id: string;
+  kind: AdKind;
+  lot: string;
+  /** Centre of the ad surface, metres (lot frame, see above). */
+  position: [number, number, number];
+  /** Width and height in metres. Must match `aspect`. */
+  size: [number, number];
+  aspect: AdAspect;
+  /** Image URL (from public/). */
+  image: string;
+  /** Who's advertising, for alt text and reporting. */
+  advertiser: string;
+}
+
+export const AD_SLOTS: AdSlot[] = [
+  // Rooftop billboards
+  {
+    id: 'roof-hotel',
+    kind: 'rooftop',
+    lot: 'hotel',
+    position: [0, 8.2, -3.2],
+    size: [4.8, 2.4],
+    aspect: '2:1',
+    image: '/ads/snake-oil-tonic.svg',
+    advertiser: "Dr. Mortimer's Snake-Oil Tonic (placeholder)",
+  },
+  {
+    id: 'roof-dancehall',
+    kind: 'rooftop',
+    lot: 'dancehall',
+    position: [0.6, 8.3, -4],
+    size: [5.2, 2.6],
+    aspect: '2:1',
+    image: '/ads/stagecoach-line.svg',
+    advertiser: 'Red Mesa Stagecoach Line (placeholder)',
+  },
+  // Painted wall signs
+  {
+    id: 'wall-bank',
+    kind: 'wall',
+    lot: 'bank',
+    position: [0, 5, -2.12],
+    size: [3.2, 1.8],
+    aspect: '16:9',
+    image: '/ads/prospectors-beans.svg',
+    advertiser: "Prospector's Pride Beans (placeholder)",
+  },
+  {
+    id: 'wall-assay',
+    kind: 'wall',
+    lot: 'assay',
+    position: [0, 5, -2.12],
+    size: [3.2, 1.8],
+    aspect: '16:9',
+    image: '/ads/ironhorse-rail.svg',
+    advertiser: 'Ironhorse Rail Co. (placeholder)',
+  },
+  // Door poster boards
+  {
+    id: 'door-hotel',
+    kind: 'door',
+    lot: 'hotel',
+    position: [-2.45, 1.45, -2.1],
+    size: [0.9, 1.35],
+    aspect: '2:3',
+    image: '/ads/boarding-house.svg',
+    advertiser: "Ma Hattie's Boarding House (placeholder)",
+  },
+  {
+    id: 'door-barber',
+    kind: 'door',
+    lot: 'barber',
+    position: [2.45, 1.45, -2.1],
+    size: [0.9, 1.35],
+    aspect: '2:3',
+    image: '/ads/spectacles.svg',
+    advertiser: 'Sharp-Eye Spectacles (placeholder)',
+  },
+  {
+    id: 'door-livery',
+    kind: 'door',
+    lot: 'livery',
+    position: [-0.9, 1.5, -1.42],
+    size: [1, 1.5],
+    aspect: '2:3',
+    image: '/ads/horse-liniment.svg',
+    advertiser: 'Thunderhoof Horse Liniment (placeholder)',
+  },
+];
+
+/** Slots whose size doesn't match their aspect ratio (checked in dev). */
+export function badAdSlots(slots = AD_SLOTS): string[] {
+  return slots.filter((s) => Math.abs(s.size[0] / s.size[1] / AD_ASPECTS[s.aspect] - 1) > 0.02).map((s) => s.id);
+}

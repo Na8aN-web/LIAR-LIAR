@@ -86,6 +86,23 @@ describe('bot knowledge', () => {
     expect(brain.shouldSwap(v, [], 4)).toBe(false);
   });
 
+  it('spreads first-poster inspects evenly instead of favouring seat 0 (the host)', () => {
+    const g = engine.createGame(players(10), { inspectLimit: 3, posterMode: 'randomRepeats' }, secureRng);
+    const hits = new Map<string, number>();
+    const tries = 4000;
+    for (let i = 0; i < tries; i++) {
+      const bot = g.playerIds[1 + (i % 9)];
+      const v = viewOf(g, bot);
+      if (v.game!.youAreWanted) continue;
+      const t = brain.chooseInspect(v, brain.know(v), secureRng)!;
+      hits.set(t, (hits.get(t) ?? 0) + 1);
+    }
+    const total = [...hits.values()].reduce((a, b) => a + b, 0);
+    // Each bot has 9 equally unknown candidates: about 11% each. Seat 0 must not stand out.
+    expect((hits.get('p0') ?? 0) / total).toBeLessThan(0.16);
+    for (const id of g.playerIds) expect((hits.get(id) ?? 0) / total).toBeGreaterThan(0.06);
+  });
+
   it('counts accusations from chat, ignoring denials and the bot itself', () => {
     const g = engine.createGame(players(6), { inspectLimit: 3, posterMode: 'everyoneOnce' }, secureRng);
     const me = g.playerIds.find((p) => p !== engine.wantedId(g))!;

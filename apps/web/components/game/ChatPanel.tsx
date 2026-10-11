@@ -32,7 +32,7 @@ export function ChatPanel() {
   return (
     <div className="chat">
       <ul className="chat-list" ref={listRef}>
-        {chat.length === 0 && <li className="muted">No one's talking yet.</li>}
+        {chat.length === 0 && <li className="muted">Quiet as a graveyard.</li>}
         {chat.map((m) => (
           <li key={m.id} className={m.playerId === me ? 'mine' : ''}>
             <b>{m.name}</b> {m.text}
@@ -43,7 +43,7 @@ export function ChatPanel() {
         <input
           value={text}
           maxLength={CHAT_MAX}
-          placeholder="Say something (or lie)…"
+          placeholder="Speak up (or lie)…"
           enterKeyHint="send"
           onChange={(e) => setText(e.target.value)}
         />

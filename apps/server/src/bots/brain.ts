@@ -154,11 +154,21 @@ export function chooseInspect(view: PlayerView, k: Knowledge, rng: Rng): PlayerI
   const open = suspects(k).filter((p) => !isKnownWanted(k, p));
   // Closest to resolving first: a suspect with 2 possible colors needs one more look.
   const narrowing = open.filter((p) => (k.possible.get(p)?.length ?? 0) > 1);
-  if (narrowing.length && chance(rng) < 0.75) return narrowing[0];
-  // Then the strongest lead not looked at this era (suspects are sorted, so stale leads come first).
+  if (narrowing.length && chance(rng) < 0.75) return pickBest(narrowing, (p) => -(k.possible.get(p)?.length ?? 9), rng);
+  // Then the strongest lead not looked at this era (stale leads beat never-seen players).
   const unseen = open.filter((p) => !k.possible.has(p));
-  if (unseen.length) return unseen[0];
+  if (unseen.length) return pickBest(unseen, (p) => evidence(k, p), rng);
   return pick(open.length ? open : k.others, rng);
+}
+
+/**
+ * Highest-scoring candidate, ties broken at random. Never "first in the list": lists are
+ * in seat order, and the host (usually the human) is seat 0, so a plain [0] made every
+ * bot inspect the host first.
+ */
+function pickBest(candidates: PlayerId[], score: (p: PlayerId) => number, rng: Rng): PlayerId {
+  const best = Math.max(...candidates.map(score));
+  return pick(candidates.filter((p) => score(p) >= best - 1e-9), rng);
 }
 
 export function chooseVote(view: PlayerView, k: Knowledge, chat: ChatMessage[], rng: Rng): PlayerId | null {

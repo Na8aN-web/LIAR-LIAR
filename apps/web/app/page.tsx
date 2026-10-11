@@ -6,6 +6,9 @@ import { NAME_MAX, ROOM_CODE_LENGTH } from '@wtc/shared';
 import { WantedPoster } from '@/components/WantedPoster';
 import { HowToPlay } from '@/components/HowToPlay';
 import { Modal } from '@/components/Modal';
+import { Rope } from '@/components/ui/western';
+import { SoundToggle } from '@/components/ui/SoundToggle';
+import { BrightnessSlider } from '@/components/ui/BrightnessSlider';
 import { call } from '@/lib/socket';
 import { session } from '@/lib/session';
 
@@ -56,10 +59,13 @@ export default function MainMenu() {
           Wanted:
           <span>True Colors</span>
         </h1>
-        {items.map((it) => (
-          <button key={it.id} className="menu-item" onClick={() => setPanel(it.id)}>
-            {it.label}
-          </button>
+        {items.map((it, i) => (
+          <div key={it.id}>
+            {i > 0 && <Rope />}
+            <button className="menu-item" onClick={() => setPanel(it.id)}>
+              {it.label}
+            </button>
+          </div>
         ))}
       </nav>
 
@@ -77,10 +83,11 @@ export default function MainMenu() {
               />
             </label>
             <button className="btn primary" disabled={busy}>
-              Create room
+              Open a room
             </button>
           </form>
-          <div className="divider">or join a friend</div>
+          <Rope />
+          <div className="divider">or ride with a friend</div>
           <form className="row" onSubmit={(e) => (e.preventDefault(), enter('join'))}>
             <input
               className="code-input"
@@ -104,7 +111,8 @@ export default function MainMenu() {
       )}
       {panel === 'settings' && (
         <Modal title="Settings" onClose={() => setPanel(null)}>
-          <p className="muted">Sound and graphics settings arrive with the polish pass.</p>
+          <SoundToggle />
+          <BrightnessSlider />
         </Modal>
       )}
       {panel === 'profile' && (
@@ -120,7 +128,7 @@ export default function MainMenu() {
               }}
             />
           </label>
-          <p className="muted">Accounts and stats come later. For now you play as a guest.</p>
+          <p className="muted">Accounts and records come later. For now you ride as a guest.</p>
         </Modal>
       )}
       {panel === 'credits' && (

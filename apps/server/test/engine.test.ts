@@ -78,11 +78,25 @@ describe('payout', () => {
     expect(g.correctVotes[others[0]]).toBe(1);
   });
 
-  it('pays the escape bonus when nobody votes for the Wanted player', () => {
+  it('holds the escape bonus until the end, so the public ledger never shows it', () => {
     const g = newGame();
     const wanted = engine.wantedId(g);
     const rec = engine.resolvePoster(g);
     expect(rec.escaped).toBe(true);
+    // Nothing public moves: no delta, no public score change.
+    expect(g.scoreDeltas).toEqual({});
+    for (const p of g.playerIds) expect(engine.gameViewFor(g, p).scores[wanted]).toBe(STARTING_POINTS);
+    // Only the earner sees it, privately.
+    expect(engine.gameViewFor(g, wanted).myHeldEscapeBonus).toBe(ESCAPE_BONUS);
+    expect(engine.gameViewFor(g, g.playerIds.find((p) => p !== wanted)!).myHeldEscapeBonus).toBe(0);
+    expect(g.rounds[wanted][0].payout).toBe(ESCAPE_BONUS);
+
+    // Paid at the end, once, and counted for the winner.
+    const replay = engine.buildReplay(g);
+    expect(replay.escapeBonuses[wanted]).toBe(ESCAPE_BONUS);
+    expect(replay.finalScores[wanted]).toBe(STARTING_POINTS + ESCAPE_BONUS);
+    expect(replay.winners).toEqual([wanted]);
+    engine.finishGame(g);
     expect(g.scores[wanted]).toBe(STARTING_POINTS + ESCAPE_BONUS);
   });
 

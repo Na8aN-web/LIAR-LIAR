@@ -19,7 +19,7 @@ export function SwapPicker() {
 
   if (game.swapLimit <= 0) return null;
   if (game.posterIndex + 1 >= game.posterCount) {
-    return <p className="hint swap-note">Last poster: no more color changes.</p>;
+    return <p className="hint swap-note">Last poster. No more changing colors.</p>;
   }
   const left = game.swapLimit - game.swapsUsed;
   const mine = colorInfo(view.you.color);
@@ -43,37 +43,37 @@ export function SwapPicker() {
             </>
           ) : (
             <>
-              You&apos;re <b>{mine.name}</b>.
+              You&apos;re wearing <b>{mine.name}</b>.
             </>
           )}
           <span className="muted">
             {' '}
-            {left} of {game.swapLimit} color change{game.swapLimit === 1 ? '' : 's'} left
+            {left} of {game.swapLimit} {game.swapLimit === 1 ? 'change' : 'changes'} left
           </span>
         </span>
         {!game.swappedThisPayout && left > 0 && !confirming && (
           <button className="btn small" onClick={() => setConfirming(true)}>
-            Change color
+            Change colors
           </button>
         )}
       </div>
       {confirming && (
         <div className="swap-row swap-confirm">
           <span className="grow">
-            Spend 1 of your {left} swap{left === 1 ? '' : 's'} on a random new color? This can&apos;t be undone.
+            Spend 1 of your {left} {left === 1 ? 'change' : 'changes'} on a random new color? No take-backs.
           </span>
           <button className="btn small primary" disabled={busy} onClick={swap}>
             Change
           </button>
           <button className="btn small ghost" disabled={busy} onClick={() => setConfirming(false)}>
-            Cancel
+            Keep mine
           </button>
         </div>
       )}
       <p className="hint swap-note">
         {game.swappedThisPayout
-          ? 'One change per payout. You can change again after the next poster.'
-          : 'You get a random free color. Nobody is told who changed, only how many.'}
+          ? 'One change per payout. Try again after the next poster.'
+          : 'You get a random free color. Folks only hear how many changed, never who.'}
       </p>
     </div>
   );

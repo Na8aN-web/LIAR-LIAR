@@ -33,7 +33,7 @@ export function RoomScreen({ code }: { code: string }) {
     if (res.ok) return setStage('in');
     session.setToken(code, null);
     useGame.getState().reset();
-    setError(res.error === 'Session expired' ? 'Your seat expired. Join again.' : res.error);
+    setError(res.error === 'Session expired' ? 'Your seat went cold. Join again.' : res.error);
     setStage('needName');
   }, [code]);
 
@@ -82,7 +82,7 @@ export function RoomScreen({ code }: { code: string }) {
       ) : stage === 'needName' ? (
         <div className="center-card">
           <form className="card stack" onSubmit={join}>
-            <h2>Join room {code}</h2>
+            <h2>Join the posse in room {code}</h2>
             <label className="field">
               <span>Your name</span>
               <input value={name} maxLength={NAME_MAX} autoFocus onChange={(e) => setName(e.target.value)} />
@@ -90,7 +90,7 @@ export function RoomScreen({ code }: { code: string }) {
             <button className="btn primary">Join</button>
             {error && <p className="error">{error}</p>}
             <Link href="/" className="link-muted">
-              Back to menu
+              Back to the menu
             </Link>
           </form>
         </div>
@@ -99,7 +99,7 @@ export function RoomScreen({ code }: { code: string }) {
           <div className="card muted">Riding into town…</div>
         </div>
       )}
-      {stage === 'in' && !connected && <div className="conn-banner">Reconnecting…</div>}
+      {stage === 'in' && !connected && <div className="conn-banner">Lost the trail. Reconnecting…</div>}
       <Toast />
     </div>
   );

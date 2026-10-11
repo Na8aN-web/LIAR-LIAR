@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="512" viewBox="0 0 1024 512">
+  <rect width="1024" height="512" fill="#e9d6a8"/>
+  <rect x="14" y="14" width="996" height="484" fill="none" stroke="#5a1d14" stroke-width="10"/>
+  <rect x="32" y="32" width="960" height="448" fill="none" stroke="#5a1d14" stroke-width="3"/>
+  <text x="512" y="100" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="44" fill="#3a2410">Dr. Mortimer's Celebrated</text>
+  <text x="512" y="210" text-anchor="middle" font-family="Rockwell, 'Rockwell Extra Bold', Clarendon, Georgia, 'Times New Roman', serif" font-weight="900" font-size="112" fill="#8e2a1c" letter-spacing="4">SNAKE-OIL</text>
+  <text x="512" y="300" text-anchor="middle" font-family="Rockwell, 'Rockwell Extra Bold', Clarendon, Georgia, 'Times New Roman', serif" font-weight="900" font-size="84" fill="#2b1a0d" letter-spacing="10">TONIC</text>
+  <line x1="150" y1="330" x2="874" y2="330" stroke="#5a1d14" stroke-width="4"/>
+  <text x="512" y="388" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="40" fill="#3a2410">Cures Rheumatism, Gloom &amp; Bad Luck at Cards</text>
+  <text x="512" y="452" text-anchor="middle" font-family="Rockwell, 'Rockwell Extra Bold', Clarendon, Georgia, 'Times New Roman', serif" font-weight="900" font-size="46" fill="#8e2a1c">ONE DOLLAR THE BOTTLE</text>
+  <g fill="#5a1d14"><circle cx="80" cy="256" r="26"/><circle cx="944" cy="256" r="26"/></g>
+  <g fill="#e9d6a8"><text x="80" y="268" text-anchor="middle" font-family="Rockwell, 'Rockwell Extra Bold', Clarendon, Georgia, 'Times New Roman', serif" font-weight="900" font-size="34">★</text><text x="944" y="268" text-anchor="middle" font-family="Rockwell, 'Rockwell Extra Bold', Clarendon, Georgia, 'Times New Roman', serif" font-weight="900" font-size="34">★</text></g>
+</svg>

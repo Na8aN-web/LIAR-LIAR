@@ -11,6 +11,8 @@ export function ScoreList({ compact = false }: { compact?: boolean }) {
   const top = rows[0]?.score;
 
   return (
+    <>
+    {!compact && <div className="ledger-title">Bounty Ledger</div>}
     <ol className={`scores${compact ? ' compact' : ''}`}>
       {rows.map(({ p, score, delta }) => (
         <li key={p.id} className={p.id === view.you.id ? 'me' : ''}>
@@ -19,10 +21,11 @@ export function ScoreList({ compact = false }: { compact?: boolean }) {
             {p.name}
             {p.id === view.you.id && <span className="muted"> (you)</span>}
           </span>
-          {delta > 0 && <span className="delta">+{delta}</span>}
-          <span className="score">{score}</span>
+          {delta > 0 && <span className="delta">+${delta}</span>}
+          <span className="score">${score}</span>
         </li>
       ))}
     </ol>
+    </>
   );
 }

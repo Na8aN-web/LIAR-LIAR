@@ -77,6 +77,19 @@ export interface ColorChange {
   afterPoster: number | null;
 }
 
+/** Animation a scarecrow plays after a payout or at the end of the game. Decided by the server. */
+export type Reaction = 'victory' | 'despair-1' | 'despair-2';
+
+/**
+ * Reactions for one payout (key `poster-<n>`) or the end of the game (key `end`).
+ * Built per viewer: the Wanted player always shows despair to everyone else; only
+ * their own view carries their true result.
+ */
+export interface ReactionsView {
+  key: string;
+  byPlayer: Record<PlayerId, Reaction>;
+}
+
 export type OfferStatus = 'pending' | 'accepted' | 'declined' | 'expired';
 
 /** An offer to buy one inspect result. Only the buyer and seller ever see it. */
@@ -141,7 +154,11 @@ export interface GameView {
   /** Live own score (differs from public once buying exists). */
   myScore: number;
   myCorrectVotes: number;
+  /** Your escape bonuses, held until the end of the game (private). */
+  myHeldEscapeBonus: number;
   myRounds: RoundResult[];
+  /** Set during a payout and after the game ends; null otherwise. */
+  reactions: ReactionsView | null;
 }
 
 export interface ReplayPoster {
@@ -162,7 +179,10 @@ export interface ReplayView {
   posters: ReplayPoster[];
   /** `real` is the target's color at the time of that inspect. */
   log: (InspectLogEntry & { result: ColorId[]; real: ColorId })[];
+  /** Final scores, including escape bonuses. */
   finalScores: Record<PlayerId, number>;
+  /** Escape bonuses paid at the end (included in finalScores). */
+  escapeBonuses: Record<PlayerId, number>;
   correctVotes: Record<PlayerId, number>;
   winners: PlayerId[];
 }

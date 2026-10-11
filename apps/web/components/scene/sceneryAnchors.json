@@ -1,0 +1,231 @@
+{
+ "buildings": {
+  "saloon": {
+   "label": "Saloon",
+   "parts": 20,
+   "width": 7.48,
+   "depth": 7.25,
+   "height": 4.62
+  },
+  "store": {
+   "label": "General store (plain storefront, sign added in game)",
+   "parts": 14,
+   "width": 4.81,
+   "depth": 4.87,
+   "height": 4.62
+  },
+  "sheriff": {
+   "label": "Sheriff's office",
+   "parts": 17,
+   "width": 7.31,
+   "depth": 6.34,
+   "height": 5.44
+  },
+  "barn": {
+   "label": "Livery barn",
+   "parts": 19,
+   "width": 9.07,
+   "depth": 9.28,
+   "height": 6.67
+  },
+  "church": {
+   "label": "Church",
+   "parts": 11,
+   "width": 6.97,
+   "depth": 10.31,
+   "height": 9.26
+  },
+  "well": {
+   "label": "Well",
+   "parts": 5,
+   "width": 4.16,
+   "depth": 4.14,
+   "height": 2.14
+  }
+ },
+ "posterSpots": [
+  {
+   "id": "saloon-front",
+   "building": "saloon",
+   "position": [
+    1.509,
+    1.24,
+    -1.431
+   ],
+   "active": false
+  },
+  {
+   "id": "store-front",
+   "building": "store",
+   "position": [
+    0.044,
+    1.24,
+    -1.453
+   ],
+   "active": false
+  },
+  {
+   "id": "sheriff-front",
+   "building": "sheriff",
+   "position": [
+    -0.9,
+    3.47,
+    -1.421
+   ],
+   "active": true
+  },
+  {
+   "id": "barn-front",
+   "building": "barn",
+   "position": [
+    -1.49,
+    1.32,
+    -1.003
+   ],
+   "active": false
+  }
+ ],
+ "props": {
+  "streetLamp": {
+   "size": [
+    1.16,
+    2.32,
+    1.1
+   ]
+  },
+  "deadTree": {
+   "size": [
+    2.12,
+    3.52,
+    0.91
+   ]
+  },
+  "bush": {
+   "size": [
+    0.55,
+    0.5,
+    0.47
+   ]
+  },
+  "cactus2": {
+   "size": [
+    1.09,
+    1.81,
+    0.32
+   ]
+  },
+  "cactus1": {
+   "size": [
+    0.54,
+    1.55,
+    0.6
+   ]
+  },
+  "wagon": {
+   "size": [
+    6.09,
+    3.35,
+    2.49
+   ]
+  },
+  "cart": {
+   "size": [
+    4.4,
+    1.82,
+    1.94
+   ]
+  },
+  "barrier": {
+   "size": [
+    2.12,
+    0.95,
+    0.21
+   ]
+  },
+  "fence": {
+   "size": [
+    2.09,
+    0.93,
+    0.1
+   ]
+  },
+  "waterTower": {
+   "size": [
+    3.18,
+    7.69,
+    3.75
+   ]
+  },
+  "barrelHay": {
+   "size": [
+    1.26,
+    1.42,
+    1.23
+   ]
+  },
+  "barrelWater": {
+   "size": [
+    1.26,
+    1.42,
+    1.23
+   ]
+  },
+  "signpost": {
+   "size": [
+    0.29,
+    2.67,
+    1.54
+   ]
+  },
+  "bench": {
+   "size": [
+    4.38,
+    0.82,
+    0.95
+   ]
+  },
+  "log": {
+   "size": [
+    1.79,
+    0.42,
+    0.47
+   ]
+  },
+  "stump": {
+   "size": [
+    0.96,
+    0.68,
+    1.03
+   ]
+  },
+  "wheel": {
+   "size": [
+    1.55,
+    1.55,
+    0.12
+   ]
+  },
+  "barrel": {
+   "size": [
+    1.26,
+    1.42,
+    1.23
+   ]
+  },
+  "crate": {
+   "size": [
+    1.09,
+    1.11,
+    1.09
+   ]
+  },
+  "tumbleweed": {
+   "size": [
+    1.84,
+    1.92,
+    1.65
+   ]
+  }
+ },
+ "triangles": 14070
+}

@@ -310,8 +310,10 @@ export class Room {
     if (!this.deps.devMode) return fail('Bots are dev-only');
     if (id !== this.hostId) return fail('Only the host can add bots');
     const used = new Set([...this.seats.values()].map((s) => s.name));
-    const name = BOT_NAMES.find((n) => !used.has(`Bot ${n}`)) ?? 'Bot';
-    const res = this.addPlayer(`Bot ${name}`, null, true);
+    // Plain names ("Hank"), same style as people; the lobby marks bots with a BOT tag.
+    const lower = new Set([...used].map((n) => n.toLowerCase()));
+    const name = BOT_NAMES.find((n) => !lower.has(n.toLowerCase())) ?? 'Drifter';
+    const res = this.addPlayer(name, null, true);
     return res.ok ? { ok: true } : res;
   }
 
@@ -508,6 +510,7 @@ export class Room {
         return this.enterPhase('vote');
       case 'vote':
         engine.resolvePoster(game);
+        engine.setPosterReactions(game, this.deps.rng);
         return this.enterPhase('payout');
       case 'payout':
         if (engine.hasNextPoster(game)) {
@@ -517,6 +520,7 @@ export class Room {
         this.phase = 'ended';
         this.phaseEndsAt = null;
         this.replay = engine.buildReplay(game);
+        engine.setEndReactions(game, this.deps.rng);
         this.bots.onPhase('ended');
         try {
           this.deps.onGameEnd?.(

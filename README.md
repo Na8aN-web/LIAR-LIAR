@@ -11,8 +11,9 @@ apps/server       Node + Socket.io. Authoritative game state, per-player views, 
   src/bots/       Dev bots: brain.ts decides from the bot's own PlayerView only; driver.ts schedules
   src/room.ts     Lobby, phases/timers, reconnects, builds each player's view
 apps/web          Next.js + React Three Fiber. 3D scene + HTML overlay UI
-  components/scene/   Placeholder 3D (swap models here; reads the view only)
-tools/            playtest.mjs (remote playtest launcher), proxy.mjs (web + game server on one origin)
+  components/scene/   3D scene: scarecrow model, items, labels (reads the view only)
+tools/            playtest.mjs (remote playtest launcher), proxy.mjs (web + game server on one origin),
+                  build-character.mjs (animated scarecrow), build-scenery.mjs (town scenery)
 docs/SPEC.md      The build spec (rules)
 ```
 
@@ -40,6 +41,44 @@ pnpm stats       # summarise real games from apps/server/logs/games.jsonl
 pnpm typecheck
 pnpm build
 ```
+
+## 3D model
+
+`apps/scarecrow.glb` is the original static model and is never modified. The game uses the
+Mixamo-rigged copy in `assets/source/animations/` (six FBX files, also never modified).
+`pnpm model` (or `pnpm model -- --triangles 6000`) converts them with FBX2glTF, checks that they
+share one skeleton, and writes `apps/web/public/models/scarecrow.glb`: one skinned mesh
+(~8k triangles, 34 joints) with six clips (`sit-relaxed`, `sit-hunched`, `sit-leaning`,
+`despair-1`, `despair-2`, `victory`), quantized and meshopt-compressed (~270 KB).
+
+Every scarecrow is a cheap clone with its own bones and mixer and shared geometry. Items
+(poncho, cloak, bandana) are built in code in `components/scene/items.ts` and skinned to the
+torso at load time, each player with their own material. Reactions are decided by the
+server (SPEC 3.9).
+
+## Ad slots
+
+Every sponsor surface in town (rooftop billboards, painted wall signs, door poster boards) is
+defined in `apps/web/config/adSlots.ts`: id, lot, position, size, aspect ratio (2:1, 16:9 or
+2:3) and image. Placeholder ads live in `apps/web/public/ads/`. To sell a slot, add the
+sponsor's image at the slot's ratio and point `image` at it.
+
+## Town scenery
+
+`pnpm scenery` builds `apps/web/public/models/scenery.glb` (buildings + props, ~14k triangles,
+~640 KB) and the poster/ground textures from the CC0 packs in `assets/source/` (never modified):
+buildings are cut out of the town kit, turned to face the square and merged per material; the FBX
+props pack is converted with FBX2glTF; normal/roughness maps are dropped and textures become
+WebP ≤ 512 px. In game the buildings ring the scarecrow circle (open toward the camera), repeated
+props are instanced, and lighting is the moon + 2 real lanterns with the rest faked (glowing
+materials and additive halos). The live Wanted poster hangs on the sheriff's office
+(`components/scene/town/PosterPanel.tsx`), drawn from the same artwork as the UI poster
+(`components/poster/posterArt.ts`). Empty poster spots for later are in `sceneryAnchors.json`.
+Asset credits: [CREDITS.md](CREDITS.md).
+
+- `/dev/scenery` (dev only): every building and prop, labelled. `?focus=sheriff` zooms on a building front.
+- `/dev/scarecrow?view=front|side|back` (dev only): the model with each item and a silhouette.
+- Add `?perf` to any page URL (also on a real phone) for FPS, draw calls and triangles.
 
 ## Config (server env)
 

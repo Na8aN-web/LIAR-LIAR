@@ -43,14 +43,14 @@ export function NotesPanel() {
     }));
 
   if (!rows.length) {
-    return <p className="muted pad">Inspect someone and your findings collect here. Colors that repeat are real.</p>;
+    return <p className="muted pad">Search someone and your findings land here. A color that shows up every time is the real one.</p>;
   }
 
   return (
-    <>
+    <div className="notebook">
       {eraStart > 0 && (
         <p className="hint log-hint">
-          Players changed color before poster {eraStart + 1}. Only results since then are combined.
+          Folks changed colors before poster {eraStart + 1}. Only findings since then are combined.
         </p>
       )}
       <ul className="notes">
@@ -60,14 +60,14 @@ export function NotesPanel() {
               <b>{p.name}</b>
               {possible && possible.length === 1 ? (
                 <span className="known">
-                  is <ColorChip color={possible[0]} strong />
+                  wears <ColorChip color={possible[0]} strong />
                 </span>
               ) : possible ? (
                 <span className="muted">
-                  {possible.length} possible · {fresh!.length} inspect{fresh!.length > 1 ? 's' : ''}
+                  {possible.length} possible · {fresh!.length} {fresh!.length > 1 ? 'searches' : 'search'}
                 </span>
               ) : (
-                <span className="muted">no look since the color changes</span>
+                <span className="muted">not searched since colors changed</span>
               )}
             </div>
             {possible && possible.length > 1 && (
@@ -79,7 +79,7 @@ export function NotesPanel() {
             )}
             {stale && (
               <div className="notes-stale muted">
-                Before poster {eraStart + 1} (may be stale, last seen poster {stale.lastPoster + 1}):
+                Before poster {eraStart + 1} (may be stale, last seen on poster {stale.lastPoster + 1}):
                 <div className="chip-row tight">
                   {intersect(stale.results).map((c) => (
                     <ColorChip key={c} color={c} dim />
@@ -90,6 +90,6 @@ export function NotesPanel() {
           </li>
         ))}
       </ul>
-    </>
+    </div>
   );
 }

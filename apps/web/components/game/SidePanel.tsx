@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useGame } from '@/lib/store';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 import { ChatPanel } from './ChatPanel';
 import { LogPanel } from './LogPanel';
 import { NotesPanel } from './NotesPanel';
@@ -9,16 +10,21 @@ import { ScoreList } from './ScoresPanel';
 
 type Tab = 'chat' | 'log' | 'notes' | 'scores';
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'chat', label: 'Chat' },
-  { id: 'log', label: 'Log' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'scores', label: 'Scores' },
+  { id: 'chat', label: 'Talk' },
+  { id: 'log', label: 'Searches' },
+  { id: 'notes', label: 'Notebook' },
+  { id: 'scores', label: 'Ledger' },
 ];
 
-/** Bottom sheet on phones, right column on desktop. */
+/**
+ * Bottom sheet on phones, right column on desktop. On phones it starts collapsed to
+ * just the tab strip (unread counts stay visible on the tabs); desktop is always open.
+ */
 export function SidePanel() {
   const [tab, setTab] = useState<Tab>('chat');
-  const [open, setOpen] = useState(true);
+  const desktop = useIsDesktop();
+  const [openOnPhone, setOpen] = useState(false);
+  const open = desktop || openOnPhone;
   const chatCount = useGame((s) => s.chat.length);
   const logCount = useGame((s) => s.view?.game?.log.length ?? 0);
   const [seen, setSeen] = useState({ chat: chatCount, log: logCount });

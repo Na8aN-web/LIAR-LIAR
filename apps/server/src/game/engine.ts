@@ -9,6 +9,8 @@ import {
   type OfferView,
   type PlayerId,
   type PosterMode,
+  type Reaction,
+  type ReactionsView,
   type ReplayPoster,
   type ReplayView,
   type RoundResult,
@@ -38,6 +40,11 @@ export interface GameState {
   colorChanges: number[];
   /** Target's real color at the time of each inspect, by log entry id. Server-only. */
   realAt: Record<string, ColorId>;
+  /** Escape bonuses earned but not paid yet. Paid at the end of the game, so the public
+   *  ledger never shows a lone +$50 next to the outlaw. Only the earner sees their own. */
+  heldEscapeBonus: Record<PlayerId, number>;
+  /** Set once held bonuses have been added to scores. */
+  finished: boolean;
   /** Real pot per poster. Extra-inspect money lands here. */
   pots: number[];
   /** Pot shown on the current poster, frozen at poster start so a mid-round
@@ -64,6 +71,9 @@ export interface GameState {
   correctVotes: Record<PlayerId, number>;
   history: ReplayPoster[];
   rounds: Record<PlayerId, RoundResult[]>;
+  /** Current reactions. `shown` is what everyone sees; `own` is one player's true
+   *  reaction, sent only to that player (the Wanted player after a payout). */
+  reactions: { key: string; shown: Record<PlayerId, Reaction>; own: { id: PlayerId; reaction: Reaction } | null } | null;
 }
 
 export type Result<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
@@ -101,6 +111,8 @@ export function createGame(
     swappedThisPayout: {},
     colorChanges: [0],
     realAt: {},
+    heldEscapeBonus: perPlayer(ids, () => 0),
+    finished: false,
     pots: order.map(() => rules.basePot),
     shownPot: rules.basePot,
     posterIndex: 0,
@@ -119,6 +131,7 @@ export function createGame(
     correctVotes: perPlayer(ids, () => 0),
     history: [],
     rounds: perPlayer(ids, () => []),
+    reactions: null,
   };
 }
 
@@ -298,9 +311,10 @@ export function resolvePoster(s: GameState): ReplayPoster {
   const escaped = correctIds.length === 0;
   const payoutEach = escaped ? 0 : Math.floor(pot / correctIds.length);
 
+  // Public score changes this poster. An escape bonus is held, not paid, so it never shows here.
   const deltas: Record<PlayerId, number> = {};
   if (escaped) {
-    deltas[wanted] = s.rules.escapeBonus;
+    s.heldEscapeBonus[wanted] += s.rules.escapeBonus;
   } else {
     for (const p of correctIds) {
       deltas[p] = payoutEach;
@@ -332,7 +346,7 @@ export function resolvePoster(s: GameState): ReplayPoster {
       votedFor: s.votes[p] ?? null,
       correct,
       wantedId: wasWanted || correct ? wanted : null,
-      payout: deltas[p] ?? 0,
+      payout: wasWanted && escaped ? s.rules.escapeBonus : (deltas[p] ?? 0),
     });
   }
 
@@ -340,6 +354,35 @@ export function resolvePoster(s: GameState): ReplayPoster {
   s.publicScores = { ...s.scores };
   s.shownPot = pot;
   return record;
+}
+
+const despair = (rng: Rng): Reaction => (rng.int(2) === 0 ? 'despair-1' : 'despair-2');
+
+/**
+ * Payout reactions for the poster just resolved: correct voters cheer, everyone else
+ * despairs. The Wanted player despairs in everyone else's view whether caught or not;
+ * their true result (cheer if they escaped) goes only to them.
+ */
+export function setPosterReactions(s: GameState, rng: Rng): void {
+  const rec = s.history[s.history.length - 1];
+  if (!rec || rec.poster !== s.posterIndex) return;
+  const shown: Record<PlayerId, Reaction> = {};
+  for (const p of s.playerIds) shown[p] = rec.correctIds.includes(p) ? 'victory' : despair(rng);
+  const wanted = rec.wantedId;
+  shown[wanted] = despair(rng);
+  s.reactions = {
+    key: `poster-${rec.poster}`,
+    shown,
+    own: { id: wanted, reaction: rec.escaped ? 'victory' : shown[wanted] },
+  };
+}
+
+/** End of game: winners cheer, everyone else despairs. Winners are public by then. */
+export function setEndReactions(s: GameState, rng: Rng): void {
+  const won = winners(s);
+  const shown: Record<PlayerId, Reaction> = {};
+  for (const p of s.playerIds) shown[p] = won.includes(p) ? 'victory' : despair(rng);
+  s.reactions = { key: 'end', shown, own: null };
 }
 
 /** Applies this payout's swaps, then starts the next poster with the Wanted player's current color. */
@@ -351,10 +394,19 @@ export function advancePoster(s: GameState): void {
   s.colorChanges[s.posterIndex] = swapped.length;
   s.posterColors[s.posterIndex] = s.colors[s.order[s.posterIndex]];
   s.shownPot = s.pots[s.posterIndex];
+  s.reactions = null;
   s.inspectsUsed = perPlayer(s.playerIds, () => 0);
   s.extraInspects = perPlayer(s.playerIds, () => 0);
   s.purchases = perPlayer(s.playerIds, () => 0);
   s.votes = {};
+}
+
+/** End of game: pay the held escape bonuses. Idempotent. Call before winners/buildReplay. */
+export function finishGame(s: GameState): void {
+  if (s.finished) return;
+  s.finished = true;
+  for (const p of s.playerIds) s.scores[p] += s.heldEscapeBonus[p];
+  s.publicScores = { ...s.scores };
 }
 
 /** Most points; tie-break on most correct votes; still tied = shared win. */
@@ -372,7 +424,9 @@ export function winners(s: GameState): PlayerId[] {
 }
 
 export function buildReplay(s: GameState): ReplayView {
+  finishGame(s);
   return {
+    escapeBonuses: { ...s.heldEscapeBonus },
     colors: { ...s.colors },
     colorHistory: structuredClone(s.colorHistory),
     posters: s.history.slice(),
@@ -413,6 +467,17 @@ export function gameViewFor(s: GameState, me: PlayerId): GameView {
     scoreDeltas: s.scoreDeltas,
     myScore: s.scores[me],
     myCorrectVotes: s.correctVotes[me],
+    myHeldEscapeBonus: s.finished ? 0 : (s.heldEscapeBonus[me] ?? 0),
     myRounds: s.rounds[me] ?? [],
+    reactions: reactionsFor(s, me),
   };
+}
+
+/** Everyone gets the shown reactions; only the owner of `own` gets their true one. */
+function reactionsFor(s: GameState, me: PlayerId): ReactionsView | null {
+  const r = s.reactions;
+  if (!r) return null;
+  const byPlayer = { ...r.shown };
+  if (r.own && r.own.id === me) byPlayer[me] = r.own.reaction;
+  return { key: r.key, byPlayer };
 }

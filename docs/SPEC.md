@@ -27,7 +27,7 @@ A free-for-all, real-time multiplayer browser social deduction game for **6–15
 | Inspects per player per round | Host setting. Default 3 for 6–11 players, 4 for 12–15. Range 2–5 |
 | Starting points | 100 |
 | Base bounty pot | 100 per poster |
-| Escape bonus | 50, only if nobody votes for the Wanted player |
+| Escape bonus | 50, only if nobody votes for the Wanted player. Held privately and paid at the end of the game |
 | Buy someone's inspect | 20 points, paid to the seller |
 | Buy an extra inspect | 50 points, added to the next poster's pot |
 | Purchase cap | 3 per round, any mix |
@@ -104,14 +104,15 @@ Purchases happen during the investigation phase. **All purchases are private.** 
 
 ### 3.6 Payout and scoring
 - The pot (100 plus any extra-inspect money from the previous poster) is split equally among correct voters. Round down; leftover points are lost.
-- If **nobody** votes for the Wanted player, they get the 50-point escape bonus, the pot is lost, and the game moves on.
+- If **nobody** votes for the Wanted player, they earn the 50-point escape bonus, the pot is lost, and the game moves on.
+- **Escape bonuses are held until the end of the game.** Paying them immediately would put a lone +50 next to the Wanted player on the public scoreboard and reveal them. During the game only the earner is told (privately, on their payout screen); the bonus is not in their spendable score, so it can't be used for buying. At the end, held bonuses are added to final scores before the winner is decided, and the replay lists them.
 - If at least one person votes for them, the Wanted player gets nothing.
 - After payout, each player is privately told whether their vote was right.
 - A big, visible scoreboard updates after every poster.
 - The payout phase is also the window for color swaps (3.1).
 
 ### 3.7 End of game
-- After the last poster, a replay screen shows every player's color history (starting color, plus each swap and which poster it happened after), who was Wanted each round, and the full inspect log, so everyone sees who lied.
+- After the last poster, held escape bonuses are paid, then a replay screen shows every player's escape bonuses, color history (starting color, plus each swap and which poster it happened after), who was Wanted each round, and the full inspect log, so everyone sees who lied.
 - **Tie-breaker:** among tied players, whoever had the most correct votes wins. If still tied, they share the win.
 
 ### 3.8 Round flow
@@ -122,6 +123,18 @@ Purchases happen during the investigation phase. **All purchases are private.** 
 5. Next poster, or the end-of-game replay.
 
 Phase timers are host settings.
+
+### 3.9 Scarecrow reactions
+Scarecrows sit around the campfire. Each gets one of three sitting idles at random at game start and keeps it all game. Reactions are animations only. They never change scores or rules.
+
+- **When someone inspects a player**, that scarecrow slowly turns its head toward the inspector, then back. The inspect log is public, so this reveals nothing new.
+- **After each poster (payout):**
+  - Correct voters play **victory**.
+  - Wrong voters and non-voters play one of two **despair** animations, picked at random.
+  - Then each scarecrow blends back to sitting.
+- **The Wanted player always plays despair to everyone else**, whether they were caught or escaped. Only on the Wanted player's own screen does their scarecrow show the true result: victory if they escaped, despair if caught. So in everyone else's view a reaction only repeats the public payout: cheer = got paid, despair = didn't.
+- **End of game:** the winner (or every tied winner) plays victory; everyone else plays despair.
+- **The server decides every reaction**, including which despair variant, and builds the reaction map per viewer. The Wanted player's true result is only ever put in their own view. It is never sent to anyone else and hidden on the client.
 
 ---
 
@@ -167,6 +180,8 @@ This is a deduction game. If a secret ever reaches a client, players will find i
 | Votes | Nobody, until the end-of-game replay |
 | Whether a vote was correct | That voter |
 | Scores | Everyone, after each poster |
+| Payout reactions (3.9) | Everyone, but the Wanted player always shows despair; their true reaction goes only to them |
+| End-of-game reactions | Everyone (winners are public by then) |
 
 ### 5.3 Reconnects (plan for this from day one)
 Mobile players will lose connection mid-round. Dropping them out of the game would ruin the session.

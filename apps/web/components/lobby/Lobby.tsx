@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   INSPECT_RANGE,
@@ -21,6 +21,9 @@ import { call } from '@/lib/socket';
 import { session } from '@/lib/session';
 import { useGame } from '@/lib/store';
 import { ChatPanel } from '../game/ChatPanel';
+import { SoundToggle } from '../ui/SoundToggle';
+import { BrightnessSlider } from '../ui/BrightnessSlider';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 
 const FILL_TO = 10;
 
@@ -31,6 +34,7 @@ export function Lobby() {
   const { you, players, settings, minPlayers, maxPlayers } = view;
   const isHost = you.isHost;
   const enough = players.length >= minPlayers;
+  const desktop = useIsDesktop();
 
   const inviteLink = typeof window !== 'undefined' ? `${location.origin}/r/${view.code}` : '';
   const share = async () => {
@@ -38,7 +42,7 @@ export function Lobby() {
       if (navigator.share) await navigator.share({ title: 'Wanted: True Colors', url: inviteLink });
       else {
         await navigator.clipboard.writeText(inviteLink);
-        toast('Invite link copied');
+        toast('Invite link copied. Send it to your posse.');
       }
     } catch {
       /* share sheet dismissed */
@@ -57,9 +61,31 @@ export function Lobby() {
     router.push('/');
   };
 
+  const posseRows = (
+    <ul className="player-list">
+      {players.map((p) => (
+        <li key={p.id} className={p.connected ? '' : 'faded'}>
+          <span className="dot" />
+          <span className="grow">
+            {p.name}
+            {p.id === you.id && <span className="muted"> (you)</span>}
+          </span>
+          {p.isHost && <span className="tag">host</span>}
+          {p.isBot && <span className="tag">bot</span>}
+          {!p.connected && <span className="tag">offline</span>}
+          {isHost && p.isBot && (
+            <button className="icon-btn" aria-label={`Remove ${p.name}`} onClick={() => act(call('lobby:removeBot', { playerId: p.id }))}>
+              ✕
+            </button>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
     <div className="lobby">
-      <section className="panel">
+      <section className="panel lobby-main">
         <header className="lobby-head">
           <div>
             <div className="label">Room code</div>
@@ -70,49 +96,26 @@ export function Lobby() {
               Invite
             </button>
             <button className="btn ghost" onClick={leave}>
-              Leave
+              Leave town
             </button>
           </div>
         </header>
 
-        <LookPicker />
-
-        <h3>
-          Posse <span className="muted">{players.length}/{maxPlayers}</span>
-        </h3>
-        <ul className="player-list">
-          {players.map((p) => (
-            <li key={p.id} className={p.connected ? '' : 'faded'}>
-              <span className="dot" />
-              <span className="grow">
-                {p.name}
-                {p.id === you.id && <span className="muted"> (you)</span>}
-              </span>
-              {p.isHost && <span className="tag">host</span>}
-              {p.isBot && <span className="tag">bot</span>}
-              {!p.connected && <span className="tag">offline</span>}
-              {isHost && p.isBot && (
-                <button className="icon-btn" aria-label={`Remove ${p.name}`} onClick={() => act(call('lobby:removeBot', { playerId: p.id }))}>
-                  ✕
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-
-        <SettingsForm settings={settings} editable={isHost} playerCount={players.length} />
-
+        {/* Always in reach: start (host) or waiting. */}
         <div className="lobby-actions">
           {isHost ? (
             <>
+              <button className="btn primary grow" disabled={!enough} onClick={() => act(call('game:start'))}>
+                {enough ? 'Start the hunt' : `Need ${minPlayers - players.length} more riders`}
+              </button>
               {view.devMode && players.length < maxPlayers && (
                 <>
-                  <button className="btn" onClick={() => act(call('lobby:addBot'))}>
+                  <button className="btn small" onClick={() => act(call('lobby:addBot'))}>
                     + Bot
                   </button>
                   {players.length < FILL_TO && (
                     <button
-                      className="btn"
+                      className="btn small"
                       onClick={async () => {
                         for (let i = players.length; i < FILL_TO; i++) if (!(await act(call('lobby:addBot')))) break;
                       }}
@@ -122,20 +125,68 @@ export function Lobby() {
                   )}
                 </>
               )}
-              <button className="btn primary grow" disabled={!enough} onClick={() => act(call('game:start'))}>
-                {enough ? 'Start game' : `Need ${minPlayers - players.length} more`}
-              </button>
             </>
           ) : (
-            <p className="muted">Waiting for the host to start…</p>
+            <p className="muted">Waiting on the host to start the hunt…</p>
           )}
         </div>
+
+        {/* Folded on phones, open on desktop. */}
+        <Fold title="Your garment & color" open={desktop}>
+          <LookPicker />
+        </Fold>
+        <Fold
+          title={
+            <>
+              The posse <span className="muted">{players.length}/{maxPlayers}</span>
+            </>
+          }
+          open={desktop}
+        >
+          {posseRows}
+        </Fold>
+        <Fold title={`House rules${isHost ? '' : ' (host sets these)'}`} open={desktop && isHost}>
+          <SettingsForm settings={settings} editable={isHost} playerCount={players.length} />
+        </Fold>
+        <Fold title="Sound & picture" open={false}>
+          <SoundToggle />
+          <BrightnessSlider />
+        </Fold>
       </section>
 
-      <section className="panel lobby-chat">
-        <ChatPanel />
-      </section>
+      <LobbyChat open={desktop} />
     </div>
+  );
+}
+
+/** A collapsible section. `open` is only the starting state; players can fold/unfold freely. */
+function Fold({ title, open, children }: { title: React.ReactNode; open: boolean; children: React.ReactNode }) {
+  return (
+    <details className="fold" open={open}>
+      <summary>{title}</summary>
+      <div className="fold-body">{children}</div>
+    </details>
+  );
+}
+
+/** Lobby chat that folds into a bar with an unread count. */
+function LobbyChat({ open: startOpen }: { open: boolean }) {
+  const count = useGame((s) => s.chat.length);
+  const [open, setOpen] = useState(startOpen);
+  const [seen, setSeen] = useState(count);
+  useEffect(() => {
+    if (open) setSeen(count);
+  }, [open, count]);
+  const unread = Math.max(0, count - seen);
+  return (
+    <section className={`panel lobby-chat${open ? '' : ' folded'}`}>
+      <button className="fold-bar" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span className="grow">Talk</span>
+        {!open && unread > 0 && <span className="badge">{unread}</span>}
+        <span aria-hidden>{open ? '▾' : '▴'}</span>
+      </button>
+      {open && <ChatPanel />}
+    </section>
   );
 }
 
@@ -166,7 +217,7 @@ function LookPicker() {
   return (
     <div className="look">
       <div className="look-row">
-        <span className="label">Your item</span>
+        <span className="label">Your garment</span>
         <div className="segmented">
           {ITEM_TYPES.map((it) => (
             <button key={it} className={it === you.item ? 'on' : ''} onClick={() => call('lobby:setLook', { item: it })}>
@@ -180,7 +231,7 @@ function LookPicker() {
         <button className="btn color-btn" onClick={toggle}>
           <span className="swatch lg" style={{ background: info.hex }} />
           {info.name}
-          <span className="muted">{open ? 'close' : 'change'}</span>
+          <span className="muted">{open ? 'done' : 'change'}</span>
         </button>
       </div>
       {open && (
@@ -203,7 +254,7 @@ function LookPicker() {
           })}
         </div>
       )}
-      <p className="hint">Only you can see your color. Everyone else sees a silhouette.</p>
+      <p className="hint">Only you can see your color. Everyone else sees a shadow in the dark.</p>
     </div>
   );
 }
@@ -224,19 +275,18 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
     startingPoints: 'Starting points',
     basePot: 'Bounty per poster',
     escapeBonus: 'Escape bonus',
-    buyPrice: 'Buy a result',
-    extraInspectPrice: 'Extra inspect',
-    purchaseCap: 'Purchases / round',
-    decoys: 'Decoys per inspect',
+    buyPrice: 'Buy findings',
+    extraInspectPrice: 'Extra look',
+    purchaseCap: 'Deals / round',
+    decoys: 'Decoys per look',
   };
   const inspectOptions = Array.from({ length: INSPECT_RANGE.max - INSPECT_RANGE.min + 1 }, (_, i) => INSPECT_RANGE.min + i);
 
   return (
-    <details className="settings" open={editable}>
-      <summary>Game settings{!editable && ' (host only)'}</summary>
+    <div className="settings">
       <div className="settings-grid">
         <label>
-          <span>Inspects per round</span>
+          <span>Looks per round</span>
           <select
             disabled={!editable}
             value={String(settings.inspectsPerRound)}
@@ -251,7 +301,7 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
           </select>
         </label>
         <label>
-          <span>Color swaps per player</span>
+          <span>Color changes per player</span>
           <select
             disabled={!editable}
             value={String(settings.colorSwaps)}
@@ -288,7 +338,7 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
         ))}
       </div>
       <details className="tuning">
-        <summary>Playtest tuning</summary>
+        <summary>Playtest tuning (balance numbers)</summary>
         <div className="settings-grid">
           {(Object.keys(ruleLabels) as (keyof GameRules)[]).map((k) => (
             <NumberSetting
@@ -302,7 +352,7 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
           ))}
         </div>
       </details>
-    </details>
+    </div>
   );
 }
 
