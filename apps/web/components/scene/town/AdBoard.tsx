@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
-import { AdditiveBlending, SRGBColorSpace, TextureLoader, type Texture } from 'three';
+import { useEffect, useMemo, useRef } from 'react';
+import { AdditiveBlending, SRGBColorSpace, TextureLoader, type Group, type Texture } from 'three';
 import type { AdSlot } from '@/config/adSlots';
 import { WARM, glowTexture } from './glow';
+import { useBillboardImage } from '@/lib/serverStatus';
+import { useBillboardSeen } from './useBillboardSeen';
 
 const cache = new Map<string, Texture>();
 function adTexture(url: string): Texture {
@@ -24,7 +26,11 @@ const WOOD = '#3a2616';
  * no real light to spare) and each board gets a lamp glow, so it reads from across the square.
  */
 export function AdBoard({ slot }: { slot: AdSlot }) {
-  const map = useMemo(() => adTexture(slot.image), [slot.image]);
+  // The admins can replace the art from the dashboard without a redeploy.
+  const image = useBillboardImage(slot.id, slot.image);
+  const map = useMemo(() => adTexture(image), [image]);
+  const ref = useRef<Group>(null);
+  useBillboardSeen(slot.id, ref);
   const [w, h] = slot.size;
   const glow = glowTexture();
   useEffect(() => {
@@ -40,7 +46,7 @@ export function AdBoard({ slot }: { slot: AdSlot }) {
   );
 
   return (
-    <group position={slot.position}>
+    <group ref={ref} position={slot.position}>
       {slot.kind === 'wall' ? (
         // Painted straight on the boards: no frame, slightly worn.
         art

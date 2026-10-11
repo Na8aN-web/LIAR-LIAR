@@ -12,6 +12,7 @@ import {
   NAME_MAX,
   POSTER_MODES,
   PRACTICE,
+  REPORT_REASON_MAX,
   RULE_LIMITS,
   SEAT_HOLD_MS,
   SWAP_RANGE,
@@ -39,6 +40,7 @@ import * as engine from './game/engine';
 import { makeId, pick, type Rng } from './rng';
 import { HOWTO_STATUSES, parseFeedback, type FeedbackAnswers, type HowtoStatus } from './playtest';
 import { sameToken } from './security';
+import { anonId, type AnalyticsEvent } from './analytics/events';
 
 export interface Seat {
   id: PlayerId;
@@ -56,6 +58,8 @@ export interface Seat {
   colorPicked: boolean;
   /** Random id from the player's browser (handshake), for one seat per browser. */
   browserId: string | null;
+  /** Anonymous analytics id (a hash of browserId): what stats and the admins see. */
+  anon: string | null;
   seat: number;
   isBot: boolean;
   socketId: string | null;
@@ -95,6 +99,35 @@ export interface RoomDeps {
   kick?: (socketId: string) => void;
   /** Called with each player's answers to the end-of-game feedback form. */
   onFeedback?: (entry: FeedbackEntry) => void;
+  /** Anonymous analytics (funnel steps, kicks, reports, abandoned games). */
+  onEvent?: (e: AnalyticsEvent) => void;
+  /** Default settings for a new room (the admins can change them). */
+  defaults?: () => RoomSettings;
+  /** A game ended: its replay (with the secrets), for the admins to look at afterwards. */
+  onFinished?: (record: FinishedGame) => void;
+}
+
+/** A finished game as the admins see it afterwards: names and every secret, now that it's over. */
+export interface FinishedGame {
+  gameId: string;
+  code: string;
+  endedAt: string;
+  names: Record<PlayerId, string>;
+  replay: ReplayView;
+}
+
+/** What the admin dashboard may see of a room at any time: public information only. */
+export interface RoomSnapshot {
+  code: string;
+  createdAt: string;
+  phase: Phase;
+  phaseEndsAt: number | null;
+  poster: number | null;
+  posters: number | null;
+  locked: boolean;
+  practice: boolean;
+  host: string | null;
+  players: { name: string; bot: boolean; connected: boolean; away: boolean; host: boolean; anon: string | null }[];
 }
 
 /** One player's feedback after a game. The display name only: never ids or tokens. */
@@ -102,7 +135,11 @@ export interface FeedbackEntry {
   at: string;
   gameId: string;
   name: string;
+  /** Anonymous per-browser id. */
+  anon?: string | null;
   answers: FeedbackAnswers;
+  /** Made up by `pnpm admin:seed`. */
+  seed?: true;
 }
 
 const CHAT_HISTORY = 150;
@@ -127,10 +164,61 @@ export function cleanText(raw: unknown, max: number): string {
     .slice(0, max);
 }
 
+/**
+ * A settings change checked against the allowed ranges: the new settings, or why not.
+ * Used by hosts in the lobby and by the admins for the default settings.
+ */
+export function applySettings(current: RoomSettings, p: unknown): Ack<{ settings: RoomSettings }> {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return fail('Bad settings');
+  const patch = p as Partial<RoomSettings>;
+  const next = structuredClone(current);
+
+  if (patch.inspectsPerRound !== undefined) {
+    const v = patch.inspectsPerRound;
+    if (v !== 'auto' && !(Number.isInteger(v) && v >= INSPECT_RANGE.min && v <= INSPECT_RANGE.max)) {
+      return fail('Inspects must be 2–5 or auto');
+    }
+    next.inspectsPerRound = v;
+  }
+  if (patch.colorSwaps !== undefined) {
+    const v = patch.colorSwaps;
+    if (v !== 'auto' && !(Number.isInteger(v) && v >= SWAP_RANGE.min && v <= SWAP_RANGE.max)) {
+      return fail(`Color swaps must be ${SWAP_RANGE.min}–${SWAP_RANGE.max} or auto`);
+    }
+    next.colorSwaps = v;
+  }
+  if (patch.posterMode !== undefined) {
+    if (!POSTER_MODES.includes(patch.posterMode)) return fail('Unknown poster mode');
+    next.posterMode = patch.posterMode;
+  }
+  if (patch.timers !== undefined) {
+    if (!patch.timers || typeof patch.timers !== 'object') return fail('Bad timers');
+    for (const key of Object.keys(TIMER_LIMITS) as (keyof PhaseTimers)[]) {
+      const v = (patch.timers as Partial<PhaseTimers>)[key];
+      if (v === undefined) continue;
+      const [min, max] = TIMER_LIMITS[key];
+      if (!Number.isInteger(v) || v < min || v > max) return fail(`${key} timer must be ${min}–${max}s`);
+      next.timers[key] = v;
+    }
+  }
+  if (patch.rules !== undefined) {
+    if (!patch.rules || typeof patch.rules !== 'object') return fail('Bad rules');
+    for (const key of Object.keys(RULE_LIMITS) as (keyof GameRules)[]) {
+      const v = (patch.rules as Partial<GameRules>)[key];
+      if (v === undefined) continue;
+      const [min, max] = RULE_LIMITS[key];
+      if (!Number.isInteger(v) || v < min || v > max) return fail(`${key} must be ${min}–${max}`);
+      next.rules[key] = v;
+    }
+  }
+  return { ok: true, settings: next };
+}
+
 export class Room {
   readonly seats = new Map<PlayerId, Seat>();
   hostId: PlayerId | null = null;
-  settings: RoomSettings = structuredClone(DEFAULT_SETTINGS);
+  settings: RoomSettings;
+  readonly createdAt = Date.now();
   phase: Phase = 'lobby';
   phaseEndsAt: number | null = null;
   game: engine.GameState | null = null;
@@ -156,7 +244,24 @@ export class Room {
   private readonly bots: BotDriver;
 
   constructor(readonly code: string, private readonly deps: RoomDeps) {
+    this.settings = structuredClone(deps.defaults?.() ?? DEFAULT_SETTINGS);
     this.bots = new BotDriver(this, deps.rng, deps.bots);
+  }
+
+  /** Records an analytics event, except for practice games and the playtest check script. */
+  private track(e: Record<string, unknown> & { type: AnalyticsEvent['type'] }) {
+    if (this.practice || this.deps.check) return;
+    try {
+      this.deps.onEvent?.({ at: new Date().toISOString(), anon: null, ...e } as AnalyticsEvent);
+    } catch {}
+  }
+
+  private trackStep(step: 'lobby' | 'game_start' | 'game_finish', seats: Seat[]) {
+    for (const s of seats) if (!s.isBot && s.anon) this.track({ type: 'step', step, anon: s.anon, ...(step === 'lobby' ? {} : { gameId: this.gameId }) });
+  }
+
+  anonOf(id: PlayerId): string | null {
+    return this.seats.get(id)?.anon ?? null;
   }
 
   get rng() {
@@ -192,6 +297,7 @@ export class Room {
       color: pick(free, this.rng),
       colorPicked: false,
       browserId: isBot ? null : browserId,
+      anon: isBot ? null : anonId(browserId),
       seat: this.nextSeat++,
       isBot,
       socketId,
@@ -206,6 +312,7 @@ export class Room {
     };
     this.seats.set(seat.id, seat);
     if (!this.hostId && !isBot) this.hostId = seat.id;
+    if (!isBot) this.trackStep('lobby', [seat]);
     this.broadcast();
     if (socketId) this.deps.send(socketId, 'chatHistory', this.chat);
     return { ok: true, seat };
@@ -294,6 +401,7 @@ export class Room {
     if (targetId === id) return fail("You can't remove yourself");
     const seat = this.seats.get(targetId)!;
     if (seat.browserId) this.banned.add(seat.browserId);
+    this.track({ type: 'safety', kind: 'kick', by: 'host', anon: this.anonOf(id), target: seat.anon });
     seat.token = makeId(18); // the old session no longer resumes anything
     const socketId = seat.socketId;
     if (this.phase === 'lobby') {
@@ -403,48 +511,9 @@ export class Room {
   updateSettings(id: PlayerId, p: Partial<RoomSettings>): Ack {
     if (id !== this.hostId) return fail('Only the host can change settings');
     if (this.phase !== 'lobby') return fail('Settings are locked during a game');
-    if (!p || typeof p !== 'object') return fail('Bad settings');
-    const next = structuredClone(this.settings);
-
-    if (p.inspectsPerRound !== undefined) {
-      const v = p.inspectsPerRound;
-      if (v !== 'auto' && !(Number.isInteger(v) && v >= INSPECT_RANGE.min && v <= INSPECT_RANGE.max)) {
-        return fail('Inspects must be 2–5 or auto');
-      }
-      next.inspectsPerRound = v;
-    }
-    if (p.colorSwaps !== undefined) {
-      const v = p.colorSwaps;
-      if (v !== 'auto' && !(Number.isInteger(v) && v >= SWAP_RANGE.min && v <= SWAP_RANGE.max)) {
-        return fail(`Color swaps must be ${SWAP_RANGE.min}–${SWAP_RANGE.max} or auto`);
-      }
-      next.colorSwaps = v;
-    }
-    if (p.posterMode !== undefined) {
-      if (!POSTER_MODES.includes(p.posterMode)) return fail('Unknown poster mode');
-      next.posterMode = p.posterMode;
-    }
-    if (p.timers !== undefined) {
-      if (!p.timers || typeof p.timers !== 'object') return fail('Bad timers');
-      for (const key of Object.keys(TIMER_LIMITS) as (keyof PhaseTimers)[]) {
-        const v = (p.timers as Partial<PhaseTimers>)[key];
-        if (v === undefined) continue;
-        const [min, max] = TIMER_LIMITS[key];
-        if (!Number.isInteger(v) || v < min || v > max) return fail(`${key} timer must be ${min}–${max}s`);
-        next.timers[key] = v;
-      }
-    }
-    if (p.rules !== undefined) {
-      if (!p.rules || typeof p.rules !== 'object') return fail('Bad rules');
-      for (const key of Object.keys(RULE_LIMITS) as (keyof GameRules)[]) {
-        const v = (p.rules as Partial<GameRules>)[key];
-        if (v === undefined) continue;
-        const [min, max] = RULE_LIMITS[key];
-        if (!Number.isInteger(v) || v < min || v > max) return fail(`${key} must be ${min}–${max}`);
-        next.rules[key] = v;
-      }
-    }
-    this.settings = next;
+    const res = applySettings(this.settings, p);
+    if (!res.ok) return res;
+    this.settings = res.settings;
     this.broadcast();
     return { ok: true };
   }
@@ -503,6 +572,7 @@ export class Room {
       s.disconnects = 0;
       s.reconnects = 0;
     }
+    this.trackStep('game_start', players);
     this.enterPhase('poster');
     return { ok: true };
   }
@@ -647,6 +717,38 @@ export class Room {
     return { ok: true };
   }
 
+  /** Reports per player per room, so one person can't flood the admins. */
+  private readonly reports = new Map<PlayerId, Set<string>>();
+
+  /**
+   * A player reports a chat message. The message and up to four before it are stored for the
+   * admins (text only, no names): the only time chat is ever kept.
+   */
+  reportChat(id: PlayerId, messageId: unknown, reason: unknown): Ack {
+    const seat = this.seats.get(id);
+    if (!seat) return fail('Not in room');
+    if (typeof messageId !== 'string') return fail('Unknown message');
+    const i = this.chat.findIndex((m) => m.id === messageId);
+    if (i < 0) return fail('That message is gone');
+    const msg = this.chat[i];
+    if (msg.playerId === id) return fail("You can't report yourself");
+    const mine = this.reports.get(id) ?? new Set<string>();
+    if (mine.has(messageId)) return fail('Already reported');
+    if (mine.size >= 10) return fail('Thanks, the admins have your reports');
+    mine.add(messageId);
+    this.reports.set(id, mine);
+    this.track({
+      type: 'safety',
+      kind: 'report',
+      by: 'player',
+      anon: seat.anon,
+      target: this.anonOf(msg.playerId),
+      reason: cleanText(reason, REPORT_REASON_MAX),
+      chat: this.chat.slice(Math.max(0, i - 4), i + 1).map((m) => ({ text: m.text, reported: m.id === msg.id, fromReported: m.playerId === msg.playerId })),
+    });
+    return { ok: true };
+  }
+
   /** The player's browser reports what they did with How to Play (for playtest stats). */
   setHowto(id: PlayerId, status: unknown): Ack {
     const seat = this.seats.get(id);
@@ -667,7 +769,7 @@ export class Room {
     const answers = parseFeedback(raw);
     if (!answers) return fail('Bad feedback');
     this.feedbackFrom.add(id);
-    this.deps.onFeedback?.({ at: new Date().toISOString(), gameId: this.gameId, name: seat.name, answers });
+    this.deps.onFeedback?.({ at: new Date().toISOString(), gameId: this.gameId, name: seat.name, anon: seat.anon, answers });
     return { ok: true };
   }
 
@@ -717,6 +819,12 @@ export class Room {
         this.replay = engine.buildReplay(game);
         engine.setEndReactions(game, this.deps.rng);
         this.bots.onPhase('ended');
+        this.trackStep('game_finish', [...this.seats.values()].filter((s) => !s.away));
+        if (!this.practice) {
+          try {
+            this.deps.onFinished?.({ ...this.finishedGame()!, endedAt: new Date().toISOString() });
+          } catch {}
+        }
         try {
           if (!this.practice) this.deps.onGameEnd?.(
             summarize(game, {
@@ -728,7 +836,7 @@ export class Room {
               posterStarts: this.posterStarts,
               seat: (id) => {
                 const s = this.seats.get(id);
-                return { disconnects: s?.disconnects ?? 0, reconnects: s?.reconnects ?? 0, howto: s?.howto ?? null, away: !!s?.away };
+                return { disconnects: s?.disconnects ?? 0, reconnects: s?.reconnects ?? 0, howto: s?.howto ?? null, away: !!s?.away, anon: s?.anon ?? null };
               },
             }),
           );
@@ -798,7 +906,55 @@ export class Room {
     });
   }
 
+  /** A game cut short (room closed mid-game) counts as abandoned. */
+  private trackAbandoned() {
+    if (!this.game || this.phase === 'lobby' || this.phase === 'ended') return;
+    this.track({ type: 'abandoned', gameId: this.gameId, humans: this.humans().length, players: this.seats.size, poster: this.game.posterIndex, posters: this.game.order.length });
+  }
+
+  /** Admins close the room: everyone in it is told, and any game in progress ends (abandoned). */
+  close(reason: string) {
+    for (const s of this.seats.values()) if (s.socketId) this.deps.send(s.socketId, 'roomClosed', { reason });
+    this.dispose();
+  }
+
+  /** Public information only, safe to show the admins while a game runs (a test checks it). */
+  snapshot(): RoomSnapshot {
+    const host = this.hostId ? this.seats.get(this.hostId) : undefined;
+    const inGame = !!this.game && this.phase !== 'lobby';
+    return {
+      code: this.code,
+      createdAt: new Date(this.createdAt).toISOString(),
+      phase: this.phase,
+      phaseEndsAt: this.phaseEndsAt,
+      poster: inGame ? this.game!.posterIndex : null,
+      posters: inGame ? this.game!.order.length : null,
+      locked: this.locked,
+      practice: this.practice,
+      host: host?.name ?? null,
+      players: [...this.seats.values()]
+        .sort((a, b) => a.seat - b.seat)
+        .map((s) => ({ name: s.name, bot: s.isBot, connected: s.isBot || s.connected, away: s.away, host: s.id === this.hostId, anon: s.anon })),
+    };
+  }
+
+  /** The finished game with its secrets, only once it has ended. Null before that. */
+  finishedGame(): FinishedGame | null {
+    if (this.phase !== 'ended' || !this.replay) return null;
+    const names = Object.fromEntries([...this.seats.values()].map((s) => [s.id, s.name]));
+    return { gameId: this.gameId, code: this.code, endedAt: '', names, replay: this.replay };
+  }
+
+  /** Socket ids of everyone connected here. */
+  socketIds(): string[] {
+    return [...this.seats.values()].flatMap((s) => (s.socketId ? [s.socketId] : []));
+  }
+
+  private disposed = false;
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.trackAbandoned();
     this.clearPhaseTimer();
     this.clearHostTimer();
     this.bots.clear();

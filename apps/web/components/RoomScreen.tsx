@@ -9,6 +9,8 @@ import { session } from '@/lib/session';
 import { useGame } from '@/lib/store';
 import { useGameAudio } from '@/lib/audio/useGameAudio';
 import { reportHowtoStatus } from '@/lib/howtoStatus';
+import { trackVisit } from '@/lib/analytics';
+import { ServerBanner } from './ServerBanner';
 import { Lobby } from './lobby/Lobby';
 import { GameHud } from './game/GameHud';
 import { Toast } from './Toast';
@@ -21,6 +23,7 @@ export function RoomScreen({ code }: { code: string }) {
   const [stage, setStage] = useState<Stage>('connecting');
   // Music, ambience and game sounds for whatever this player can see.
   useGameAudio();
+  useEffect(() => trackVisit('room'), []);
   // Playtest stats: tell the room what this player did with How to Play, once seated.
   useEffect(() => {
     if (stage === 'in') reportHowtoStatus();
@@ -68,6 +71,14 @@ export function RoomScreen({ code }: { code: string }) {
       setStage('needName');
     };
     socket.on('kicked', onKicked);
+    // Closed by the admins: same as being removed, with their reason.
+    const onClosed = ({ reason }: { reason: string }) => {
+      session.setToken(code, null);
+      useGame.getState().reset();
+      setError(reason);
+      setStage('needName');
+    };
+    socket.on('roomClosed', onClosed);
     if (socket.connected) onConnect();
     return () => {
       socket.off('connect', onConnect);
@@ -76,6 +87,7 @@ export function RoomScreen({ code }: { code: string }) {
       socket.off('chat', s.addChat);
       socket.off('chatHistory', s.setChat);
       socket.off('kicked', onKicked);
+      socket.off('roomClosed', onClosed);
     };
   }, [resume, code]);
 
@@ -118,6 +130,7 @@ export function RoomScreen({ code }: { code: string }) {
       )}
       {stage === 'in' && !connected && <div className="conn-banner">Lost the trail. Reconnecting…</div>}
       <Toast />
+      <ServerBanner />
     </div>
   );
 }

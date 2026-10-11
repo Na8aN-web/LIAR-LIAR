@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { BRAND, SOCIALS } from '@/config/brand';
 import { CREDITS } from '@/config/credits';
 import { Rope } from '../ui/western';
@@ -55,7 +56,7 @@ export function Credits() {
         </section>
       ))}
       <p className="hint credits-foot">
-        {BRAND.game} · © {BRAND.studio}
+        {BRAND.game} · © {BRAND.studio} · <Link href="/privacy">Privacy</Link>
       </p>
     </div>
   );

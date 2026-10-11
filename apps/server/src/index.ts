@@ -1,8 +1,14 @@
-import { readFileSync, statSync } from 'node:fs';
-import { appendFile, mkdir } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { MIN_PLAYERS } from '@wtc/shared';
 import { createGameServer } from './server';
+import { createStore } from './store';
+import { isPasswordHash } from './admin/crypto';
+import { Monitor } from './admin/monitor';
+
+// Local secrets (the admin login from `pnpm admin:setup`) live in apps/server/.env.local, which
+// git ignores. On a real host, set the same variables in its environment instead.
+if (existsSync('.env.local')) process.loadEnvFile('.env.local');
 
 // Dev tools (bots, phase skipping, 2-player lobbies) are opt-in: `--dev` on the command line
 // (pnpm dev passes it). A server started any other way is a production server, and
@@ -45,24 +51,22 @@ function allowedOrigins(): string[] {
 // Behind a proxy or tunnel you run (Cloudflare, nginx): trust its client-IP headers.
 const trustProxy = process.env.TRUST_PROXY === '1';
 
-// One JSON line per finished game, for balance tuning. GAME_LOG=off disables it. The file is
-// written next to the server, never inside the web app's public folder, and this server serves
-// no files, so it can't be downloaded. Feedback answers go to feedback.jsonl beside it.
-const gameLog = process.env.GAME_LOG === 'off' ? null : resolve(process.env.GAME_LOG ?? 'logs/games.jsonl');
-const feedbackLog =
-  process.env.FEEDBACK_LOG === 'off' ? null : resolve(process.env.FEEDBACK_LOG ?? join(dirname(gameLog ?? resolve('logs/games.jsonl')), 'feedback.jsonl'));
-for (const f of [gameLog, feedbackLog]) {
-  if (f && /[\\/]public[\\/]/.test(f)) throw new Error(`${f}: logs must not be inside a public web folder`);
-}
+// Admin dashboard (/admin): password hash + authenticator secret from `pnpm admin:setup`.
+// Without both, the admin API refuses everything.
+const passwordHash = process.env.ADMIN_PASSWORD_HASH ?? '';
+const totpSecret = process.env.ADMIN_TOTP_SECRET ?? '';
+const adminReady = isPasswordHash(passwordHash) && /^[A-Z2-7]{16,}$/.test(totpSecret);
+if ((passwordHash || totpSecret) && !adminReady) console.warn('Admin login is misconfigured (run pnpm admin:setup again): the admin dashboard stays locked.');
+// Optional: Cloudflare Access in front of /admin (see SECURITY.md).
+const access = process.env.CF_ACCESS_TEAM_DOMAIN && process.env.CF_ACCESS_AUD ? { teamDomain: process.env.CF_ACCESS_TEAM_DOMAIN, aud: process.env.CF_ACCESS_AUD } : null;
 
-async function appendLine(file: string, value: unknown) {
-  try {
-    await mkdir(dirname(file), { recursive: true });
-    await appendFile(file, JSON.stringify(value) + '\n');
-  } catch (err) {
-    console.error(`could not write ${file}`, err instanceof Error ? err.message : 'unknown');
-  }
-}
+const monitor = new Monitor();
+monitor.captureConsole();
+
+// Analytics, feedback, the admin log: files in DATA_DIR (default logs/) or Postgres
+// (ANALYTICS_STORE=postgres). Never inside the web app's public folder; this server serves
+// none of it as files.
+const store = await createStore();
 
 const server = createGameServer({
   port,
@@ -70,12 +74,15 @@ const server = createGameServer({
   minPlayers,
   corsOrigin: devMode && !fixedOrigins.length && !originsFile ? true : allowedOrigins,
   trustProxy,
+  store,
+  monitor,
+  admin: { credentials: adminReady ? { passwordHash, totpSecret } : null, access },
   onGameEnd: (summary) => {
-    if (gameLog) void appendLine(gameLog, summary);
+    store.addGame(summary).catch((e) => console.error('could not save game stats', e instanceof Error ? e.message : 'unknown'));
     console.log(`Game finished: ${summary.players} players, ${summary.posters.length} posters. Stats saved.`);
   },
   onFeedback: (entry) => {
-    if (feedbackLog) void appendLine(feedbackLog, entry);
+    store.addFeedback(entry).catch((e) => console.error('could not save feedback', e instanceof Error ? e.message : 'unknown'));
     console.log(`Feedback received from ${entry.name}.`);
   },
 });
@@ -86,6 +93,6 @@ server.listen().then((p) => {
     console.log(`Connections allowed from: ${fixedOrigins.length ? fixedOrigins.join(', ') : 'this server’s own host'}${extra}`);
   }
   if (trustProxy) console.log('Trusting proxy headers for client IPs (TRUST_PROXY=1)');
-  if (gameLog) console.log(`Game stats -> ${gameLog}`);
-  if (feedbackLog) console.log(`Feedback   -> ${feedbackLog}`);
+  console.log(`Data: ${store.kind === 'file' ? resolve(process.env.DATA_DIR ?? 'logs') : 'Postgres'}`);
+  console.log(`Admin dashboard: ${adminReady ? `/admin (password + authenticator code${access ? ', behind Cloudflare Access' : ''})` : 'locked (run pnpm admin:setup)'}`);
 });

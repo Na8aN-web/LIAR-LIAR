@@ -2,6 +2,7 @@
 
 import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, ServerToClientEvents } from '@wtc/shared';
+import { useServerStatus } from './serverStatus';
 
 export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -44,7 +45,20 @@ function browserId(): string {
 }
 
 export function getSocket(): GameSocket {
-  if (!socket) socket = io(serverUrl(), { transports: ['websocket'], auth: { browserId: browserId() } });
+  if (!socket) {
+    socket = io(serverUrl(), { transports: ['websocket'], auth: { browserId: browserId() } });
+    // Server-wide state, whatever page is open.
+    const st = useServerStatus.getState();
+    socket.on('status', st.setStatus);
+    socket.on('announcement', st.announce);
+    socket.on('banned', st.setBanned);
+    socket.on('connect_error', (err) => {
+      if (err.message === 'banned') {
+        st.setBanned();
+        socket?.disconnect();
+      }
+    });
+  }
   return socket;
 }
 

@@ -101,16 +101,93 @@ serves its own `public/` folder, so the log can't be downloaded.
    server share one origin behind a proxy, it can stay unset (same host only).
 4. Behind a proxy or tunnel you control, set `TRUST_PROXY=1` so limits see real client IPs.
    Never set it otherwise: clients could then fake their IP.
-5. The browser only receives `NEXT_PUBLIC_*` settings (just the game server URL). There are no
-   secret keys anywhere in the project; keep it that way.
+5. The browser only receives `NEXT_PUBLIC_*` settings (just the game server URL). The only
+   secrets are the admin login (`ADMIN_PASSWORD_HASH`, `ADMIN_TOTP_SECRET`) and the database URL,
+   and they live only in the game server's environment (`apps/server/.env.local` locally, which
+   git ignores). Never prefix them with `NEXT_PUBLIC_`.
+6. Put Cloudflare Access in front of `/admin` (below).
 
 Run `pnpm audit` before releases.
+
+## Admin dashboard (/admin)
+
+The dashboard is a page of the web app, but everything it shows comes from the game server's
+admin API (`/admin/api/*`, which the web app forwards to the game server). The page itself holds
+no data and no secrets; the API checks everything. It isn't linked from anywhere, and it's marked
+`noindex` for search engines.
+
+**Signing in** needs two things: a password (stored only as a scrypt hash) and a 6-digit code from
+an authenticator app (TOTP). Set both up on the server with `pnpm admin:setup`. Without them the
+admin API refuses everything.
+
+- **Rate limits:** 5 failed sign-ins per IP, then one more every 3 minutes; 50 an hour from
+  everywhere together. Each authenticator code works once.
+- **Session:** a random token in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie
+  (`__Host-wtc_admin`), kept on the server only as a hash. It ends after 12 hours, or 1 hour
+  unused, or on a server restart.
+- **Forged requests:** every API call must carry an `x-wtc-admin: 1` header. Pages on other
+  sites can't add it (and the cookie isn't sent cross-site anyway).
+- **Audit log:** every sign-in attempt (with its IP), every action (closing rooms, bans,
+  broadcasts, maintenance, default settings, billboard swaps) and every look at a finished
+  game's results. Page: Admin log.
+- **Confirmations:** every action shows what it will do and needs a Confirm.
+- **Secrets during a game:** the Live page and the room view show only what any player in the
+  room sees (names, who's connected, the phase and timer). Colors, the Wanted player, votes and
+  search results appear only once the game has ended. `apps/server/test/admin.test.ts` checks
+  the API's answers through every phase of a game.
+- **Billboard uploads:** PNG, JPEG or WebP only, checked by their bytes (not the file name), at
+  most 2 MB, never SVG. Served with `nosniff` and a sandboxing CSP. The house slot can't be
+  replaced.
+- **Bans** are by anonymous browser id. They stop casual trouble-makers; someone who clears their
+  browser data gets a new id (see below).
+
+### Cloudflare Access (at launch)
+
+Cloudflare Access makes Cloudflare check who you are before `/admin` is even reachable: a second
+lock in front of the password. It needs your own domain on Cloudflare (it doesn't work with the
+temporary `trycloudflare.com` playtest links). It's free for small teams.
+
+1. In the Cloudflare dashboard, open **Zero Trust → Access → Applications → Add an application →
+   Self-hosted**.
+2. **Application domain:** your site's domain, **path** `admin`. Access then covers `/admin` and
+   everything under it, including the API (`/admin/api/...`).
+3. **Policy:** Action **Allow**, Include **Emails** → your email address (add anyone else who
+   should get in). Session duration: 24 hours is fine.
+4. **Login method:** the default "One-time PIN" (a code sent to your email) works with no setup.
+5. Save. Open the application again and copy its **Application Audience (AUD) Tag**. Your **team
+   domain** is under **Zero Trust → Settings → Custom pages** (it looks like
+   `https://yourteam.cloudflareaccess.com`).
+6. On the game server, set:
+   ```
+   CF_ACCESS_TEAM_DOMAIN=https://yourteam.cloudflareaccess.com
+   CF_ACCESS_AUD=<the AUD tag>
+   ```
+   and restart it. It prints `Admin dashboard: /admin (password + authenticator code, behind
+   Cloudflare Access)`. From then on the admin API checks Cloudflare's signed token on every
+   request, so even someone who reaches the server without going through Cloudflare can't use it.
+7. Check: open `https://your-site/admin` in a private window. Cloudflare should ask for your
+   email first, then the dashboard asks for the password and code.
+
+### Data the server keeps
+
+Analytics, game stats, feedback, the admin log and admin settings go to the store chosen by
+`ANALYTICS_STORE`: files in `apps/server/logs` (default), or Postgres
+(`ANALYTICS_STORE=postgres`, `DATABASE_URL=...`, `DATABASE_SSL=1` for hosted databases; the
+schema is `apps/server/src/store/schema.sql` and is created on start). No player names (except
+the display name typed on a feedback form), no session tokens and no player IP addresses. A
+player is an anonymous id: a one-way hash of the random id their browser made up; the database
+refuses anything else in that column. Chat is stored only when a message is reported (that
+message and up to four before it, without names). The plain-English version for players is the
+Privacy page (`/privacy`), linked from Settings and Credits.
 
 ## What can't be fully prevented
 
 - **Friends sharing information** over voice chat, a group chat or the same couch. Nothing in a
   browser game can stop people from talking to each other. It's the same as table talk in a
   board game; private rooms with people you trust are the answer.
+- **Ban evasion.** Bans are per browser. Clearing browser data, a private window or another
+  device gets a new anonymous id. Without accounts this can't be closed completely; bans stop
+  the casual cases and make the rest a chore.
 - **One person playing several seats.** One seat per browser stops the easy version, but someone
   can still use a private window or a second device. Hosts can remove suspicious players.
 - **Bots and helper scripts.** Someone can write a program that plays for them. It gets exactly

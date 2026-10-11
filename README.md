@@ -38,6 +38,7 @@ pnpm smoke       # full game over real sockets: 2 humans + 4 bots, buying, recon
 pnpm sim         # bot-only balance simulation (see PLAYTEST.md), e.g. pnpm sim -- --players 12 --decoys 3 --swaps 2
 pnpm sweep       # grid over color swaps x decoys, prints an accuracy table
 pnpm stats       # summarise real games from apps/server/logs/games.jsonl
+pnpm feedback    # every end-of-game feedback answer
 pnpm typecheck
 pnpm build
 ```
@@ -103,6 +104,23 @@ Asset credits: [CREDITS.md](CREDITS.md).
 - `/dev/scarecrow?view=front|side|back` (dev only): the model with each item and a silhouette.
 - Add `?perf` to any page URL (also on a real phone) for FPS, draw calls and triangles.
 
+## Admin dashboard
+
+`/admin` (not linked anywhere): Live rooms and server health, Growth, Sources (`?src=` links),
+Funnel, Balance, Feedback, Safety (reports, kicks, mutes, bans, rate limits), Billboards (views,
+swap images live), Controls (message everyone, maintenance mode, default game settings) and the
+Admin log.
+
+```sh
+pnpm admin:setup              # choose the password and link an authenticator app (once per server)
+pnpm admin:seed               # fill it with the playtest files + 30 days of simulated visitors (tagged "seed")
+pnpm admin:seed -- --remove   # delete the seed data
+```
+
+Security and Cloudflare Access: [SECURITY.md](SECURITY.md#admin-dashboard-admin). Data lives in
+`apps/server/logs` by default, or Postgres with `ANALYTICS_STORE=postgres` (schema:
+`apps/server/src/store/schema.sql`).
+
 ## Config (server env)
 
 | Var | Default | |
@@ -112,11 +130,14 @@ Asset credits: [CREDITS.md](CREDITS.md).
 | `MIN_PLAYERS` | 2 | Dev only; production always needs 6 |
 | `ALLOWED_ORIGINS` | this server's own host | Production: sites allowed to connect, comma-separated (`https://wanted.example.com`, or `https://*.example.com`). Must be https. |
 | `TRUST_PROXY` | off | `1` behind a proxy/tunnel you run, so rate limits see real client IPs (Cloudflare / X-Forwarded-For). Never set it without a proxy: clients could fake their IP. |
-| `GAME_LOG` | `logs/games.jsonl` | Per-game stats (JSON lines, anonymous). `off` disables. Kept next to the server, never served. |
+| `DATA_DIR` | `logs` | File store: game stats (`games.jsonl`), feedback, analytics events, admin log and settings. Kept next to the server, never served. |
+| `ANALYTICS_STORE` | `file` | `postgres` to use Postgres instead (with `DATABASE_URL`, and `DATABASE_SSL=1` if the host requires TLS). |
+| `ADMIN_PASSWORD_HASH`, `ADMIN_TOTP_SECRET` | none | Admin login, written by `pnpm admin:setup` to `apps/server/.env.local` (git-ignored). Unset: `/admin` stays locked. |
+| `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | none | Cloudflare Access in front of `/admin`: the admin API then also requires Cloudflare's signed token. |
 
 **Security:** see [SECURITY.md](SECURITY.md) for what the server enforces, the limits, and how to deploy safely (HTTPS, origins).
 
-Web: `NEXT_PUBLIC_SERVER_URL`: a URL, or `same-origin`. Unset: port 3001 on the same host when the page is on :3000 (local dev), otherwise the page's own origin (tunnel/proxy, `tools/proxy.mjs`).
+Web: `GAME_SERVER_INTERNAL_URL` (default `http://127.0.0.1:3001`): where the web server forwards `/admin/api` and `/billboards` (server to server). `NEXT_PUBLIC_SERVER_URL`: a URL, or `same-origin`. Unset: port 3001 on the same host when the page is on :3000 (local dev), otherwise the page's own origin (tunnel/proxy, `tools/proxy.mjs`).
 
 Playtesting, including the remote setup (`pnpm playtest`, Cloudflare Tunnel): see [PLAYTEST.md](PLAYTEST.md).
 

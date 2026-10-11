@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { AdditiveBlending, CanvasTexture, SRGBColorSpace } from 'three';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AdditiveBlending, CanvasTexture, SRGBColorSpace, type Group } from 'three';
 import type { AdSlot } from '@/config/adSlots';
 import { useCanvasFonts, type CanvasFonts } from '@/lib/canvasFonts';
 import { NAILS, PAPER_URL, POSTER_H, POSTER_W, TORN_OUTLINE } from '../../poster/posterArt';
 import { WARM, glowTexture } from './glow';
+import { useBillboardSeen } from './useBillboardSeen';
 
 // The 3042Official house poster: a permanent slot (see config/adSlots.ts, `reserved`), drawn
 // like the Wanted posters so it belongs in town: weathered torn paper, the crew art as an old
@@ -142,8 +143,10 @@ export function BrandBoard({ slot }: { slot: AdSlot }) {
 
   const [w, h] = slot.size;
   const glow = glowTexture();
+  const ref = useRef<Group>(null);
+  useBillboardSeen(slot.id, ref);
   return (
-    <group position={slot.position} rotation-y={slot.rotationY ?? 0} name={`ad:${slot.id}`}>
+    <group ref={ref} position={slot.position} rotation-y={slot.rotationY ?? 0} name={`ad:${slot.id}`}>
       {/* Weathered plank backing and two posts down to the ground. */}
       <mesh position-z={-0.05}>
         <boxGeometry args={[w + 0.3, h + 0.3, 0.08]} />

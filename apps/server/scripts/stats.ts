@@ -1,7 +1,7 @@
 // Summarise real games from the server's stats log.
 //   pnpm stats                  reads logs/games.jsonl (in apps/server)
 //   pnpm stats -- path/to/games.jsonl
-//   pnpm stats -- --all         include bot-only games and playtest:check games
+//   pnpm stats -- --all         include bot-only games, playtest:check games and admin seed data
 import { readFileSync } from 'node:fs';
 import type { GameSummary, PlayerStats } from '../src/game/summary';
 import { report } from './report';
@@ -18,8 +18,8 @@ try {
   console.log(`No game log at ${file} yet. Finish a game first.`);
   process.exit(0);
 }
-// Bot-only games and the simulated players of `pnpm playtest:check` aren't real playtest data.
-const shown = args.includes('--all') ? games : games.filter((g) => g.bots < g.players && !g.check);
+// Bot-only games, the simulated players of `pnpm playtest:check` and `pnpm admin:seed` data aren't real playtest data.
+const shown = args.includes('--all') ? games : games.filter((g) => g.bots < g.players && !g.check && !g.seed);
 console.log(`${games.length} games in ${file}${shown.length < games.length ? ` (showing the ${shown.length} played by people; --all for every game)` : ''}`);
 if (!shown.length) process.exit(0);
 

@@ -11,7 +11,9 @@ try {
   entries = readFileSync(file, 'utf8')
     .split('\n')
     .filter(Boolean)
-    .map((l) => JSON.parse(l));
+    .map((l) => JSON.parse(l))
+    // Made-up answers from `pnpm admin:seed` only with --all.
+    .filter((e: FeedbackEntry) => process.argv.includes('--all') || !e.seed);
 } catch {
   console.log(`No feedback at ${file} yet. It appears after players send the form at the end of a game.`);
   process.exit(0);

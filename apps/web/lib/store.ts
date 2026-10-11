@@ -9,12 +9,15 @@ interface GameStore {
   /** serverTime - localTime, from the latest view. */
   clockOffset: number;
   chat: ChatMessage[];
+  /** Players this person muted: their chat is hidden here (only here). */
+  muted: PlayerId[];
   connected: boolean;
   selectedId: PlayerId | null;
   toast: { id: number; text: string } | null;
   setView: (v: PlayerView) => void;
   setChat: (m: ChatMessage[]) => void;
   addChat: (m: ChatMessage) => void;
+  mute: (id: PlayerId) => void;
   setConnected: (c: boolean) => void;
   select: (id: PlayerId | null) => void;
   showToast: (text: string) => void;
@@ -25,6 +28,7 @@ export const useGame = create<GameStore>((set) => ({
   view: null,
   clockOffset: 0,
   chat: [],
+  muted: [],
   connected: false,
   selectedId: null,
   toast: null,
@@ -35,12 +39,13 @@ export const useGame = create<GameStore>((set) => ({
       // Drop the selection when the phase changes.
       selectedId: s.view?.phase === v.phase ? s.selectedId : null,
     })),
-  setChat: (chat) => set({ chat }),
-  addChat: (m) => set((s) => ({ chat: [...s.chat.slice(-199), m] })),
+  setChat: (chat) => set((s) => ({ chat: chat.filter((m) => !s.muted.includes(m.playerId)) })),
+  addChat: (m) => set((s) => (s.muted.includes(m.playerId) ? s : { chat: [...s.chat.slice(-199), m] })),
+  mute: (id) => set((s) => ({ muted: [...s.muted, id], chat: s.chat.filter((m) => m.playerId !== id) })),
   setConnected: (connected) => set({ connected }),
   select: (selectedId) => set({ selectedId }),
   showToast: (text) => set({ toast: { id: Date.now(), text } }),
-  reset: () => set({ view: null, chat: [], selectedId: null, toast: null }),
+  reset: () => set({ view: null, chat: [], muted: [], selectedId: null, toast: null }),
 }));
 
 /** Whole seconds left in the current phase, ticking. */

@@ -725,3 +725,32 @@ input:disabled, select:disabled { opacity: 0.65; }
 .feedback-actions { gap: 8px; }
 .feedback-thanks { margin: 14px 0; text-align: center; font-family: var(--font-telegram), monospace; color: var(--cream); }
 .feedback-reopen { margin: 12px auto 0; display: block; }
+
+/* =====================================================================
+   Server banner (admin messages, maintenance, bans), chat mute/report, privacy page
+   ===================================================================== */
+.server-banner { position: fixed; top: calc(8px + var(--safe-top)); left: 50%; transform: translateX(-50%); z-index: 60; width: min(560px, calc(100% - 2 * var(--gutter))); display: grid; gap: 6px; pointer-events: none; }
+.server-note {
+  pointer-events: auto; position: relative; padding: 10px 40px 10px 14px; border-radius: 3px; color: var(--ink); background: var(--telegram);
+  font-family: var(--font-telegram), monospace; font-size: 0.92rem; line-height: 1.35; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); border-top: 3px dashed rgba(46, 28, 14, 0.3);
+}
+.server-note.danger { background: #f3d6c8; border-top-color: var(--oxblood); }
+.server-note b { color: var(--oxblood); }
+.server-note-tag { display: block; font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--oxblood); margin-bottom: 2px; }
+.server-note .icon-btn { position: absolute; top: 6px; right: 6px; color: var(--ink); }
+.chat-list li { position: relative; }
+.chat-more { background: none; border: 0; color: var(--ink-faint); padding: 0 6px; font-size: 1rem; line-height: 1; vertical-align: middle; min-width: 28px; min-height: 24px; }
+.chat-more:hover { color: var(--ink); }
+.chat-actions { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.settings-privacy { margin-top: 14px; }
+.settings-privacy a, .credits-foot a { color: inherit; }
+.legal { min-height: 100dvh; padding: calc(24px + var(--safe-top)) var(--gutter) 48px; display: flex; justify-content: center; background: var(--night); overflow-y: auto; }
+.legal-card { max-width: 720px; width: 100%; padding: 26px 24px 30px; border-radius: 6px; height: fit-content; }
+.legal-card h1 { font-size: 2rem; color: var(--oxblood); margin: 14px 0 2px; }
+.legal-card h2 { font-size: 1.15rem; color: var(--oxblood); margin: 22px 0 6px; }
+.legal-card p { margin: 0 0 10px; line-height: 1.6; }
+.legal-list { margin: 0; }
+.legal-list dt { font-weight: 700; margin-top: 12px; }
+.legal-list dd { margin: 2px 0 0; line-height: 1.55; }
+.legal-card a { color: var(--oxblood); }
+.legal-card code { background: rgba(46, 28, 14, 0.08); padding: 0 4px; border-radius: 3px; }

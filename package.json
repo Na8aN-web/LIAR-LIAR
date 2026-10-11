@@ -20,7 +20,10 @@
     "ground": "node tools/build-ground.mjs",
     "branding": "node tools/build-branding.mjs",
     "feedback": "pnpm --filter @wtc/server feedback",
-    "playtest:check": "pnpm --filter @wtc/server playtest:check"
+    "playtest:check": "pnpm --filter @wtc/server playtest:check",
+    "admin:setup": "pnpm --filter @wtc/server admin:setup",
+    "admin:seed": "pnpm --filter @wtc/server admin:seed",
+    "db:schema": "pnpm --filter @wtc/server db:schema"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",

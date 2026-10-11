@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { setHowtoStatus } from '@/lib/howtoStatus';
+import { trackStep } from '@/lib/analytics';
 import { howToSlides, type Block, type SlideNumbers } from './slides';
 
 const SEEN_KEY = 'wtc:howto-seen';
@@ -58,9 +59,11 @@ export function Walkthrough({
   const close = () => {
     markWalkthroughSeen();
     setHowtoStatus(last ? 'finished' : 'skipped');
+    trackStep(last ? 'howto_finish' : 'howto_skip');
     onClose();
   };
   const go = (n: number) => setI(Math.max(0, Math.min(slides.length - 1, n)));
+  useEffect(() => trackStep('howto_open'), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -134,6 +137,7 @@ export function Walkthrough({
               onClick={() => {
                 markWalkthroughSeen();
                 setHowtoStatus('finished');
+                trackStep('howto_finish');
                 onPractice();
               }}
             >

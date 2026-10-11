@@ -76,6 +76,8 @@ export function useGameAudio() {
 export function useButtonClicks() {
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
+      // Not on the admin dashboard: it's a tool, not the game.
+      if (location.pathname.startsWith('/admin')) return;
       const el = (e.target as HTMLElement | null)?.closest?.('button, [role="button"], a.btn');
       if (el && !(el as HTMLButtonElement).disabled) playSfx('click');
     };

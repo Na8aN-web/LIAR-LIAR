@@ -14,14 +14,22 @@
     "sweep": "tsx scripts/sweep.ts",
     "stats": "tsx scripts/stats.ts",
     "feedback": "tsx scripts/feedback.ts",
-    "playtest:check": "tsx scripts/playtest-check.ts"
+    "playtest:check": "tsx scripts/playtest-check.ts",
+    "db:schema": "node scripts/gen-schema.mjs",
+    "admin:setup": "tsx scripts/admin-setup.ts",
+    "admin:seed": "tsx scripts/admin-seed.ts"
   },
   "dependencies": {
     "@wtc/shared": "workspace:*",
+    "pg": "^8.23.1",
     "socket.io": "^4.8.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
+    "qrcode": "1.5.4",
     "socket.io-client": "^4.8.4",
     "tsup": "^8.5.1",
     "tsx": "^4.23.15",

@@ -1,17 +1,33 @@
+import { randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import {
+  CLIENT_STEPS,
+  REPORT_REASON_MAX,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
+  VISIT_PAGES,
+  isBillboardSlot,
+  parseSource,
   type Ack,
+  type Announcement,
+  type ClientStep,
+  type VisitPage,
   type ClientToServerEvents,
   type JoinResult,
   type ServerToClientEvents,
 } from '@wtc/shared';
-import { Room, type FeedbackEntry, type Seat } from './room';
+import { Room, type FeedbackEntry, type FinishedGame, type Seat } from './room';
 import type { GameSummary } from './game/summary';
 import { secureRng, type Rng } from './rng';
 import { LIMITS, RateLimiter, browserIdOf, clientIp, originAllowed } from './security';
+import { anonId, countryOf, deviceOf, type AnalyticsEvent } from './analytics/events';
+import type { Store } from './store/types';
+import { AccessVerifier, type AccessConfig } from './admin/access';
+import { adminHandler, billboardHandler } from './admin/api';
+import { AdminAuth, type AdminCredentials } from './admin/auth';
+import { Control } from './admin/control';
+import { Monitor } from './admin/monitor';
 
 interface SocketData {
   code?: string;
@@ -42,7 +58,15 @@ export interface GameServerOptions {
   onFeedback?: (entry: FeedbackEntry) => void;
   /** Override limits (tests). */
   limits?: Partial<typeof LIMITS>;
+  /** Analytics, feedback, the admin log and admin settings. Null/omitted: nothing is stored. */
+  store?: Store | null;
+  /** Admin dashboard login (`pnpm admin:setup`). Omitted: the admin API refuses everything. */
+  admin?: { credentials?: AdminCredentials | null; access?: AccessConfig | null; accessVerifier?: AccessVerifier };
+  monitor?: Monitor;
 }
+
+/** Finished games (with their secrets) stay viewable by the admins this long, in memory only. */
+const FINISHED_KEEP_MS = 3 * 3600_000;
 
 const ROOM_IDLE_MS = 10 * 60_000;
 const fail = (error: string) => ({ ok: false as const, error });
@@ -56,13 +80,31 @@ export function createGameServer(opts: GameServerOptions) {
   // (a playtest tunnel gets a new URL each time it starts).
   const allowedOrigins = (): string[] => (typeof opts.corsOrigin === 'function' ? opts.corsOrigin() : Array.isArray(opts.corsOrigin) ? opts.corsOrigin : []);
 
-  // Only /health is served over plain HTTP: no files, no logs, nothing else.
+  const store = opts.store ?? null;
+  const monitor = opts.monitor ?? new Monitor();
+  const control = new Control(store);
+  const record = (e: AnalyticsEvent) => {
+    store?.addEvent(e).catch((err) => console.error('analytics write failed', err instanceof Error ? err.message : 'unknown'));
+  };
+  const finished: FinishedGame[] = [];
+  const keepFinished = (f: FinishedGame) => {
+    finished.unshift(f);
+    const cutoff = Date.now() - FINISHED_KEEP_MS;
+    while (finished.length > 50 || (finished.length && Date.parse(finished[finished.length - 1].endedAt) < cutoff)) finished.pop();
+  };
+
+  // Plain HTTP serves only /health, replaced billboard images and the admin API (which checks
+  // its own login). No files, no logs, nothing else.
+  let admin: (ReturnType<typeof adminHandler> & { prune?: () => void }) | null = null;
+  const billboards = billboardHandler({ store, control });
   const http = createServer((req, res) => {
     res.setHeader('x-content-type-options', 'nosniff');
     if (req.url === '/health') {
       res.writeHead(200, { 'content-type': 'text/plain' }).end('ok');
       return;
     }
+    if (req.url?.startsWith('/admin/api/') && admin) return void admin(req, res);
+    if (req.url?.startsWith('/billboards/')) return void billboards(req, res);
     res.writeHead(404).end();
   });
 
@@ -77,6 +119,12 @@ export function createGameServer(opts: GameServerOptions) {
     probe: new RateLimiter(L.colorProbe.burst, L.colorProbe.perSecond),
   };
   const socketsPerIp = new Map<string, number>();
+  // Rate-limit hits, counted per limit and saved once a minute (Safety page).
+  const hits = new Map<string, number>();
+  for (const [name, limiter] of Object.entries(rate)) {
+    const take = limiter.take.bind(limiter);
+    limiter.take = (key: string, now?: number) => take(key, now) || (hits.set(name, (hits.get(name) ?? 0) + 1), false);
+  }
 
   const io: IO = new Server(http, {
     cors: { origin: anyOrigin ? true : (origin, cb) => cb(null, !!origin && allowedOrigins().includes(origin)) },
@@ -91,6 +139,8 @@ export function createGameServer(opts: GameServerOptions) {
       cb(null, true);
     },
   });
+  // Banned browsers (by anonymous id) can't connect at all.
+  io.use((socket, next) => (control.isBanned(anonId(browserIdOf(socket.handshake.auth))) ? next(new Error('banned')) : next()));
   const rooms = new Map<string, Room>();
 
   const newCode = () => {
@@ -113,6 +163,9 @@ export function createGameServer(opts: GameServerOptions) {
     const code = newCode();
     const room = new Room(code, {
       rng,
+      onEvent: record,
+      defaults: () => control.defaults,
+      onFinished: keepFinished,
       practice,
       check,
       devMode: opts.devMode,
@@ -142,12 +195,76 @@ export function createGameServer(opts: GameServerOptions) {
       else if (now - room.idleSince > ROOM_IDLE_MS) closeRoom(code);
     }
     for (const r of Object.values(rate)) r.prune(now);
+    admin?.prune?.();
+    // Once a minute: rate-limit hits, and how many people are online (peak concurrent players).
+    const at = new Date(now).toISOString();
+    for (const [limit, count] of hits) record({ at, type: 'safety', kind: 'rate_limit', by: 'server', anon: null, limit, count });
+    hits.clear();
+    const sockets = io.engine.clientsCount;
+    if (sockets || lastSampleNonZero) record({ at, type: 'concurrency', anon: null, players: seatedPlayers(), sockets, rooms: rooms.size });
+    lastSampleNonZero = sockets > 0;
   }, 60_000);
+  let lastSampleNonZero = false;
+  const cpuSampler = setInterval(() => monitor.sample(), 5_000);
+  const seatedPlayers = () => [...rooms.values()].reduce((n, r) => n + r.humans().filter((s) => s.connected).length, 0);
+
+  const announce = (text: string): Announcement => {
+    const a = { id: randomBytes(6).toString('base64url'), text, at: Date.now() };
+    io.emit('announcement', a);
+    return a;
+  };
+  const pushStatus = () => io.emit('status', control.status());
+  const adminCloseRoom = (code: string, reason: string) => {
+    const room = rooms.get(code);
+    if (!room) return false;
+    const ids = room.socketIds();
+    room.close(reason);
+    rooms.delete(code);
+    for (const id of ids) {
+      const s = io.sockets.sockets.get(id);
+      if (s) {
+        s.data.code = undefined;
+        s.data.playerId = undefined;
+      }
+    }
+    return true;
+  };
+  const dropBanned = (anon: string) => {
+    let n = 0;
+    for (const s of io.sockets.sockets.values()) {
+      if (anonId(s.data.browserId) !== anon) continue;
+      s.emit('banned');
+      s.disconnect(true);
+      n++;
+    }
+    return n;
+  };
+  const creds = opts.admin?.credentials ?? null;
+  const access = opts.admin?.accessVerifier ?? (opts.admin?.access ? new AccessVerifier(opts.admin.access) : null);
+  const auth = creds ? new AdminAuth(creds) : null;
+  const adminFn = adminHandler({
+    store,
+    control,
+    monitor,
+    auth,
+    access,
+    trustProxy,
+    rooms,
+    finished: () => finished,
+    online: () => ({ sockets: io.engine.clientsCount, players: seatedPlayers() }),
+    closeRoom: adminCloseRoom,
+    announce,
+    pushStatus,
+    dropBanned,
+  });
+  admin = Object.assign(adminFn, { prune: () => auth?.prune() });
 
   io.on('connection', (socket: GameSocket) => {
     const ip = clientIp(socket.request, trustProxy);
     socketsPerIp.set(ip, (socketsPerIp.get(ip) ?? 0) + 1);
     socket.data = { ip, browserId: browserIdOf(socket.handshake.auth), check: (socket.handshake.auth as { purpose?: unknown } | null)?.purpose === 'check' };
+    const anon = anonId(socket.data.browserId);
+    socket.emit('status', control.status());
 
     const current = (): { room: Room; seat: Seat } | null => {
       const room = socket.data.code ? rooms.get(socket.data.code) : undefined;
@@ -201,6 +318,7 @@ export function createGameServer(opts: GameServerOptions) {
     };
 
     const createRoom = (practice: boolean, p: unknown, ack: (r: Ack<JoinResult>) => void) => {
+      if (control.maintenance.on) return ack(fail(control.maintenance.message));
       if (!rate.create.take(ip)) return ack(fail('Too many new rooms. Wait a minute.'));
       if (rooms.size >= L.maxRooms) return ack(fail('The town is full right now. Try again soon.'));
       detach();
@@ -287,6 +405,48 @@ export function createGameServer(opts: GameServerOptions) {
     ));
     socket.on('client:howto', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.setHowto(seat.id, obj(p).status))));
     socket.on('feedback:send', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.submitFeedback(seat.id, p))));
+    socket.on('chat:report', handle((p, ack) =>
+      withSeat(ack, ({ room, seat }) => room.reportChat(seat.id, obj(p).messageId, typeof obj(p).reason === 'string' ? (obj(p).reason as string).slice(0, REPORT_REASON_MAX * 2) : '')),
+    ));
+    const muted = new Set<string>();
+    socket.on('chat:mute', handle((p, ack) =>
+      withSeat(ack, ({ room, seat }) => {
+        const target = typeof obj(p).playerId === 'string' ? (obj(p).playerId as string) : '';
+        if (!room.seats.has(target) || target === seat.id) return fail('Unknown player');
+        if (!muted.has(target) && !socket.data.check && !room.practice) {
+          record({ at: new Date().toISOString(), type: 'safety', kind: 'mute', by: 'player', anon, target: room.anonOf(target) });
+        }
+        muted.add(target);
+        return { ok: true };
+      }),
+    ));
+
+    // Anonymous analytics from the browser, each counted once per connection.
+    const seen = new Set<string>();
+    const once = (key: string) => (seen.has(key) || seen.size > 40 ? false : (seen.add(key), true));
+    const ok = (ack: unknown) => typeof ack === 'function' && ack({ ok: true });
+    socket.on('analytics:visit', handle((p, ack) => {
+      const page = obj(p).page as VisitPage;
+      if (!VISIT_PAGES.includes(page)) return typeof ack === 'function' && ack(fail('Unknown page'));
+      if (once(`visit:${page}`) && !socket.data.check) {
+        const src = parseSource(obj(p).src);
+        record({ at: new Date().toISOString(), type: 'visit', anon, page, src, device: deviceOf(socket.request.headers), country: countryOf(socket.request.headers, trustProxy) });
+      }
+      ok(ack);
+    }));
+    socket.on('analytics:step', handle((p, ack) => {
+      const step = obj(p).step as ClientStep;
+      if (!CLIENT_STEPS.includes(step)) return typeof ack === 'function' && ack(fail('Unknown step'));
+      if (once(`step:${step}`) && !socket.data.check) record({ at: new Date().toISOString(), type: 'step', anon, step });
+      ok(ack);
+    }));
+    socket.on('analytics:billboard', handle((p, ack) => {
+      const slot = obj(p).slot;
+      if (!isBillboardSlot(slot)) return typeof ack === 'function' && ack(fail('Unknown slot'));
+      if (once(`billboard:${slot}`) && !socket.data.check) record({ at: new Date().toISOString(), type: 'billboard', anon, slot });
+      ok(ack);
+    }));
+
     // Dev tool. Production servers refuse it outright (and the room checks again).
     socket.on('dev:skipPhase', handle((ack) => {
       if (!opts.devMode) return typeof ack === 'function' && ack(fail('Not available'));
@@ -304,9 +464,15 @@ export function createGameServer(opts: GameServerOptions) {
   return {
     io,
     rooms,
-    listen: () => new Promise<number>((resolve) => http.listen(opts.port, () => resolve((http.address() as { port: number }).port))),
+    control,
+    monitor,
+    listen: async () => {
+      await control.load();
+      return new Promise<number>((resolve) => http.listen(opts.port, () => resolve((http.address() as { port: number }).port)));
+    },
     close: async () => {
       clearInterval(sweep);
+      clearInterval(cpuSampler);
       for (const room of rooms.values()) room.dispose();
       await io.close();
     },

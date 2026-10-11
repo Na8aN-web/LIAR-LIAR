@@ -36,6 +36,8 @@ export interface GameSummary {
   gameId?: string;
   /** A game played by `pnpm playtest:check` (simulated players): left out of `pnpm stats`. */
   check?: boolean;
+  /** Made up by `pnpm admin:seed` (imported playtest files and bot games). */
+  seed?: true;
   /** Accusations per round, among the players who weren't the outlaw. */
   accusations?: { poster: number; correct: number; wrong: number; none: number }[];
   /** One entry per player, in seat order. */
@@ -59,6 +61,8 @@ export interface PlayerStats {
   finished: boolean;
   /** What they did with How to Play before playing (null = unknown, e.g. bots). */
   howto: HowtoStatus | null;
+  /** Anonymous per-browser id (null for bots), linking games to visits for the dashboard. */
+  anon?: string | null;
 }
 
 export function summarize(
@@ -71,7 +75,7 @@ export function summarize(
     check?: boolean;
     /** When each poster appeared (ms since epoch), by poster index. */
     posterStarts?: number[];
-    seat?: (id: string) => { disconnects: number; reconnects: number; howto: HowtoStatus | null; away: boolean };
+    seat?: (id: string) => { disconnects: number; reconnects: number; howto: HowtoStatus | null; away: boolean; anon?: string | null };
   },
 ): GameSummary {
   const count = (status: string) => s.offers.filter((o) => o.status === status).length;
@@ -128,6 +132,7 @@ export function summarize(
         reconnects: info?.reconnects ?? 0,
         finished: info ? !info.away : true,
         howto: info?.howto ?? null,
+        anon: info?.anon ?? null,
       };
     }),
   };

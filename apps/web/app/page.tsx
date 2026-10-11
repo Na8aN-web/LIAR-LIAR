@@ -16,6 +16,9 @@ import { BrightnessSlider } from '@/components/ui/BrightnessSlider';
 import { call } from '@/lib/socket';
 import { session } from '@/lib/session';
 import { useMood } from '@/lib/audio/soundscape';
+import { trackVisit } from '@/lib/analytics';
+import { ServerBanner } from '@/components/ServerBanner';
+import Link from 'next/link';
 
 // The live campfire behind the menu (client-only WebGL).
 const HomeScene = dynamic(() => import('@/components/home/HomeScene'), { ssr: false });
@@ -33,6 +36,7 @@ export default function MainMenu() {
   useEffect(() => setName(session.getName()), []);
   // Menu music and the campfire, from the first tap.
   useMood('menu');
+  useEffect(() => trackVisit('home'), []);
 
   // Join straight from the homepage: the room asks for a name if this device has none.
   const [quickCode, setQuickCode] = useState('');
@@ -78,6 +82,7 @@ export default function MainMenu() {
 
   return (
     <main className="menu">
+      <ServerBanner />
       <div className="menu-scene" aria-hidden>
         <HomeScene />
       </div>
@@ -163,6 +168,9 @@ export default function MainMenu() {
         <Modal title="Settings" onClose={() => setPanel(null)}>
           <AudioSettings />
           <BrightnessSlider />
+          <p className="hint settings-privacy">
+            <Link href="/privacy">Privacy: what we collect and why</Link>
+          </p>
         </Modal>
       )}
       {panel === 'profile' && (

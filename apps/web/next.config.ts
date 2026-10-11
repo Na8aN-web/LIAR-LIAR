@@ -36,6 +36,13 @@ const csp = [
   "frame-ancestors 'none'",
 ].join('; ');
 
+/**
+ * The game server, as this web server reaches it (server to server, never the browser). The
+ * admin API and replaced billboard images are forwarded there, so they share the page's origin:
+ * one cookie scope, one CSP, and one path (/admin) for Cloudflare Access to guard.
+ */
+const GAME_SERVER = (process.env.GAME_SERVER_INTERNAL_URL ?? 'http://127.0.0.1:3001').replace(/\/+$/, '');
+
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -43,8 +50,29 @@ const config: NextConfig = {
   // Lets phones on the same Wi-Fi load the dev server by LAN IP.
   // Tunnel hosts too, in case someone tunnels the dev server instead of `pnpm playtest`.
   allowedDevOrigins: ['192.168.*.*', '10.*.*.*', '172.*.*.*', '*.local', '*.trycloudflare.com', '*.ngrok-free.app', '*.ngrok.io'],
+  async rewrites() {
+    return [
+      { source: '/admin/api/:path*', destination: `${GAME_SERVER}/admin/api/:path*` },
+      { source: '/billboards/:slot', destination: `${GAME_SERVER}/billboards/:slot` },
+    ];
+  },
   async headers() {
     return [
+      // The admin dashboard: never indexed, never cached, never framed.
+      {
+        source: '/admin/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+          { key: 'Cache-Control', value: 'no-store' },
+        ],
+      },
+      {
+        source: '/admin',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+          { key: 'Cache-Control', value: 'no-store' },
+        ],
+      },
       {
         source: '/:path*',
         headers: [
