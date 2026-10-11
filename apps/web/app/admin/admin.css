@@ -252,16 +252,18 @@
   .adm-links li { grid-template-columns: 1fr; gap: 2px; }
   .adm-bars li { grid-template-columns: minmax(80px, 38%) 1fr auto; }
   .adm-players { grid-template-columns: 1fr; }
-  /* Tables marked .stack become one block per row, labelled, instead of scrolling sideways. */
-  .adm-table.stack thead { display: none; }
-  .adm-table.stack tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 10px 2px; border-bottom: 1px solid var(--adm-rule); }
-  .adm-table.stack td { border: 0; padding: 0; }
-  .adm-table.stack td.num { text-align: left; }
-  .adm-table.stack td.adm-cell-main { flex: 1 1 auto; }
-  .adm-table.stack td.adm-row-actions { order: -1; margin-left: auto; }
-  .adm-table.stack td.adm-cell-main { order: -2; }
-  .adm-table.stack td[data-label] { flex: 1 1 40%; font-size: 0.84rem; }
-  .adm-table.stack td[data-label]::before { content: attr(data-label); display: block; font-size: 0.64rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--adm-ink-soft); font-weight: 700; }
-  .adm-table.stack tr.adm-subrow { display: block; padding: 8px 2px; }
-  .adm-table.stack tr.adm-subrow td { display: block; }
+  /* Tables marked .adm-stack become one block per row, labelled, instead of scrolling sideways. */
+  .adm-table.adm-stack thead { display: none; }
+  .adm-table.adm-stack tr { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 8px 14px; padding: 12px 8px; border-bottom: 1px solid var(--adm-rule); }
+  .adm-table.adm-stack tr.open { background: rgba(184, 137, 46, 0.12); }
+  .adm-table.adm-stack td, .adm-table.adm-stack tr.open td { border: 0; padding: 0; background: none; }
+  .adm-table.adm-stack td.num { text-align: left; }
+  .adm-table.adm-stack td.adm-cell-main { grid-column: 1; grid-row: 1; align-self: center; }
+  .adm-table.adm-stack td.adm-row-actions { grid-column: 2; grid-row: 1; justify-self: end; }
+  .adm-table.adm-stack td[data-label] { font-size: 0.84rem; }
+  .adm-table.adm-stack td.adm-cell-wide { grid-column: 1 / -1; }
+  .adm-table.adm-stack tr:has(td.adm-cell-main):not(:has(td.adm-row-actions)) td.adm-cell-main { grid-column: 1 / -1; }
+  .adm-table.adm-stack td[data-label]::before { content: attr(data-label); display: block; font-size: 0.64rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--adm-ink-soft); font-weight: 700; }
+  .adm-table.adm-stack tr.adm-subrow { display: block; padding: 8px 2px; }
+  .adm-table.adm-stack tr.adm-subrow td { display: block; }
 }

@@ -26,7 +26,8 @@ function checkView(v: PlayerView, label: string) {
 }
 
 async function main() {
-  const server = createGameServer({ port: 0, devMode: true, minPlayers: 6 });
+  // One scripted player fires far more actions than a person: lift the per-connection limit (as the tests do).
+  const server = createGameServer({ port: 0, devMode: true, minPlayers: 6, limits: { events: { burst: 1000, perSecond: 1000 }, colorProbe: { burst: 1000, perSecond: 1000 } } });
   const port = await server.listen();
   const url = `http://localhost:${port}`;
   const connect = () => io(url, { transports: ['websocket'], forceNew: true }) as C;
@@ -142,7 +143,8 @@ async function main() {
     }
     if (v.phase === 'vote') {
       const target = v.players.find((p) => p.id !== v.you.id)!;
-      assert(((await call(a, 'game:vote', { targetId: target.id })) as any).ok, 'vote');
+      const voted: any = await call(a, 'game:vote', { targetId: target.id });
+      assert(voted.ok, `vote: ${voted.error} (A sees ${views.A.phase}, B sees ${views.B.phase})`);
       assert(!((await call(a, 'game:vote', { targetId: target.id })) as any).ok, 'double vote blocked');
     }
     if (v.phase === 'payout' && v.game!.posterIndex === 0 && !swapped) {
@@ -158,8 +160,14 @@ async function main() {
     if (v.phase === 'poster' && swapped && v.game!.posterIndex === 1) {
       assert((views.B.game!.colorChanges[1] ?? 0) >= 1, 'public swap count at next poster');
     }
-    assert(((await call(a, 'dev:skipPhase')) as any).ok, `skip ${v.phase}`);
-    await sleep(60);
+    const skipped: any = await call(a, 'dev:skipPhase');
+    assert(skipped.ok, `skip ${v.phase}: ${skipped.error} (server phase now ${views.A.phase})`);
+    // Wait for the next phase to actually arrive (a fixed pause raced on a busy machine).
+    const before = `${v.phase}:${v.game?.posterIndex}`;
+    // Both players, so a late phase update isn't mistaken for something else (e.g. a swap leaking).
+    const key = (x: PlayerView) => `${x.phase}:${x.game?.posterIndex}`;
+    for (let t = 0; t < 3000 && (key(views.A) === before || key(views.B) !== key(views.A)); t += 20) await sleep(20);
+    await sleep(20);
   }
 
   const end = views.A;

@@ -70,7 +70,7 @@ function Reveal({ f }: { f: Finished }) {
               <th>Player</th>
               <th>Final color</th>
               <th className="num">Score</th>
-              <th className="num">Right accusations</th>
+              <th className="num">Right</th>
             </tr>
           </thead>
           <tbody>
@@ -196,7 +196,7 @@ export function LivePage() {
           <Empty>No rooms open right now.</Empty>
         ) : (
           <div className="adm-table-wrap">
-            <table className="adm-table stack">
+            <table className="adm-table adm-stack">
               <thead>
                 <tr>
                   <th>Room</th>

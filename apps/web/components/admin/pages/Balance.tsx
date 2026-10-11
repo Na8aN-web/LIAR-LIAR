@@ -106,7 +106,7 @@ export function BalancePage() {
           </Card>
           <Card title="Recent games" wide>
             <div className="adm-table-wrap">
-              <table className="adm-table">
+              <table className="adm-table adm-stack">
                 <thead>
                   <tr>
                     <th>Ended</th>
@@ -120,17 +120,17 @@ export function BalancePage() {
                 <tbody>
                   {data.recent.map((g, i) => (
                     <tr key={i}>
-                      <td>
+                      <td className="adm-cell-main">
                         {when(g.endedAt)} {g.seed && <Badge tone="muted">seed</Badge>}
                       </td>
-                      <td className="num">
+                      <td className="num" data-label="Players">
                         {g.players}
                         {g.bots > 0 && <small> ({g.bots} bots)</small>}
                       </td>
-                      <td className="num">{g.posters}</td>
-                      <td className="num">{g.escaped}</td>
-                      <td className="num">{dec(g.minutes)}</td>
-                      <td className="adm-small">{g.settings}</td>
+                      <td className="num" data-label="Posters">{g.posters}</td>
+                      <td className="num" data-label="Escapes">{g.escaped}</td>
+                      <td className="num" data-label="Minutes">{dec(g.minutes)}</td>
+                      <td className="adm-small adm-cell-wide">{g.settings}</td>
                     </tr>
                   ))}
                 </tbody>
