@@ -27,6 +27,8 @@ export interface GameRules {
   escapeBonus: number;
   buyPrice: number;
   extraInspectPrice: number;
+  /** Searches you get for one extra-search purchase. */
+  extraInspectCount: number;
   purchaseCap: number;
   /** Decoy colors shown with the real one on each inspect (spec: 2). */
   decoys: number;

@@ -30,9 +30,10 @@ export interface Lot {
  */
 export const LOTS: Lot[] = [
   { id: 'sheriff', model: 'sheriff' },
-  { id: 'store', model: 'store', sign: 'GENERAL STORE' },
-  { id: 'church', model: 'church' },
+  // The hotel (rooftop and door ads) sits next to the sheriff, facing the default camera.
   { id: 'hotel', model: 'store', sign: 'HOTEL' },
+  { id: 'church', model: 'church' },
+  { id: 'store', model: 'store', sign: 'GENERAL STORE' },
   { id: 'dancehall', model: 'saloon', sign: 'DANCE HALL' },
   { id: 'livery', model: 'barn', sign: 'LIVERY' },
   { id: 'assay', model: 'store', sign: 'ASSAY OFFICE' },

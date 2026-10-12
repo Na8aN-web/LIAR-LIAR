@@ -17,6 +17,7 @@
     "scenery": "node tools/build-scenery.mjs",
     "audio": "node tools/build-audio.mjs",
     "howto:screens": "node tools/howto-screens.mjs",
+    "trailer:render": "node tools/render-trailer.mjs",
     "ground": "node tools/build-ground.mjs",
     "branding": "node tools/build-branding.mjs",
     "feedback": "pnpm --filter @wtc/server feedback",

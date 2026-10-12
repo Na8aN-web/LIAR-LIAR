@@ -376,6 +376,7 @@ export function Trailer() {
           <header>
             <b>Trailer mode</b>
             <span className="tr-hint">H hide · P 4K shot · K key · Space play</span>
+            <a className="tr-hint" href="/dev/trailer/studio">Scripted trailers: open the studio →</a>
           </header>
 
           <section>

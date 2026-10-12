@@ -1,0 +1,26 @@
+{
+  "title": "Test clip: slam title + search reveal",
+  "format": "9:16",
+  "duration": 10,
+  "fps": 60,
+  "music": { "file": "/audio/music-westernmusic.mp3", "volume": 0.7, "bpm": 80.25, "offset": 0.046, "fadeOut": 1.2 },
+  "ambience": 0.25,
+  "cast": {
+    "players": 8,
+    "names": ["June", "Hank", "Dolly", "Silas", "Boone", "Pearl", "Clem", "Etta"],
+    "colors": ["green", "red", "blue", "yellow", "pink", "orange", "teal", "tan"],
+    "wanted": "Hank"
+  },
+  "look": { "grain": 0.06, "vignette": 0.45 },
+  "shots": [
+    { "at": 0, "camera": { "preset": "orbit" }, "label": "Circle" },
+    { "at": 8.9, "camera": { "preset": "wide" }, "label": "Wide" }
+  ],
+  "events": [
+    { "at": 0, "type": "posterSlam", "fullScreen": false, "dur": 0.2 },
+    { "at": 0.3, "type": "title", "text": "SEARCH PLAYERS", "sub": "Three looks a round", "in": "slam", "out": "burn", "dur": 2.3, "pos": "upper" },
+    { "at": 2.6, "type": "searchReveal", "target": "Hank", "searcher": "June", "dur": 6.3 },
+    { "at": 8.9, "type": "dust", "dur": 0.8 },
+    { "at": 9.1, "type": "title", "text": "FIND THE OUTLAW", "in": "stamp", "out": "fade", "dur": 0.9, "pos": "center", "size": 0.8 }
+  ]
+}

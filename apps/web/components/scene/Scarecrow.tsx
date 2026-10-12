@@ -22,6 +22,8 @@ export interface LookCue {
 }
 
 interface Props {
+  /** Name of the root object, so tools (the trailer studio) can find this scarecrow in the scene. */
+  objectName?: string;
   name: string;
   item: ItemType;
   /** Hat and head detail (public). */
@@ -73,7 +75,7 @@ const smooth = (t: number) => t * t * (3 - 2 * t);
  * mixer, plus their item skinned to the torso. Clicks and hover go to an invisible capsule,
  * so the pointer never raycasts the skinned mesh. Local +z faces front.
  */
-export function Scarecrow({ name, item, cosmetics = DEFAULT_COSMETICS, colorHex, position, rotationY, selected, faded, eyeCount, onSelect, pose, seed, reaction, look, label = true, glowHex = null }: Props) {
+export function Scarecrow({ objectName, name, item, cosmetics = DEFAULT_COSMETICS, colorHex, position, rotationY, selected, faded, eyeCount, onSelect, pose, seed, reaction, look, label = true, glowHex = null }: Props) {
   const model = useScarecrowModel();
   const [hover, setHover] = useState(false);
   const inst = useMemo(
@@ -222,7 +224,7 @@ export function Scarecrow({ name, item, cosmetics = DEFAULT_COSMETICS, colorHex,
   };
 
   return (
-    <group ref={outer} position={position} rotation-y={rotationY}>
+    <group ref={outer} name={objectName} position={position} rotation-y={rotationY}>
       <group scale={SCALE}>
         <group ref={modelGroup}>
           <primitive object={inst.root} />

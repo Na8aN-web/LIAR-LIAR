@@ -6,8 +6,9 @@ import { Fog, Vector3, type PerspectiveCamera } from 'three';
 import { OrbitControls } from '@react-three/drei';
 import { colorInfo, type GameView, type Phase, type PlayerView } from '@wtc/shared';
 import { useBrightness } from '@/lib/brightness';
+import { reportSag, useQuality } from '@/lib/quality';
 import { eyeCounts } from '@/lib/inspections';
-import { useGame } from '@/lib/store';
+import { useGame, useGameCountdown } from '@/lib/store';
 import { useStreamerMode } from '@/lib/streamer';
 import { fitCircle, measureInsets, type Insets } from './framing';
 import { PerfProbe } from './PerfProbe';
@@ -110,6 +111,11 @@ export interface SceneTrailer {
   rig: ReactNode;
   /** Where each seat is (world space), for camera moves. */
   onSeats?: (seats: Map<string, { position: [number, number, number]; head: [number, number, number] }>) => void;
+  /**
+   * Trailer studio rendering: 'never' hands the frame loop to the studio (it calls advance()
+   * with its own clock, frame by frame). Shadows and the drawing buffer kept for capture.
+   */
+  canvas?: { frameloop?: 'never' | 'always'; shadows?: boolean; dpr?: number; exposure?: number };
 }
 
 export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
@@ -117,6 +123,12 @@ export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
   const selectedId = useGame((s) => s.selectedId);
   const select = useGame((s) => s.select);
   const brightness = useBrightness();
+  // Smooth (cheap phones): one pixel per CSS pixel, no antialiasing, 30 fps, fewer lights.
+  const quality = useQuality();
+  // Trailers always render at full quality.
+  const smooth = !trailer && quality === 'smooth';
+  // Antialiasing is fixed when the canvas is made; a switch mid-game applies on the next visit.
+  const [antialias] = useState(!smooth);
   // Streamer mode: your own scarecrow looks like everyone else's (no real color, no glow).
   const streamer = useStreamerMode();
   const [moved, setMoved] = useState(false);
@@ -136,12 +148,14 @@ export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
 
   const ringR = ringRadius(radius);
   const game = view?.game;
+  // Nothing on the sheriff's board until the start-of-game countdown ends.
+  const counting = useGameCountdown() > 0;
   const poster: PosterState = useMemo(
     () =>
-      game
+      game && !counting
         ? { color: game.posterColor, pot: game.pot, number: game.posterIndex + 1, of: game.posterCount }
         : { color: null, pot: view?.settings.rules.basePot ?? 100, number: null, of: null },
-    [game?.posterColor, game?.pot, game?.posterIndex, game?.posterCount, view?.settings.rules.basePot], // eslint-disable-line react-hooks/exhaustive-deps
+    [game?.posterColor, game?.pot, game?.posterIndex, game?.posterCount, view?.settings.rules.basePot, counting], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Head turns: log entries are ordered by time, so the last fresh one per target wins.
@@ -153,13 +167,15 @@ export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
     <>
       <Canvas
         className="scene"
-        dpr={[1, 1.75]}
+        dpr={trailer?.canvas?.dpr ?? (smooth ? 1 : [1, 1.75])}
+        frameloop={trailer?.canvas?.frameloop ?? (smooth ? 'demand' : 'always')}
+        shadows={trailer?.canvas?.shadows ? 'soft' : undefined}
         camera={{ position: [0, 6.6, radius + 6.5], fov: 50 }}
-        gl={{ antialias: true, powerPreference: 'high-performance' }}
+        gl={{ antialias, powerPreference: 'high-performance', preserveDrawingBuffer: !!trailer?.canvas }}
         onPointerMissed={() => select(null)}
       >
         <color attach="background" args={['#0b0d19']} />
-        <Exposure value={brightness} />
+        <Exposure value={trailer?.canvas?.exposure ?? brightness} />
         {/* Moon */}
         <mesh position={[-24, 34, -60]}>
           <sphereGeometry args={[3, 16, 12]} />
@@ -180,6 +196,7 @@ export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
             return (
               <Scarecrow
                 key={p.id}
+                objectName={`scarecrow:${p.id}`}
                 name={isMe && !trailer ? 'You' : p.name}
                 item={isMe ? me!.item : p.item}
                 cosmetics={p.cosmetics}
@@ -202,6 +219,7 @@ export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
         </Suspense>
 
         <PerfProbe />
+        {trailer ? null : smooth ? <FrameCap fps={30} /> : <SagWatch />}
         <ScreenProbe seats={seats} me={me?.id} eyes={eyes} />
         {trailer ? (
           trailer.rig
@@ -234,6 +252,55 @@ export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
   );
 }
 
+/** Smooth quality: renders at a steady, lower frame rate (the canvas is in 'demand' mode). */
+function FrameCap({ fps }: { fps: number }) {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    const step = 1000 / fps;
+    let last = 0;
+    let raf = 0;
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      // A little slack, so a 60 Hz screen lands on every other frame instead of drifting.
+      if (now - last < step - 4) return;
+      last = now;
+      invalidate();
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [fps, invalidate]);
+  return null;
+}
+
+/**
+ * Auto quality: if the frame rate stays low for a few seconds of play, switch to smooth.
+ * Skips the first seconds (models and textures still loading) and any window with a long
+ * pause (tab in the background, phone locked).
+ */
+function SagWatch() {
+  const w = useRef({ start: 0, frames: 0, longest: 0, last: 0, bad: 0, warm: 0 });
+  useFrame(() => {
+    const s = w.current;
+    const now = performance.now();
+    if (!s.start) {
+      s.start = s.last = now;
+      s.warm = now + 6000;
+      return;
+    }
+    s.longest = Math.max(s.longest, now - s.last);
+    s.last = now;
+    s.frames++;
+    if (now - s.start < 2000) return;
+    const fps = (s.frames * 1000) / (now - s.start);
+    if (now > s.warm && s.longest < 1000) s.bad = fps < 38 ? s.bad + 1 : 0;
+    s.start = now;
+    s.frames = 0;
+    s.longest = 0;
+    if (s.bad >= 3) reportSag();
+  });
+  return null;
+}
+
 /** Brightness setting: tone-mapping exposure, so every light (fire, moon, lamps) scales together. */
 function Exposure({ value }: { value: number }) {
   const gl = useThree((s) => s.gl);
@@ -245,7 +312,8 @@ function Exposure({ value }: { value: number }) {
 
 /**
  * Frames the circle for the screen shape. On portrait phones the camera pulls back and the
- * image shifts up slightly, so the circle sits above the bottom panel. On desktop the camera
+ * image shifts down a little, so the billboards across the square clear the top bar while the
+ * circle still sits above the bottom panel (just a Hints button and the tabs). On desktop the camera
  * finds the framing that fits every seat into the area between the panels, and the picture
  * is centred there. The player can orbit all the way round; "Reset view" glides back here.
  */
@@ -288,7 +356,7 @@ function CameraRig({
     return {
       position: new Vector3(0, 6.6 * pull, (radius + 6.5) * pull),
       offsetX: 0,
-      offsetY: portrait ? size.height * 0.06 : 0,
+      offsetY: portrait ? -size.height * 0.03 : 0,
     };
   }, [desktop, insets, portrait, size.width, size.height, radius, ringR, camera]);
   const home = frame.position;
@@ -390,6 +458,8 @@ declare global {
     __wtcCircle?: () => { x: number; y: number; w: number; h: number } | null;
     /** Name plates showing an eye badge (searched this poster), on screen. */
     __wtcEyes?: () => { id: string; x: number; y: number; count: number }[];
+    /** Everyone else's player id, in seat order. */
+    __wtcOthers?: () => string[];
   }
 }
 
@@ -413,6 +483,7 @@ function ScreenProbe({ seats, me, eyes }: { seats: Map<string, SeatInfo>; me?: s
       [...seats.entries()]
         .filter(([id]) => (eyes.get(id) ?? 0) > 0)
         .map(([id, s]) => ({ id, count: eyes.get(id)!, ...project([s.position[0], SEATED_HEIGHT + 0.35, s.position[2]]) }));
+    window.__wtcOthers = () => [...seats.keys()].filter((id) => id !== me);
     window.__wtcCircle = () => {
       const pts = [...seats.values()].flatMap((s) => [project([s.position[0], 0, s.position[2]]), project([s.position[0], SEATED_HEIGHT, s.position[2]])]);
       if (!pts.length) return null;
@@ -424,6 +495,7 @@ function ScreenProbe({ seats, me, eyes }: { seats: Map<string, SeatInfo>; me?: s
       delete window.__wtcScreen;
       delete window.__wtcCircle;
       delete window.__wtcEyes;
+      delete window.__wtcOthers;
     };
   }, [camera, size, seats, me, eyes]);
   return null;

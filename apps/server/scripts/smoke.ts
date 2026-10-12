@@ -1,7 +1,7 @@
 // End-to-end smoke test: 2 humans + 4 bots play a full game over real sockets,
 // using dev skip-phase to go fast. Also checks reconnect and view leaks.
 import { io, type Socket } from 'socket.io-client';
-import type { ClientToServerEvents, PlayerView, ServerToClientEvents } from '@wtc/shared';
+import { DEFAULT_RULES, type ClientToServerEvents, type PlayerView, type ServerToClientEvents } from '@wtc/shared';
 import { createGameServer } from '../src/server';
 
 type C = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -114,7 +114,7 @@ async function main() {
         const ex: any = await call(a, 'buy:extraInspect');
         assert(ex.ok, `extra inspect: ${ex.error}`);
         await sleep(60);
-        assert(views.A.game!.extraInspects === 1, 'extra inspect granted');
+        assert(views.A.game!.extraInspects === DEFAULT_RULES.extraInspectCount, 'extra inspects granted');
         // Cap: 1 accepted + 1 extra + 1 pending = 3.
         assert(!((await call(a, 'buy:extraInspect')) as any).ok, 'purchase cap');
         assert(views.A.game!.myScore === scoreA - 20 - 20 - 50, 'score after purchases');

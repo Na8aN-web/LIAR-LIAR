@@ -2,6 +2,7 @@ import {
   CHAT_MAX,
   COLOR_IDS,
   DEFAULT_SETTINGS,
+  GAME_COUNTDOWN_SECONDS,
   HOST_GRACE_MS,
   INSPECT_RANGE,
   ITEM_TYPES,
@@ -687,7 +688,8 @@ export class Room {
       s.reconnects = 0;
     }
     this.trackStep('game_start', players);
-    this.enterPhase('poster');
+    // The first poster's phase runs a few seconds longer: clients count down over that time.
+    this.enterPhase('poster', GAME_COUNTDOWN_SECONDS * 1000);
     return { ok: true };
   }
 
@@ -900,10 +902,10 @@ export class Room {
 
   // ---------------------------------------------------------------- phases
 
-  private enterPhase(phase: Exclude<Phase, 'lobby' | 'ended'>) {
+  private enterPhase(phase: Exclude<Phase, 'lobby' | 'ended'>, extraMs = 0) {
     this.clearPhaseTimer();
     this.phase = phase;
-    const ms = this.settings.timers[phase] * 1000;
+    const ms = this.settings.timers[phase] * 1000 + extraMs;
     this.phaseEndsAt = Date.now() + ms;
     this.phaseTimer = setTimeout(() => this.onPhaseEnd(), ms);
     if (phase === 'poster' && this.game) this.posterStarts[this.game.posterIndex] = Date.now();

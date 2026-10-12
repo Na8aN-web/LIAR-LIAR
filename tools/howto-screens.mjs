@@ -222,6 +222,15 @@ try {
   // 4 + 5. Search one scarecrow: the first result, then searches until a single color has shown
   // up every time. With three fakes two colors can survive three searches; then try again next
   // poster with someone else (slide 4 is kept from the attempt that works out).
+  // Players are picked by tapping their scarecrow (there's no list of names any more).
+  const pickPlayer = async (i) => {
+    const at = await page.evaluate((n) => {
+      const ids = window.__wtcOthers?.() ?? [];
+      return ids.length ? window.__wtcScreen?.(ids[n % ids.length]) : null;
+    }, i);
+    if (at) await page.mouse.click(at.x, at.y);
+  };
+  const othersCount = () => page.evaluate(() => window.__wtcOthers?.().length ?? 0);
   const clearPick = () => page.locator('.target-card .icon-btn[aria-label="Clear selection"]').click().catch(() => {});
   const common = () =>
     page.evaluate(() => {
@@ -232,7 +241,7 @@ try {
     });
   let first = null;
   for (let attempt = 0; attempt < 4; attempt++) {
-    await page.locator('.player-chip').nth(attempt % 3).click();
+    await pickPlayer(attempt % 3);
     for (let k = 0; k < 3; k++) {
       const search = page.getByRole('button', { name: /^Search/ }).first();
       if (!(await search.isEnabled().catch(() => false))) break;
@@ -285,9 +294,8 @@ try {
   await shoot(6, `${eyes.length} eye badges`);
 
   // 7. Talk, or lie: a few claims in the chat.
-  const toggle = page.locator('.tab-toggle');
-  if (await toggle.isVisible()) await toggle.click();
-  await page.getByRole('button', { name: /^talk/i }).first().click();
+  const chatTab = page.getByRole('button', { name: /^chat/i }).first();
+  await chatTab.click();
   const said = page.getByPlaceholder(/speak up/i);
   await said.fill('Searched Hank three times. Lavender every time.');
   await said.press('Enter');
@@ -296,16 +304,16 @@ try {
   await quiet();
   await highlight([await box('.tab-body')], 'none');
   await shoot(7, 'the chat with a few claims');
-  if (await toggle.isVisible()) await toggle.click();
+  // Tapping the open tab again folds the panel (phones).
+  if (await page.locator('.side-panel:not(.collapsed)').count()) await chatTab.click();
 
   // 8. Buying clues: someone else's search with a Buy button, and the extra search.
-  const chips = page.locator('.player-chip');
   let found = false;
-  for (let i = 0, n = await chips.count(); i < n && !found; i++) {
+  for (let i = 0, n = await othersCount(); i < n && !found; i++) {
     // Picking a scarecrow swaps the chip row for its card, so clear it before the next try.
     await clearPick();
     await wait(200);
-    await chips.nth(i).click();
+    await pickPlayer(i);
     await wait(300);
     if (await page.locator('.target-summary').count()) await page.locator('.target-summary').click();
     await wait(200);
@@ -315,7 +323,7 @@ try {
   if (found) await page.locator('.inspector-row .btn').first().scrollIntoViewIfNeeded();
   await wait(300);
   const buy = found ? [await box('.inspector-row .btn')] : [];
-  if (await page.getByRole('button', { name: /extra/i }).count()) buy.push(await box('button:has-text("extra")'));
+  if (await page.getByRole('button', { name: /^buy \d+ more/i }).count()) buy.push(await box('.btn.buy-more'));
   await highlight(buy, 'above');
   await shoot(8, found ? 'the buy button and the extra search' : 'the extra search (no bot search to buy yet)');
 

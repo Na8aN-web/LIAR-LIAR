@@ -238,14 +238,15 @@ export function expireOffers(s: GameState): OfferView[] {
   return expired;
 }
 
-/** +1 inspect this round. The money goes to the next poster's pot (the current one on the final poster). */
+/** +rules.extraInspectCount inspects this round (one purchase). The money goes to the next poster's pot (the current one on the final poster). */
 export function buyExtraInspect(s: GameState, id: PlayerId): Result {
   if (!isPlayer(s, id)) return { ok: false, error: 'Unknown player' };
   if (purchasesLeft(s, id) <= 0) return { ok: false, error: `Max ${s.rules.purchaseCap} purchases per round` };
   if (s.scores[id] < s.rules.extraInspectPrice) return { ok: false, error: 'Not enough points' };
   s.scores[id] -= s.rules.extraInspectPrice;
-  s.extraInspects[id] += 1;
-  s.extraInspectsTotal[id] += 1;
+  const n = s.rules.extraInspectCount ?? 1;
+  s.extraInspects[id] += n;
+  s.extraInspectsTotal[id] += n;
   s.purchases[id] += 1;
   s.pots[Math.min(s.posterIndex + 1, s.pots.length - 1)] += s.rules.extraInspectPrice;
   return { ok: true };

@@ -1,0 +1,31 @@
+{
+  "title": "Wanted: True Colors — 8 second teaser",
+  "format": "16:9",
+  "duration": 8,
+  "fps": 60,
+  "music": { "file": "/audio/music-westernmusic.mp3", "volume": 0.8, "bpm": 80.25, "offset": 0.046, "fadeOut": 1 },
+  "ambience": 0.3,
+  "cast": {
+    "players": 8,
+    "names": ["June", "Hank", "Dolly", "Silas", "Boone", "Pearl", "Clem", "Etta"],
+    "colors": ["green", "red", "blue", "yellow", "pink", "orange", "teal", "tan"],
+    "wanted": "Hank"
+  },
+  "look": { "grain": 0.05, "vignette": 0.5 },
+  "endCard": {
+    "url": "wantedtruecolors.com",
+    "discord": "discord.gg/wantedtruecolors"
+  },
+  "shots": [
+    { "at": 0, "camera": { "preset": "poster" }, "label": "Poster" },
+    { "at": 2.4, "camera": { "preset": "orbit" }, "label": "The circle" },
+    { "at": 5.0, "camera": { "preset": "revealTown" }, "label": "End card" }
+  ],
+  "events": [
+    { "at": 0, "type": "flash", "color": "black", "dur": 0.3 },
+    { "at": 0.1, "type": "posterSlam", "dur": 2.4 },
+    { "at": 2.6, "type": "title", "text": "ONE OF YOU IS THE OUTLAW", "sub": "Find them before they get away", "in": "slam", "out": "fade", "dur": 2.4 },
+    { "at": 5.0, "type": "dust", "dur": 0.7 },
+    { "at": 5.2, "type": "endCard", "dur": 2.8 }
+  ]
+}

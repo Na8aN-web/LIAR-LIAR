@@ -10,16 +10,17 @@ import { ScoreList } from './ScoresPanel';
 
 type Tab = 'chat' | 'log' | 'notes' | 'scores';
 const TABS: { id: Tab; label: string }[] = [
-  // Rankings first: the ledger is what people look for between posters.
-  { id: 'scores', label: 'Ledger' },
-  { id: 'chat', label: 'Talk' },
+  // Rankings first: what people look for between posters.
+  { id: 'scores', label: 'Rankings' },
+  { id: 'chat', label: 'Chat' },
   { id: 'log', label: 'Searches' },
   { id: 'notes', label: 'Notebook' },
 ];
 
 /**
  * Bottom sheet on phones, right column on desktop. On phones it starts collapsed to
- * just the tab strip (unread counts stay visible on the tabs); desktop is always open.
+ * just the tab strip (unread counts stay visible on the tabs); tapping the open tab again
+ * folds it back down. Desktop is always open.
  */
 export function SidePanel() {
   const [tab, setTab] = useState<Tab>('scores');
@@ -59,6 +60,8 @@ export function SidePanel() {
             key={t.id}
             className={tab === t.id && open ? 'on' : ''}
             onClick={() => {
+              // The open tab again: fold the panel away (phones; desktop stays open).
+              if (open && tab === t.id) return setOpen(false);
               setTab(t.id);
               setOpen(true);
             }}
@@ -67,9 +70,6 @@ export function SidePanel() {
             {badge(t.id) > 0 && <span className="badge">{badge(t.id)}</span>}
           </button>
         ))}
-        <button className="tab-toggle" onClick={() => setOpen(!open)} aria-label={open ? 'Collapse panel' : 'Expand panel'}>
-          {open ? '▾' : '▴'}
-        </button>
       </nav>
       {open && (
         <div className="tab-body">

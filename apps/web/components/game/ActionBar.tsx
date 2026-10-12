@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { call } from '@/lib/socket';
 import { useGame } from '@/lib/store';
+import { HintsSheet } from './HintsSheet';
 import { TargetCard } from './TargetCard';
 
 /**
- * Contextual panel above the side panel. Nothing selected: player chips to pick from.
- * A scarecrow selected: the target card (what you know about them) with Search.
+ * Contextual panel above the side panel. Nothing selected: a Hints button (players are picked
+ * by tapping their scarecrow). A scarecrow selected: the target card with Search, and once
+ * you're out of searches, a button to buy more beside it.
  */
 export function ActionBar() {
   const view = useGame((s) => s.view)!;
@@ -16,82 +18,61 @@ export function ActionBar() {
   const select = useGame((s) => s.select);
   const toast = useGame((s) => s.showToast);
   const [busy, setBusy] = useState(false);
+  const [hints, setHints] = useState(false);
 
-  const others = view.players.filter((p) => p.id !== view.you.id);
   const left = game.inspectLimit + game.extraInspects - game.inspectsUsed;
-  const { extraInspectPrice, purchaseCap } = view.settings.rules;
+  const { extraInspectPrice, extraInspectCount, purchaseCap } = view.settings.rules;
   const purchasesLeft = purchaseCap - game.purchasesUsed - game.offersOut.filter((o) => o.status === 'pending').length;
 
+  // The vote has its own full panel (VotePanel).
+  if (view.phase !== 'investigation') return null;
 
-  if (view.phase === 'investigation') {
-    const inspect = async () => {
-      if (!selectedId) return;
-      setBusy(true);
-      const res = await call('game:inspect', { targetId: selectedId });
-      setBusy(false);
-      if (!res.ok) toast(res.error);
-    };
-    const buyExtra = async () => {
-      setBusy(true);
-      const res = await call('buy:extraInspect');
-      setBusy(false);
-      toast(res.ok ? `Extra look hired. $${extraInspectPrice} goes to the next bounty.` : res.error);
-    };
-    const extraButton = (
-      <button
-        className="btn small"
-        disabled={busy || purchasesLeft <= 0 || game.myScore < extraInspectPrice}
-        onClick={buyExtra}
-        title={`One more look this round. ${purchasesLeft} of ${purchaseCap} deals left.`}
-      >
-        Hire an extra look · ${extraInspectPrice}
-      </button>
-    );
-    if (selectedId) {
-      return (
-        <div className="action-bar">
-          <TargetCard
-            targetId={selectedId}
-            onClose={() => select(null)}
-            primary={
-              <button className="btn primary" disabled={busy || left <= 0} onClick={inspect}>
-                {left > 0 ? `Search · ${left} left` : 'Out of looks'}
-              </button>
-            }
-            extra={left <= 0 ? <div className="row target-extra">{extraButton}</div> : undefined}
-          />
-        </div>
-      );
-    }
+  const inspect = async () => {
+    if (!selectedId) return;
+    setBusy(true);
+    const res = await call('game:inspect', { targetId: selectedId });
+    setBusy(false);
+    if (!res.ok) toast(res.error);
+  };
+  const buyMore = async () => {
+    setBusy(true);
+    const res = await call('buy:extraInspect');
+    setBusy(false);
+    toast(res.ok ? `${extraInspectCount} more ${extraInspectCount === 1 ? 'search' : 'searches'}. $${extraInspectPrice} goes to the next bounty.` : res.error);
+  };
+  const cantBuy = purchasesLeft <= 0 ? 'No deals left this round' : game.myScore < extraInspectPrice ? 'Not enough in your purse' : null;
+
+  if (selectedId) {
     return (
       <div className="action-bar">
-        {playerChips(left > 0 ? `Pick a suspect · ${left} ${left === 1 ? 'look' : 'looks'} left` : 'Out of looks. Hire another, or talk it out.', extraButton)}
+        <TargetCard
+          targetId={selectedId}
+          onClose={() => select(null)}
+          primary={
+            <span className="target-actions">
+              <button className="btn primary" disabled={busy || left <= 0} onClick={inspect}>
+                {left > 0 ? `Search · ${left} left` : 'No searches left'}
+              </button>
+              {left <= 0 && (
+                <button className="btn buy-more" disabled={busy || !!cantBuy} onClick={buyMore} title={cantBuy ?? undefined}>
+                  Buy {extraInspectCount} more · ${extraInspectPrice}
+                </button>
+              )}
+            </span>
+          }
+        />
       </div>
     );
   }
 
-  // The vote has its own full panel (VotePanel).
-  return null;
-
-  function playerChips(label: string, extra?: React.ReactNode) {
-    return (
-      <div>
-        <div className="row between">
-          <div className="hint">{label}</div>
-          {extra}
-        </div>
-        <div className="chip-row">
-          {others.map((p) => (
-            <button
-              key={p.id}
-              className={`player-chip${selectedId === p.id ? ' on' : ''}${p.connected && !p.away ? '' : ' faded'}`}
-              onClick={() => select(p.id)}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
+  return (
+    <>
+      <div className="action-bar hints-bar">
+        <button className="btn hints-btn" onClick={() => setHints(true)}>
+          Hints
+        </button>
       </div>
-    );
-  }
+      {hints && <HintsSheet onClose={() => setHints(false)} />}
+    </>
+  );
 }

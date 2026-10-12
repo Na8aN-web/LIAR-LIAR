@@ -392,6 +392,19 @@ input:disabled, select:disabled { opacity: 0.65; }
 .phase-sub { color: var(--cream-soft); font-size: 0.74rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .timer.brass { min-width: 44px; }
 .my-score.brass { min-width: 52px; }
+/* Game start: "First poster coming up in 5…1". */
+.center-card.countdown { pointer-events: none; }
+.countdown-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 28px 14px; color: var(--cream); background: rgba(12, 8, 5, 0.72); border: 1px solid rgba(243, 230, 196, 0.3); border-radius: 4px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); }
+.countdown-line { font-family: var(--font-display), serif; font-size: 1.15rem; letter-spacing: 0.08em; text-align: center; }
+.countdown-num { font-family: var(--font-display), serif; font-size: 4.2rem; line-height: 1; color: #ffe9c2; text-shadow: 0 3px 0 #3d0d0d; animation: countdown-stamp 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes countdown-stamp { 0% { transform: scale(1.8); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .countdown-num { animation: none; } }
+/* Chat: a dashed line with the poster number where each poster's talk starts. */
+.chat-list li.chat-divider { display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; padding: 0; background: none; border: 0; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
+.chat-list li.chat-divider::before, .chat-list li.chat-divider::after { content: ''; flex: 1; border-top: 1.5px dashed currentColor; opacity: 0.6; }
+/* Your place in the rankings, under the purse. */
+.purse-stack { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.my-rank { font-family: var(--font-display), serif; font-size: 0.78rem; line-height: 1; color: var(--cream); letter-spacing: 0.05em; }
 .topbar .brass { padding: 2px 6px 3px; }
 .topbar .brass-value { font-size: 1.15rem; }
 .sound-toggle { min-width: 26px; padding: 0; font-size: 0.95rem; }
@@ -418,13 +431,22 @@ input:disabled, select:disabled { opacity: 0.65; }
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   background: var(--noise), radial-gradient(ellipse at 50% 0%, #a12a22, var(--oxblood) 70%); border: 2px solid #3d0d0d;
   box-shadow: inset 0 0 0 2px rgba(255, 210, 180, 0.3), 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 40px rgba(165, 53, 44, 0.45);
-  animation: outlaw-in 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both, outlaw-glow 2.4s ease-in-out 0.6s infinite;
+  animation: outlaw-in 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  cursor: pointer;
 }
+.outlaw-banner[hidden] { display: none; }
+/* Folded: a small stamped tag under the top bar. */
+.outlaw-banner.small { align-self: center; margin-top: 6px; padding: 3px 12px; animation: none; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); }
+.outlaw-banner.small .outlaw-stamp { font-size: 0.95rem; }
+.outlaw-line b { text-shadow: 0 0 6px rgba(0, 0, 0, 0.8); }
 .outlaw-stamp { font-family: var(--font-display), serif; font-size: 1.7rem; letter-spacing: 0.1em; line-height: 1.05; color: #ffe9c2; text-shadow: 0 2px 0 #3d0d0d; }
 .outlaw-line { font-size: 0.92rem; font-weight: 700; letter-spacing: 0.02em; }
 @keyframes outlaw-in { 0% { transform: scale(1.6) rotate(-4deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
-@keyframes outlaw-glow { 50% { box-shadow: inset 0 0 0 2px rgba(255, 210, 180, 0.3), 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 60px rgba(220, 70, 50, 0.7); } }
 @media (prefers-reduced-motion: reduce) { .outlaw-banner, .you-badge.pulse { animation: none; } }
+
+/* Smooth graphics (cheap phones, see lib/quality.ts): no paper grain, no looping animations. */
+html.smooth { --noise: none; }
+html.smooth .vote-soon, html.smooth .vote-panel.urgent, html.smooth .vote-clock.low { animation: none; }
 
 /* Action panel (paper): suspect picker or target card. */
 .action-bar { margin: 0 var(--gutter) 8px; padding: 10px 12px; }
@@ -449,7 +471,6 @@ input:disabled, select:disabled { opacity: 0.65; }
 }
 .tabs .badge { position: absolute; top: -9px; right: 3px; margin: 0; min-width: 18px; height: 18px; font-size: 0.62rem; z-index: 1; }
 .tabs button.on { color: var(--ink); background: var(--parchment); }
-.tabs .tab-toggle { flex: 0 0 44px; text-transform: none; }
 .tab-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; border-radius: 0 0 4px 4px; box-shadow: inset 0 0 22px rgba(110, 70, 25, 0.3); }
 
 .payout { text-align: center; }
@@ -472,8 +493,22 @@ input:disabled, select:disabled { opacity: 0.65; }
 .target-head .btn { min-height: 40px; padding: 7px 12px; }
 .target-head .icon-btn { min-width: 36px; }
 .target-summary { background: none; border: 0; padding: 2px 0; text-align: left; color: var(--ink-soft); font-size: 0.84rem; font-style: italic; min-height: 32px; }
-.target-extra { justify-content: flex-end; }
-.target-actions { gap: 8px; }
+.target-head { flex-wrap: wrap; }
+.target-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+/* Out of searches: the Search button greys out and this sits beside it. */
+.target-head .btn.buy-more { background: var(--noise), linear-gradient(180deg, var(--brass-light), var(--brass) 55%, var(--brass-dark)); color: #2a1a06; border-color: #4d3a12; font-weight: 700; }
+.target-head .btn.primary:disabled { filter: grayscale(1); opacity: 0.55; }
+
+/* Nothing selected: one Hints button where the suspect list used to be. */
+.action-bar.hints-bar { align-self: center; padding: 6px; }
+.hints-btn { min-height: 44px; padding: 8px 34px; font-size: 1rem; letter-spacing: 0.1em; }
+/* Hints: a sheet over the bottom half of the screen. */
+.modal.hints-sheet { min-height: 50dvh; }
+.hint-goal { font-size: 1.15rem; line-height: 1.4; margin-bottom: 8px; }
+.hint-color { white-space: nowrap; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35); }
+.hint-outlaw { color: var(--oxblood); font-weight: 700; margin-bottom: 8px; }
+.hint-list { display: flex; flex-direction: column; gap: 10px; padding-left: 18px; line-height: 1.45; }
+.eye-plate.inline { margin-left: 0; }
 .target-body { max-height: 30dvh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px; }
 .target-section { display: flex; flex-direction: column; gap: 4px; }
 .eye-plate {
@@ -600,13 +635,14 @@ input:disabled, select:disabled { opacity: 0.65; }
   .outlaw-stamp { font-size: 2.1rem; }
   .hud-spacer { grid-column: 1; grid-row: 3; }
   .action-bar { grid-column: 1; grid-row: 4; margin: 0 auto 20px; width: min(640px, calc(100% - 32px)); }
+  .action-bar.hints-bar { width: auto; justify-self: center; }
+  .outlaw-banner.small { justify-self: center; }
   .side-panel { grid-column: 2; grid-row: 1 / -1; height: 100dvh; min-height: 0; border-radius: 0; padding: 0 8px 8px; }
   .side-panel.collapsed { height: 100dvh; }
-  .tabs .tab-toggle { display: none; }
   .center-card { right: 380px; }
   .dev-skip { right: 396px; top: 24px; }
-  /* Telegrams drop over the top of the side panel, clear of the top bar, the outlaw banner and the scene. */
-  .notes-stack { left: auto; right: 0; width: 380px; top: 52px; padding: 0 12px; }
+  /* Telegrams drop in the middle of the scene (the area left of the side panel), under the top bar. */
+  .notes-stack { left: 0; right: 380px; top: 140px; }
   .target-body { max-height: 40dvh; }
   .btn { font-size: 0.82rem; letter-spacing: 0.06em; }
   .btn.small { font-size: 0.72rem; }

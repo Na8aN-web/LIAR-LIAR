@@ -33,7 +33,7 @@ function noiseBuffer(ctx: Ctx): AudioBuffer {
 }
 
 /** Gain node with a quick attack and exponential decay. */
-function envelope(ctx: Ctx, out: AudioNode, at: number, peak: number, attack: number, decay: number, hold = 0): GainNode {
+export function envelope(ctx: Ctx, out: AudioNode, at: number, peak: number, attack: number, decay: number, hold = 0): GainNode {
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, at);
   g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), at + attack);
@@ -44,7 +44,7 @@ function envelope(ctx: Ctx, out: AudioNode, at: number, peak: number, attack: nu
 }
 
 /** A burst of filtered noise. */
-function burst(ctx: Ctx, out: AudioNode, at: number, o: { type: BiquadFilterType; freq: number; q?: number; peak: number; decay: number; attack?: number }) {
+export function burst(ctx: Ctx, out: AudioNode, at: number, o: { type: BiquadFilterType; freq: number; q?: number; peak: number; decay: number; attack?: number }) {
   const src = ctx.createBufferSource();
   src.buffer = noiseBuffer(ctx);
   const f = ctx.createBiquadFilter();
@@ -57,7 +57,7 @@ function burst(ctx: Ctx, out: AudioNode, at: number, o: { type: BiquadFilterType
 }
 
 /** A tone with an optional pitch glide. */
-function tone(ctx: Ctx, out: AudioNode, at: number, o: { type: OscillatorType; freq: number; to?: number; glide?: number; peak: number; attack?: number; decay: number; hold?: number }) {
+export function tone(ctx: Ctx, out: AudioNode, at: number, o: { type: OscillatorType; freq: number; to?: number; glide?: number; peak: number; attack?: number; decay: number; hold?: number }) {
   const osc = ctx.createOscillator();
   osc.type = o.type;
   osc.frequency.setValueAtTime(o.freq, at);
@@ -68,7 +68,7 @@ function tone(ctx: Ctx, out: AudioNode, at: number, o: { type: OscillatorType; f
 }
 
 /** A plucked string (a twangy guitar note): bright saw, closing filter, slight bend into pitch. */
-function pluck(ctx: Ctx, out: AudioNode, at: number, freq: number, peak: number, decay = 0.9) {
+export function pluck(ctx: Ctx, out: AudioNode, at: number, freq: number, peak: number, decay = 0.9) {
   const osc = ctx.createOscillator();
   osc.type = 'sawtooth';
   osc.frequency.setValueAtTime(freq * 1.015, at);
@@ -84,7 +84,7 @@ function pluck(ctx: Ctx, out: AudioNode, at: number, freq: number, peak: number,
 }
 
 /** A small bell: a few inharmonic partials ringing out. */
-function bell(ctx: Ctx, out: AudioNode, at: number, freq: number, peak: number) {
+export function bell(ctx: Ctx, out: AudioNode, at: number, freq: number, peak: number) {
   [
     [1, 1],
     [2.0, 0.45],
@@ -129,7 +129,7 @@ function telegraph(ctx: Ctx, out: AudioNode, at: number, pattern: string) {
 
 const NOTE = { A2: 110, E3: 164.8, A3: 220, C4: 261.6, D4: 293.7, E4: 329.6, Gs4: 415.3, A4: 440, B4: 493.9, E5: 659.3 };
 
-const PLAY: Record<Sfx, (ctx: Ctx, out: AudioNode, t: number) => void> = {
+export const SFX_PLAYERS: Record<Sfx, (ctx: Ctx, out: AudioNode, t: number) => void> = {
   // A soft knock on wood.
   click: (ctx, out, t) => {
     tone(ctx, out, t, { type: 'sine', freq: 210, to: 120, glide: 0.05, peak: 0.22, decay: 0.07 });
@@ -244,29 +244,29 @@ const PLAY: Record<Sfx, (ctx: Ctx, out: AudioNode, t: number) => void> = {
 };
 
 /** Volume per sound on top of the effects slider, so the UI stays subtle. */
-const LEVEL: Partial<Record<Sfx, number>> = { click: 0.5, tick: 0.6, tock: 0.6, rustle: 0.8 };
+export const SFX_LEVEL: Partial<Record<Sfx, number>> = { click: 0.5, tick: 0.6, tock: 0.6, rustle: 0.8 };
 
 /** Plays a sound effect (silently skipped before the first tap, or when muted). */
 export function playSfx(name: Sfx, delay = 0, gain = 1) {
   const e = audio();
   if (!e) return;
   const out = e.ctx.createGain();
-  out.gain.value = (LEVEL[name] ?? 1) * gain;
+  out.gain.value = (SFX_LEVEL[name] ?? 1) * gain;
   out.connect(e.buses.effects);
-  PLAY[name](e.ctx, out, e.ctx.currentTime + 0.01 + delay);
+  SFX_PLAYERS[name](e.ctx, out, e.ctx.currentTime + 0.01 + delay);
   setTimeout(() => out.disconnect(), (delay + 5) * 1000);
 }
 
-export const SFX_NAMES = Object.keys(PLAY) as Sfx[];
+export const SFX_NAMES = Object.keys(SFX_PLAYERS) as Sfx[];
 
 /** Renders one effect offline and measures it (dev page /dev/sounds): peak, loudness, length. */
 export async function measureSfx(name: Sfx): Promise<{ peak: number; rmsDb: number; seconds: number }> {
   const rate = 44100;
   const ctx = new OfflineAudioContext(1, rate * 4, rate);
   const out = ctx.createGain();
-  out.gain.value = LEVEL[name] ?? 1;
+  out.gain.value = SFX_LEVEL[name] ?? 1;
   out.connect(ctx.destination);
-  PLAY[name](ctx as unknown as AudioContext, out, 0.01);
+  SFX_PLAYERS[name](ctx as unknown as AudioContext, out, 0.01);
   const data = (await ctx.startRendering()).getChannelData(0);
   let peak = 0;
   let sum = 0;

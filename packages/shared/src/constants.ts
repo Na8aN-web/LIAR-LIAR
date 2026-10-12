@@ -8,7 +8,12 @@ export const BASE_POT = 100;
 export const ESCAPE_BONUS = 50;
 export const BUY_INSPECT_PRICE = 20;
 export const EXTRA_INSPECT_PRICE = 50;
+/** Searches per extra-search purchase. 2 keeps a search ($25) dearer than buying someone's findings ($20). */
+export const EXTRA_INSPECT_COUNT = 2;
 export const PURCHASE_CAP = 3;
+
+/** Seconds of "First poster coming up in 5, 4…" before the first poster of a game. */
+export const GAME_COUNTDOWN_SECONDS = 5;
 
 export const SEAT_HOLD_MS = 90_000;
 export const HOST_GRACE_MS = 20_000;
@@ -66,6 +71,7 @@ export const DEFAULT_RULES: GameRules = {
   escapeBonus: ESCAPE_BONUS,
   buyPrice: BUY_INSPECT_PRICE,
   extraInspectPrice: EXTRA_INSPECT_PRICE,
+  extraInspectCount: EXTRA_INSPECT_COUNT,
   purchaseCap: PURCHASE_CAP,
   // Playtest default (spec: 2). The simulator found 3 keeps mid/late posters from being solved outright.
   decoys: 3,
@@ -78,6 +84,7 @@ export const RULE_LIMITS: Record<keyof GameRules, [number, number]> = {
   escapeBonus: [0, 300],
   buyPrice: [0, 200],
   extraInspectPrice: [0, 300],
+  extraInspectCount: [1, 5],
   purchaseCap: [0, 6],
   decoys: [1, 4],
 };

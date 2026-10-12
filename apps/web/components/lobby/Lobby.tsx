@@ -29,6 +29,7 @@ import { useGame } from '@/lib/store';
 import { ChatPanel } from '../game/ChatPanel';
 import { AudioSettings } from '../ui/AudioSettings';
 import { BrightnessSlider } from '../ui/BrightnessSlider';
+import { GraphicsSetting } from '../ui/GraphicsSetting';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 import { Walkthrough, hasSeenWalkthrough } from '../howto/Walkthrough';
 import { AutoFillSetting, FillOffer, VisibilitySwitch } from './RoomControls';
@@ -209,6 +210,7 @@ export function Lobby() {
         <Fold title="Sound & picture" open={false}>
           <AudioSettings />
           <BrightnessSlider />
+          <GraphicsSetting />
         </Fold>
       </section>
 
@@ -370,7 +372,8 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
     basePot: 'Bounty per poster',
     escapeBonus: 'Escape bonus',
     buyPrice: 'Buy findings',
-    extraInspectPrice: 'Extra look',
+    extraInspectPrice: 'Extra searches',
+    extraInspectCount: 'Searches per buy',
     purchaseCap: 'Deals / round',
     decoys: 'Decoys per look',
   };

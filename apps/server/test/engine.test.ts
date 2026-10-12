@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE_POT, BUY_INSPECT_PRICE, COLOR_IDS, ESCAPE_BONUS, EXTRA_INSPECT_PRICE, STARTING_POINTS, type ColorId } from '@wtc/shared';
+import { BASE_POT, BUY_INSPECT_PRICE, COLOR_IDS, ESCAPE_BONUS, EXTRA_INSPECT_COUNT, EXTRA_INSPECT_PRICE, STARTING_POINTS, type ColorId } from '@wtc/shared';
 import * as engine from '../src/game/engine';
 import { inspectResult } from '../src/game/decoys';
 import { posterOrders } from '../src/game/posterOrder';
@@ -41,6 +41,36 @@ describe('poster order', () => {
     const order = posterOrders.randomRepeats(ids, secureRng);
     expect(order).toHaveLength(10);
     for (const id of order) expect(ids).toContain(id);
+  });
+
+  it('randomRepeats never repeats back to back or makes anyone Wanted more than twice', () => {
+    for (const n of [6, 7, 10, 15]) {
+      const ids = players(n).map((p) => p.id);
+      for (let k = 0; k < 300; k++) {
+        const order = posterOrders.randomRepeats(ids, secureRng);
+        for (let i = 1; i < order.length; i++) expect(order[i]).not.toBe(order[i - 1]);
+        const counts = new Map<string, number>();
+        for (const id of order) counts.set(id, (counts.get(id) ?? 0) + 1);
+        expect(Math.max(...counts.values())).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
+  it('only the player wearing the poster color is told they are Wanted, with color swaps', () => {
+    for (let k = 0; k < 50; k++) {
+      const g = engine.createGame(players(8), { inspectLimit: 3, posterMode: 'randomRepeats', swapLimit: 3 }, secureRng);
+      while (true) {
+        for (const p of g.playerIds) {
+          const v = engine.gameViewFor(g, p);
+          expect(v.youAreWanted).toBe(g.colors[p] === v.posterColor);
+        }
+        engine.resolvePoster(g);
+        if (!engine.hasNextPoster(g)) break;
+        // Payout: a few players change color, sometimes the next Wanted player.
+        for (const p of g.playerIds) if (secureRng.int(3) === 0) engine.swapColor(g, p, secureRng);
+        engine.advancePoster(g);
+      }
+    }
   });
 });
 
@@ -214,10 +244,10 @@ describe('buying', () => {
     expect(g.scores.p0).toBe(BUY_INSPECT_PRICE - 1);
   });
 
-  it('extra inspects add an inspect and fund the next pot (current pot on the last poster)', () => {
+  it('extra inspects add a bundle of inspects and fund the next pot (current pot on the last poster)', () => {
     const g = newGame();
     expect(engine.buyExtraInspect(g, 'p0').ok).toBe(true);
-    expect(engine.inspectsLeft(g, 'p0')).toBe(4);
+    expect(engine.inspectsLeft(g, 'p0')).toBe(3 + EXTRA_INSPECT_COUNT);
     expect(g.pots[1]).toBe(BASE_POT + EXTRA_INSPECT_PRICE);
     expect(engine.gameViewFor(g, 'p3').pot).toBe(BASE_POT);
     engine.resolvePoster(g);

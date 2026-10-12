@@ -1,0 +1,72 @@
+{
+  "title": "Wanted: True Colors — main trailer",
+  "format": "16:9",
+  "duration": 50,
+  "fps": 60,
+  "music": { "file": "/audio/music-westernmusic.mp3", "volume": 0.75, "bpm": 80.25, "offset": 0.046, "beatsPerBar": 4, "fadeOut": 2.5 },
+  "sfxVolume": 1,
+  "ambience": 0.25,
+  "cast": {
+    "players": 8,
+    "names": ["June", "Hank", "Dolly", "Silas", "Boone", "Pearl", "Clem", "Etta"],
+    "colors": ["green", "red", "blue", "yellow", "pink", "orange", "teal", "tan"],
+    "wanted": "Hank"
+  },
+  "look": { "grain": 0.05, "vignette": 0.45, "letterbox": 0.06 },
+  "endCard": {
+    "title": "Wanted",
+    "subtitle": "True Colors",
+    "tagline": "FREE IN YOUR BROWSER",
+    "url": "wantedtruecolors.com",
+    "discord": "discord.gg/wantedtruecolors",
+    "credit": "A 3042Official game"
+  },
+  "shots": [
+    { "at": 0, "camera": { "preset": "poster" }, "label": "Hook: the poster" },
+    { "at": "beat:5", "camera": { "preset": "orbit" }, "label": "Around the fire" },
+    { "at": "beat:10", "camera": { "preset": "closeUp", "target": "Hank" }, "label": "Search" },
+    { "at": "beat:21", "camera": { "preset": "circleSlow" }, "label": "Everyone lies" },
+    { "at": "beat:28", "camera": { "preset": "closeUp", "target": "Hank" }, "label": "Freeze on Hank" },
+    { "at": "beat:31", "camera": { "preset": "wide" }, "label": "Telegram" },
+    { "at": "beat:35", "camera": { "preset": "home" }, "label": "Find the outlaw" },
+    { "at": "beat:39", "camera": { "preset": "pushIn", "target": "Hank" }, "label": "Accused" },
+    { "at": "beat:42", "camera": { "preset": "lowAngle" }, "label": "Bounty" },
+    { "at": "beat:47", "camera": { "preset": "orbit" }, "label": "Rivals" },
+    { "at": "beat:52", "camera": { "preset": "closeUp", "target": "Pearl" }, "label": "Escape" },
+    { "at": "beat:57", "camera": { "preset": "revealTown" }, "label": "End card" }
+  ],
+  "events": [
+    { "at": 0, "type": "flash", "color": "black", "dur": 0.4 },
+    { "at": "beat:1", "type": "posterSlam", "dur": 2.6 },
+
+    { "at": "beat:5", "type": "title", "text": "ONE OF YOU IS THE OUTLAW", "sub": "Whoever wears the poster's color", "in": "slam", "out": "fade", "dur": 3 },
+
+    { "at": "beat:10", "type": "title", "text": "SEARCH PLAYERS", "in": "slide", "out": "slide", "pos": "top", "dur": 2.2 },
+    { "at": "beat:12", "type": "searchReveal", "target": "Hank", "searcher": "June", "dur": 6.6 },
+
+    { "at": "beat:21", "type": "title", "text": "EVERYONE LIES", "in": "stamp", "out": "burn", "pos": "top", "dur": 2.2 },
+    { "at": "beat:23", "type": "bubble", "who": "Hank", "text": "Not me. I'm wearing Tan.", "dur": 2.4 },
+    { "at": "beat:24.5", "type": "bubble", "who": "Dolly", "text": "It's Hank! I searched him twice.", "dur": 2.6 },
+    { "at": "beat:26", "type": "bubble", "who": "Silas", "text": "Dolly's lying.", "dur": 2 },
+    { "at": "beat:28", "type": "freeze", "who": "Hank", "label": "HANK — LYING", "dur": 2.2 },
+
+    { "at": "beat:31", "type": "telegram", "tag": "OFFER", "title": "Silas offers $20 for your findings.", "body": "Your search of Hank on poster 1.", "dur": 2.8 },
+
+    { "at": "beat:35", "type": "title", "text": "FIND THE OUTLAW", "in": "slam", "out": "fade", "pos": "upper", "dur": 2 },
+    { "at": "beat:37.5", "type": "vote", "target": "Hank", "dur": 3.4 },
+
+    { "at": "beat:42", "type": "title", "text": "CLAIM THE BOUNTY", "in": "slide", "out": "slide", "from": "right", "pos": "top", "dur": 2.6, "color": "brass" },
+    { "at": "beat:42.5", "type": "payout", "amount": 150, "dur": 2.8 },
+    { "at": "beat:42.5", "type": "slowmo", "speed": 0.35, "dur": 2.2 },
+
+    { "at": "beat:47", "type": "colorChange", "who": "Dolly", "to": "purple" },
+    { "at": "beat:48", "type": "title", "text": "OUTSMART YOUR RIVALS", "sub": "Change colors · Buy secrets · Lie", "in": "slam", "out": "burn", "dur": 2.8 },
+
+    { "at": "beat:51.5", "type": "posterSlam", "color": "orange", "pot": 125, "fullScreen": false, "dur": 0.4 },
+    { "at": "beat:53", "type": "escape", "who": "Pearl", "dur": 2.6 },
+
+    { "at": "beat:57", "type": "dust", "dur": 1 },
+    { "at": "beat:57", "type": "look", "letterbox": 0, "dur": 0.8 },
+    { "at": "beat:58", "type": "endCard", "dur": 6.6 }
+  ]
+}

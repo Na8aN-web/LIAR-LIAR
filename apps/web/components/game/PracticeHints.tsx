@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useGame } from '@/lib/store';
+import { useGame, useGameCountdown } from '@/lib/store';
 
 // Practice games only: one short hint bubble at a time, for whatever the player should try
 // next (searching, chat, buying, accusing). Each can be dismissed; the next one follows the game.
@@ -22,19 +22,19 @@ function nextHint(v: NonNullable<ReturnType<typeof useGame.getState>['view']>, s
     case 'poster':
       return g.posterIndex === 0
         ? { id: 'poster-0', place: 'top', text: 'A new Wanted poster: whoever wears this color is the outlaw.' }
-        : { id: `poster-${g.posterIndex}`, place: 'side', text: 'The Ledger tab shows the rankings: who has the most money so far. Most money after the last poster wins.' };
+        : { id: `poster-${g.posterIndex}`, place: 'side', text: 'The Rankings tab shows who has the most money so far. Most money after the last poster wins.' };
     case 'investigation':
       if (g.inspectsUsed === 0)
         return selected
           ? { id: 'press-search', place: 'bottom', text: `Press Search. You’ll see ${r.decoys + 1} colors: one is their real color, the rest are fakes.` }
-          : { id: 'tap', place: 'bottom', text: 'Tap a scarecrow to search them.' };
+          : { id: 'tap', place: 'bottom', text: 'Tap a scarecrow to search them. Stuck? Press Hints.' };
       if (g.inspectsUsed === 1 && left > 0)
         return { id: 'again', place: 'bottom', text: 'Search the same scarecrow again. The color that shows up every time is their real one.' };
-      if (!saidSomething) return { id: 'talk', place: 'side', text: 'Open Talk to share a clue, or a lie. Anyone can lie, so trust your own searches.' };
+      if (!saidSomething) return { id: 'talk', place: 'side', text: 'Open Chat to share a clue, or a lie. Anyone can lie, so trust your own searches.' };
       return {
         id: 'buy',
         place: 'bottom',
-        text: `Want more clues? Tap a scarecrow and buy someone’s search for $${r.buyPrice}, or buy an extra search for $${r.extraInspectPrice}.`,
+        text: `Want more clues? Tap a scarecrow and buy someone’s search for $${r.buyPrice}, or, once you’re out, ${r.extraInspectCount} more searches for $${r.extraInspectPrice}.`,
       };
     case 'vote':
       return g.myVote
@@ -44,7 +44,7 @@ function nextHint(v: NonNullable<ReturnType<typeof useGame.getState>['view']>, s
       return {
         id: `payout-${g.posterIndex}`,
         place: 'top',
-        text: 'Reward paid: the ledger below shows everyone’s money and rank. You can change your color now if too many people know it, or keep it.',
+        text: 'Reward paid: the Rankings tab shows everyone’s money and rank. You can change your color now if too many people know it, or keep it.',
       };
     default:
       return null;
@@ -56,7 +56,8 @@ export function PracticeHints() {
   const selected = useGame((s) => s.selectedId);
   const chat = useGame((s) => s.chat);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  if (!view?.practice) return null;
+  const countdown = useGameCountdown();
+  if (!view?.practice || countdown > 0) return null;
   const said = chat.some((m) => m.playerId === view.you.id);
   const hint = nextHint(view, selected, said || dismissed.has('talk'));
   if (!hint || dismissed.has(hint.id)) return null;

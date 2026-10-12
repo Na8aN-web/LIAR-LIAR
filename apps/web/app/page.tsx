@@ -14,6 +14,7 @@ import { Modal } from '@/components/Modal';
 import { Rope } from '@/components/ui/western';
 import { AudioSettings } from '@/components/ui/AudioSettings';
 import { BrightnessSlider } from '@/components/ui/BrightnessSlider';
+import { GraphicsSetting } from '@/components/ui/GraphicsSetting';
 import { StreamerToggle } from '@/components/ui/StreamerToggle';
 import { call } from '@/lib/socket';
 import { session } from '@/lib/session';
@@ -109,6 +110,7 @@ export default function MainMenu() {
         <Modal title="Settings" onClose={() => setPanel(null)}>
           <AudioSettings />
           <BrightnessSlider />
+          <GraphicsSetting />
           <StreamerToggle />
           <p className="hint settings-privacy">
             <Link href="/privacy">Privacy: what we collect and why</Link>

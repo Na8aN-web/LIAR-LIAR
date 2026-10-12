@@ -9,3 +9,10 @@ next-env.d.ts
 logs
 screenshots
 assets/source
+
+# Rendered trailers and their soundtracks (trailer studio output goes to out/trailers)
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.wav

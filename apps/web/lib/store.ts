@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
-import type { ChatMessage, PlayerId, PlayerView } from '@wtc/shared';
+import { GAME_COUNTDOWN_SECONDS, type ChatMessage, type PlayerId, type PlayerView } from '@wtc/shared';
 
 interface GameStore {
   view: PlayerView | null;
@@ -65,6 +65,27 @@ export function useSecondsLeft(): number | null {
   }, [endsAt]);
   if (!endsAt) return null;
   return Math.max(0, Math.ceil((endsAt - (now + offset)) / 1000));
+}
+
+/**
+ * Start-of-game countdown: seconds left before the first poster shows (0 = none). The first
+ * poster's phase runs GAME_COUNTDOWN_SECONDS longer than its timer; this is that extra part.
+ * Re-renders only when the number changes.
+ */
+export function useGameCountdown(): number {
+  const endsAt = useGame((s) => s.view?.phaseEndsAt ?? null);
+  const offset = useGame((s) => s.clockOffset);
+  const first = useGame((s) => s.view?.phase === 'poster' && s.view.game?.posterIndex === 0);
+  const posterMs = useGame((s) => (s.view?.settings.timers.poster ?? 0) * 1000);
+  const calc = () => (first && endsAt ? Math.max(0, Math.min(GAME_COUNTDOWN_SECONDS, Math.ceil((endsAt - posterMs - (Date.now() + offset)) / 1000))) : 0);
+  const [n, setN] = useState(calc);
+  useEffect(() => {
+    setN(calc());
+    if (!first || !endsAt) return;
+    const t = setInterval(() => setN(calc()), 200);
+    return () => clearInterval(t);
+  }, [first, endsAt, offset, posterMs]); // eslint-disable-line react-hooks/exhaustive-deps
+  return n;
 }
 
 export function usePlayerName() {

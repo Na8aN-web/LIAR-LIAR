@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { PALETTE, type Cosmetics, type ItemType } from '@wtc/shared';
 import { useBrightness } from '@/lib/brightness';
+import { useQuality } from '@/lib/quality';
 import { PerfProbe } from '../scene/PerfProbe';
 import { SCALE, Scarecrow, type ReactionCue } from '../scene/Scarecrow';
 import { SEAT_BELOW_HIPS, SIT_HIPS, type ClipName, type SitPose } from '../scene/scarecrowModel';
@@ -134,11 +135,12 @@ function Exposure() {
 
 export default function HomeScene() {
   const [portrait] = useState(() => typeof window !== 'undefined' && window.innerWidth < window.innerHeight);
+  const smooth = useQuality() === 'smooth';
   return (
     <Canvas
       className="home-scene"
-      // Phones: fewer pixels and no MSAA; the scene is small and soft anyway.
-      dpr={portrait ? [1, 1.3] : [1, 1.75]}
+      // Phones: fewer pixels and no MSAA; the scene is small and soft anyway. Smooth: one pixel per CSS pixel.
+      dpr={smooth ? 1 : portrait ? [1, 1.3] : [1, 1.75]}
       gl={{ antialias: !portrait, powerPreference: 'high-performance' }}
       camera={{ position: [0, 2.6, 7.6], fov: portrait ? 50 : 42 }}
     >

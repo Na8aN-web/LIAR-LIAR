@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { CHAT_MAX, type ChatMessage } from '@wtc/shared';
 import { call } from '@/lib/socket';
 import { useGame } from '@/lib/store';
@@ -51,8 +51,15 @@ export function ChatPanel() {
     <div className="chat">
       <ul className="chat-list" ref={listRef}>
         {chat.length === 0 && <li className="muted">Quiet as a graveyard.</li>}
-        {chat.map((m) => (
-          <li key={m.id} className={m.playerId === me ? 'mine' : ''}>
+        {chat.map((m, i) => (
+          <Fragment key={m.id}>
+          {/* A dashed divider where each poster's talk starts (and over lobby talk, once there's a game). */}
+          {(i === 0 ? m.poster !== null || chat.some((c) => c.poster !== null) : m.poster !== chat[i - 1].poster) && (
+            <li className="chat-divider" aria-label={m.poster === null ? 'Lobby' : `Poster ${m.poster + 1}`}>
+              <span>{m.poster === null ? 'Lobby' : `Poster ${m.poster + 1}`}</span>
+            </li>
+          )}
+          <li className={m.playerId === me ? 'mine' : ''}>
             <b>{m.name}</b> {m.text}
             {m.playerId !== me && (
               <button className="chat-more" aria-label={`Mute or report ${m.name}`} aria-expanded={menu === m.id} onClick={() => setMenu(menu === m.id ? null : m.id)}>
@@ -70,6 +77,7 @@ export function ChatPanel() {
               </span>
             )}
           </li>
+          </Fragment>
         ))}
       </ul>
       <form className="chat-form" onSubmit={send}>

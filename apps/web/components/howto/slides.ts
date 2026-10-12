@@ -110,7 +110,7 @@ export function howToSlides({ settings = DEFAULT_SETTINGS, playerCount = TYPICAL
           kind: 'list',
           items: [
             `${$(r.buyPrice)}: buy someone else’s search results. They can say no. If they say yes, they get your ${$(r.buyPrice)}.`,
-            `${$(r.extraInspectPrice)}: buy one extra search for this round.`,
+            `${$(r.extraInspectPrice)}: buy ${r.extraInspectCount === 1 ? 'one extra search' : `${r.extraInspectCount} extra searches`} for this round.`,
           ],
         },
         text(`Everyone starts with ${$(r.startingPoints)}. You can make up to ${r.purchaseCap} purchases per round, and you can’t go below $0.`),

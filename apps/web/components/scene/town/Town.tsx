@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { AdditiveBlending, CanvasTexture, DoubleSide, SRGBColorSpace, type Group, type Object3D } from 'three';
 import type { ColorId } from '@wtc/shared';
 import { useCanvasFonts } from '@/lib/canvasFonts';
+import { useQuality } from '@/lib/quality';
 import { AD_SLOTS, badAdSlots } from '@/config/adSlots';
 import anchors from '../sceneryAnchors.json';
 import { AdBoard } from './AdBoard';
@@ -200,6 +201,7 @@ export interface PosterState {
 
 export function Town({ circleRadius, poster, seats }: { circleRadius: number; poster: PosterState; seats: Seat[] }) {
   const scenery = useScenery();
+  const smooth = useQuality() === 'smooth';
   const R = ringRadius(circleRadius);
   const { lots, alleys } = useMemo(() => placeLots(R), [R]);
   const layout = useLayout(R, circleRadius, alleys, lots);
@@ -239,10 +241,10 @@ export function Town({ circleRadius, poster, seats }: { circleRadius: number; po
       <hemisphereLight args={['#6f84c4', '#2a1f14', 1.25]} />
       <ambientLight intensity={0.3} color="#b8c4ff" />
 
-      {/* The fire is the main light. Two lanterns are real lights; the rest are faked. */}
+      {/* The fire is the main light. Two lanterns are real lights (none on smooth); the rest are faked. */}
       <Campfire />
       {LANTERN_POST_ANGLES.map((a, i) =>
-        REAL_LANTERNS.includes(a) ? <pointLight key={a} position={lampPositions[i]} color={WARM} intensity={16} distance={16} decay={1.5} /> : null,
+        REAL_LANTERNS.includes(a) && !smooth ? <pointLight key={a} position={lampPositions[i]} color={WARM} intensity={16} distance={16} decay={1.5} /> : null,
       )}
       {LANTERN_POST_ANGLES.map((a) => (
         <LanternPost key={a} angle={a} circleR={circleRadius} />

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { colorInfo, type Phase } from '@wtc/shared';
 import { call } from '@/lib/socket';
-import { useGame, useSecondsLeft } from '@/lib/store';
+import { useGame, useGameCountdown, useSecondsLeft } from '@/lib/store';
 import { useStreamerMode } from '@/lib/streamer';
 import { BrassBadge } from '../ui/western';
 import { WantedPoster } from '../WantedPoster';
@@ -44,12 +44,61 @@ function YouBadge({ color }: { color: Parameters<typeof colorInfo>[0] }) {
   );
 }
 
-/** Only on the outlaw's own screen (youAreWanted is private to them). */
-function OutlawBanner() {
+/**
+ * Only on the outlaw's own screen (youAreWanted is private to them). One element that stays
+ * mounted all game and is shown or hidden, never a new one per poster, so there can only ever
+ * be one. It names your color, so it can be checked against the poster at a glance, and folds
+ * to a small tag after a few seconds to keep the scene clear.
+ */
+function OutlawBanner({ show, poster, color }: { show: boolean; poster: number; color: Parameters<typeof colorInfo>[0] }) {
+  const [small, setSmall] = useState(false);
+  useEffect(() => {
+    setSmall(false);
+    if (!show) return;
+    const t = setTimeout(() => setSmall(true), 5000);
+    return () => clearTimeout(t);
+  }, [show, poster]);
+  const c = colorInfo(color);
   return (
-    <div className="outlaw-banner" role="alert">
-      <span className="outlaw-stamp">THAT&rsquo;S YOU.</span>
-      <span className="outlaw-line">You&rsquo;re the outlaw this round. Don&rsquo;t get caught.</span>
+    <div className={`outlaw-banner${small ? ' small' : ''}`} hidden={!show} role={show ? 'alert' : undefined} onClick={() => setSmall(!small)}>
+      <span className="outlaw-stamp">{small ? 'YOU’RE THE OUTLAW' : 'THAT’S YOU.'}</span>
+      {!small && (
+        <span className="outlaw-line">
+          You wear <b style={{ color: c.hex }}>{c.name}</b>, the poster&rsquo;s color. Don&rsquo;t get caught.
+        </span>
+      )}
+    </div>
+  );
+}
+
+const ordinal = (n: number) => {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th';
+  return `${n}${suffix}`;
+};
+
+/** Your place in the rankings (public scores, same as the Rankings tab). Ties share a place. */
+function useMyRank(): { rank: number; tied: boolean } {
+  const view = useGame((s) => s.view)!;
+  const scores = view.game!.scores;
+  const mine = scores[view.you.id] ?? 0;
+  const ids = view.players.map((p) => p.id);
+  const ahead = ids.filter((id) => (scores[id] ?? 0) > mine).length;
+  const tied = ids.filter((id) => id !== view.you.id && (scores[id] ?? 0) === mine).length > 0;
+  return { rank: ahead + 1, tied };
+}
+
+/** Start of the game only: "First poster coming up in 5, 4, 3, 2, 1" before the first poster shows. */
+function GameCountdown({ n }: { n: number }) {
+  return (
+    <div className="center-card countdown" role="status" aria-live="assertive">
+      <div className="countdown-card">
+        <span className="countdown-line">First poster coming up in</span>
+        {/* The key restarts the stamp animation on every number. */}
+        <span key={n} className="countdown-num">
+          {n}
+        </span>
+      </div>
     </div>
   );
 }
@@ -61,8 +110,10 @@ export function GameHud() {
   const toast = useGame((s) => s.showToast);
   const [showPoster, setShowPoster] = useState(false);
   const streamer = useStreamerMode();
+  const { rank, tied } = useMyRank();
   const poster = colorInfo(game.posterColor);
   const changed = game.colorChanges[game.posterIndex] ?? 0;
+  const countdown = useGameCountdown();
   const changedText = changed ? `${changed} ${changed === 1 ? 'player' : 'players'} changed colors.` : null;
 
   if (view.phase === 'ended') return <Replay />;
@@ -84,18 +135,26 @@ export function GameHud() {
           </div>
           <YouBadge color={view.you.color} />
         </div>
-        <BrassBadge label="Time" className="timer" tone={secs !== null && secs <= 10 ? 'alert' : undefined}>
-          {secs ?? '–'}
+        <BrassBadge label="Time" className="timer" tone={secs !== null && secs <= 10 && countdown <= 0 ? 'alert' : undefined}>
+          {secs === null ? '–' : countdown > 0 ? view.settings.timers.poster : secs}
         </BrassBadge>
-        <BrassBadge label="Purse" className="my-score">
-          ${game.myScore}
-        </BrassBadge>
+        <div className="purse-stack">
+          <BrassBadge label="Purse" className="my-score">
+            ${game.myScore}
+          </BrassBadge>
+          <span className="my-rank" aria-label={`You're ${tied ? 'tied ' : ''}${ordinal(rank)} of ${view.players.length}`}>
+            {tied ? '=' : ''}
+            {ordinal(rank)}
+          </span>
+        </div>
       </header>
 
       {/* Streamer mode: only a brief, wordless icon flash, so viewers can't see you're the outlaw. */}
-      {game.youAreWanted && view.phase !== 'payout' && (streamer ? <OutlawFlash poster={game.posterIndex} /> : <OutlawBanner key={game.posterIndex} />)}
+      {countdown > 0 && <GameCountdown n={countdown} />}
+      {game.youAreWanted && view.phase !== 'payout' && countdown <= 0 && streamer && <OutlawFlash poster={game.posterIndex} />}
+      <OutlawBanner show={game.youAreWanted && view.phase !== 'payout' && countdown <= 0 && !streamer} poster={game.posterIndex} color={view.you.color} />
 
-      {(view.phase === 'poster' || showPoster) && (
+      {((view.phase === 'poster' && countdown <= 0) || showPoster) && (
         <div className="center-card" onClick={() => setShowPoster(false)}>
           <WantedPoster
             className="big"

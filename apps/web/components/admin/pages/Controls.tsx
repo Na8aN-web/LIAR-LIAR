@@ -20,7 +20,8 @@ const RULE_LABEL: Record<keyof GameRules, string> = {
   basePot: 'Reward per poster',
   escapeBonus: 'Escape bonus',
   buyPrice: 'Price of a finding',
-  extraInspectPrice: 'Price of an extra look',
+  extraInspectPrice: 'Price of extra searches',
+  extraInspectCount: 'Searches per purchase',
   purchaseCap: 'Purchases per round',
   decoys: 'Fake colors per search',
 };
