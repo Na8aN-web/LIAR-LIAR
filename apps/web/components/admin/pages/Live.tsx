@@ -14,6 +14,8 @@ interface RoomRow {
   posters: number | null;
   locked: boolean;
   practice: boolean;
+  visibility: 'public' | 'private';
+  name: string;
   host: string | null;
   players: { name: string; bot: boolean; connected: boolean; away: boolean; host: boolean; anon: string | null }[];
 }
@@ -27,7 +29,7 @@ interface Finished {
 interface LiveData {
   now: number;
   online: { sockets: number; players: number };
-  rooms: { total: number; open: number; locked: number; practice: number; inGame: number; list: RoomRow[] };
+  rooms: { total: number; open: number; public: number; private: number; locked: number; practice: number; inGame: number; list: RoomRow[] };
   server: {
     uptimeSec: number;
     memory: { rssMb: number; heapUsedMb: number; heapTotalMb: number; machineMb: number };
@@ -184,7 +186,7 @@ export function LivePage() {
       )}
       <Stats>
         <Stat label="Players in rooms" value={int(data.online.players)} sub={`${int(data.online.sockets)} connections open`} />
-        <Stat label="Active rooms" value={int(data.rooms.total)} sub={`${data.rooms.open} open · ${data.rooms.locked} locked · ${data.rooms.practice} practice`} />
+        <Stat label="Active rooms" value={int(data.rooms.total)} sub={`${data.rooms.public} public · ${data.rooms.private} private · ${data.rooms.practice} practice · ${data.rooms.locked} locked`} />
         <Stat label="Games running" value={int(data.rooms.inGame)} />
         <Stat label="CPU" value={`${dec(s.cpuPercent, 0)}%`} sub={`${s.cores} cores`} tone={s.cpuPercent > 80 ? 'bad' : undefined} />
         <Stat label="Memory" value={`${int(s.memory.rssMb)} MB`} sub={`heap ${int(s.memory.heapUsedMb)} / ${int(s.memory.heapTotalMb)} MB`} />
@@ -215,7 +217,8 @@ export function LivePage() {
                         <button className="adm-link" onClick={() => setOpen(open === r.code ? null : r.code)} aria-expanded={open === r.code}>
                           <code>{r.code}</code>
                         </button>{' '}
-                        {r.locked && <Badge>locked</Badge>} {r.practice && <Badge tone="muted">practice</Badge>}
+                        {r.practice ? <Badge tone="muted">practice</Badge> : r.visibility === 'public' ? <Badge tone="good">public</Badge> : <Badge>private</Badge>} {r.locked && <Badge tone="warn">locked</Badge>}
+                        <small className="adm-room-name">{r.name}</small>
                       </td>
                       <td data-label="Host">{r.host ?? '–'}</td>
                       <td className="num" data-label="People">

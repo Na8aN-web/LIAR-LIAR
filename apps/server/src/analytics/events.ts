@@ -9,6 +9,7 @@ import type { ClientStep, Source, VisitPage } from '@wtc/shared';
 /** Funnel steps: the How to Play ones come from the browser, the rest from the server. */
 export type Step = ClientStep | 'lobby' | 'game_start' | 'game_finish';
 export type Device = 'mobile' | 'desktop';
+export type LobbyAction = 'create_public' | 'create_private' | 'quick_join' | 'quick_create' | 'list_join' | 'code_join';
 export type SafetyKind = 'report' | 'kick' | 'mute' | 'ban' | 'unban' | 'rate_limit';
 
 interface Base {
@@ -24,9 +25,11 @@ export type AnalyticsEvent =
   | (Base & { type: 'step'; step: Step; gameId?: string })
   | (Base & { type: 'billboard'; slot: string })
   /** Sampled once a minute while anyone is online. */
-  | (Base & { type: 'concurrency'; players: number; sockets: number; rooms: number })
+  | (Base & { type: 'concurrency'; players: number; sockets: number; rooms: number; publicWaiting?: number })
   /** A game that ended without finishing (everyone left, or the admins closed it). */
   | (Base & { type: 'abandoned'; gameId: string; humans: number; players: number; poster: number; posters: number })
+  /** How people got into rooms: created public/private, Quick Play, the list, a code or invite link. */
+  | (Base & { type: 'lobby'; action: LobbyAction })
   | (Base & {
       type: 'safety';
       kind: SafetyKind;

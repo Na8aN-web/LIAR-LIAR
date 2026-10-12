@@ -47,7 +47,9 @@ describe('recording', () => {
 
     const events = await x.store.events();
     const anon = anonId(a.browserId);
-    expect(events.map((e) => (e.type === 'step' ? e.step : e.type))).toEqual(['visit', 'howto_open', 'howto_finish', 'billboard', 'lobby', 'game_start']);
+    expect(events.map((e) => (e.type === 'step' ? e.step : e.type))).toEqual(['visit', 'howto_open', 'howto_finish', 'billboard', 'lobby', 'lobby', 'game_start']);
+    // The room-created event says how they got in (a private room here), nothing more.
+    expect(events.find((e) => e.type === 'lobby')).toMatchObject({ action: 'create_private' });
     expect(events.every((e) => e.anon === anon)).toBe(true);
     expect(events[0]).toMatchObject({ page: 'home', src: 'youtube', device: 'desktop', country: null });
     const raw = JSON.stringify(events);

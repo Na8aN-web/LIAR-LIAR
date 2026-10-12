@@ -31,6 +31,7 @@ import { AudioSettings } from '../ui/AudioSettings';
 import { BrightnessSlider } from '../ui/BrightnessSlider';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 import { Walkthrough, hasSeenWalkthrough } from '../howto/Walkthrough';
+import { AutoFillSetting, FillOffer, VisibilitySwitch } from './RoomControls';
 
 const FILL_TO = 10;
 
@@ -111,6 +112,9 @@ export function Lobby() {
       <section className="panel lobby-main">
         <header className="lobby-head">
           <div>
+            <div className="room-title">
+              {view.room.name} <span className={`tag vis-${view.room.visibility}`}>{view.room.visibility}</span>
+            </div>
             <div className="label">Room code</div>
             <div className="room-code">{streamer ? <span title="Hidden in streamer mode">•••••</span> : view.code}</div>
           </div>
@@ -131,12 +135,18 @@ export function Lobby() {
               <button className="btn primary grow" disabled={!enough} onClick={() => act(call('game:start'))}>
                 {enough ? 'Start the hunt' : `Need ${minPlayers - players.length} more riders`}
               </button>
-              {view.devMode && players.length < maxPlayers && (
+              {/* Bots in any room: a few friends need them to reach the minimum. Games with bots are tagged in the stats. */}
+              {players.length < maxPlayers && (
                 <>
                   <button className="btn small" onClick={() => act(call('lobby:addBot'))}>
                     + Bot
                   </button>
-                  {players.length < FILL_TO && (
+                  {!view.devMode && players.length < minPlayers && (
+                    <button className="btn small" onClick={() => act(call('lobby:fill'))}>
+                      Fill to {minPlayers}
+                    </button>
+                  )}
+                  {view.devMode && players.length < FILL_TO && (
                     <button
                       className="btn small"
                       onClick={async () => {
@@ -154,6 +164,8 @@ export function Lobby() {
           )}
         </div>
 
+        <FillOffer />
+
         {/* Folded on phones, open on desktop. */}
         <Fold title="Your garment & color" open={desktop}>
           <LookPicker />
@@ -169,11 +181,13 @@ export function Lobby() {
           }
           open={desktop}
         >
+          <VisibilitySwitch />
+          <AutoFillSetting />
           {isHost && (
             <label className="sound-switch lock-row">
               <span className="grow">
                 <b>Lock the room</b>
-                <span className="hint"> {view.locked ? 'No one new can join. Players already here can reconnect.' : 'Anyone with the code can join.'}</span>
+                <span className="hint"> {view.locked ? 'No one new can join. Players already here can reconnect.' : view.room.visibility === 'public' ? 'Anyone can join from the list or with the code.' : 'Anyone with the code can join.'}</span>
               </span>
               <button
                 type="button"

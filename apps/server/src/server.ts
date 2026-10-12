@@ -21,7 +21,8 @@ import { Room, type FeedbackEntry, type FinishedGame, type Seat } from './room';
 import type { GameSummary } from './game/summary';
 import { secureRng, type Rng } from './rng';
 import { LIMITS, RateLimiter, browserIdOf, clientIp, originAllowed } from './security';
-import { anonId, countryOf, deviceOf, type AnalyticsEvent } from './analytics/events';
+import { anonId, countryOf, deviceOf, type AnalyticsEvent, type LobbyAction } from './analytics/events';
+import { MemoryLobbyDirectory, type LobbyDirectory } from './lobby/directory';
 import type { Store } from './store/types';
 import { AccessVerifier, type AccessConfig } from './admin/access';
 import { adminHandler, billboardHandler } from './admin/api';
@@ -58,6 +59,8 @@ export interface GameServerOptions {
   onFeedback?: (entry: FeedbackEntry) => void;
   /** Override limits (tests). */
   limits?: Partial<typeof LIMITS>;
+  /** Where the Find a Lobby list lives (default: in memory). */
+  lobbyDirectory?: LobbyDirectory;
   /** Analytics, feedback, the admin log and admin settings. Null/omitted: nothing is stored. */
   store?: Store | null;
   /** Admin dashboard login (`pnpm admin:setup`). Omitted: the admin API refuses everything. */
@@ -110,15 +113,40 @@ export function createGameServer(opts: GameServerOptions) {
 
   const rate = {
     connect: new RateLimiter(L.connectPerIp.burst, L.connectPerIp.perSecond),
+    connectBrowser: new RateLimiter(L.connectPerBrowser.burst, L.connectPerBrowser.perSecond),
     create: new RateLimiter(L.roomCreate.burst, L.roomCreate.perSecond),
+    createIp: new RateLimiter(L.roomCreateIp.burst, L.roomCreateIp.perSecond),
+    joinBrowser: new RateLimiter(L.joinPerBrowser.burst, L.joinPerBrowser.perSecond),
     joinIp: new RateLimiter(L.joinPerIp.burst, L.joinPerIp.perSecond),
     joinSocket: new RateLimiter(L.joinPerSocket.burst, L.joinPerSocket.perSecond),
     events: new RateLimiter(L.events.burst, L.events.perSecond),
     chat: new RateLimiter(L.chat.burst, L.chat.perSecond),
     offers: new RateLimiter(L.offers.burst, L.offers.perSecond),
     probe: new RateLimiter(L.colorProbe.burst, L.colorProbe.perSecond),
+    lobbyWatch: new RateLimiter(L.lobbyWatch.burst, L.lobbyWatch.perSecond),
+    lobbyWatchIp: new RateLimiter(L.lobbyWatchIp.burst, L.lobbyWatchIp.perSecond),
+    lobbyJoin: new RateLimiter(L.lobbyJoin.burst, L.lobbyJoin.perSecond),
+    lobbyJoinIp: new RateLimiter(L.lobbyJoinIp.burst, L.lobbyJoinIp.perSecond),
   };
   const socketsPerIp = new Map<string, number>();
+  const socketsPerBrowser = new Map<string, number>();
+  /**
+   * Who a per-browser limit applies to: the browser's random id, or (for clients that send none,
+   * which the game never does) their IP, so leaving the id out doesn't escape the limits.
+   */
+  const browserKey = (browserId: string | null, ip: string) => (browserId ? `b:${browserId}` : `ip:${ip}`);
+  /** Takes from a per-browser bucket and the per-IP ceiling; both must allow it. */
+  const both = (perBrowser: RateLimiter, perIp: RateLimiter, key: string, ip: string) => {
+    // A refused take spends nothing and is counted for the Safety page.
+    if (!perBrowser.peek(key)) return perBrowser.take(key);
+    if (!perIp.peek(ip)) return perIp.take(ip);
+    return perBrowser.take(key) && perIp.take(ip);
+  };
+  const count = (m: Map<string, number>, k: string, d: number) => {
+    const n = (m.get(k) ?? 0) + d;
+    if (n > 0) m.set(k, n);
+    else m.delete(k);
+  };
   // Rate-limit hits, counted per limit and saved once a minute (Safety page).
   const hits = new Map<string, number>();
   for (const [name, limiter] of Object.entries(rate)) {
@@ -141,6 +169,13 @@ export function createGameServer(opts: GameServerOptions) {
   });
   // Banned browsers (by anonymous id) can't connect at all.
   io.use((socket, next) => (control.isBanned(anonId(browserIdOf(socket.handshake.auth))) ? next(new Error('banned')) : next()));
+  // Per-browser connection limits (the browser id comes with the handshake, after the IP check).
+  io.use((socket, next) => {
+    const key = browserKey(browserIdOf(socket.handshake.auth), clientIp(socket.request, trustProxy));
+    if ((socketsPerBrowser.get(key) ?? 0) >= L.maxSocketsPerBrowser) return next(new Error('Too many connections'));
+    if (!rate.connectBrowser.take(key)) return next(new Error('Too many connections'));
+    next();
+  });
   const rooms = new Map<string, Room>();
 
   const newCode = () => {
@@ -152,16 +187,35 @@ export function createGameServer(opts: GameServerOptions) {
   };
   const normCode = (v: unknown) => (typeof v === 'string' && v.length <= 16 ? v.toUpperCase().replace(/[^A-Z0-9]/g, '') : '');
 
+  // Find a Lobby: rooms report their row here; watchers get the list live.
+  const directory: LobbyDirectory = opts.lobbyDirectory ?? new MemoryLobbyDirectory();
+  const LOBBY_ROOM = 'lobby-watchers';
+  const lobbyUpdate = () => ({ rooms: directory.list(), online: io.engine.clientsCount });
+  const pushLobby = () => {
+    if (io.sockets.adapter.rooms.get(LOBBY_ROOM)?.size) io.to(LOBBY_ROOM).emit('lobby:list', lobbyUpdate());
+  };
+  directory.onChange(pushLobby);
+  const syncListing = (code: string) => {
+    const room = rooms.get(code);
+    directory.set(code, room ? room.listing() : null);
+  };
+  const lobbyEvent = (action: LobbyAction, anon: string | null, check: boolean) => {
+    if (!check) record({ at: new Date().toISOString(), type: 'lobby', anon, action });
+  };
+
   const closeRoom = (code: string) => {
     const room = rooms.get(code);
     if (!room) return;
     room.dispose();
     rooms.delete(code);
+    directory.set(code, null);
   };
 
-  const newRoom = (practice = false, check = false) => {
+  const newRoom = (practice = false, check = false, lobby: { visibility?: 'public' | 'private'; roomName?: string } = {}) => {
     const code = newCode();
     const room = new Room(code, {
+      ...lobby,
+      onListingChange: () => syncListing(code),
       rng,
       onEvent: record,
       defaults: () => control.defaults,
@@ -201,7 +255,9 @@ export function createGameServer(opts: GameServerOptions) {
     for (const [limit, count] of hits) record({ at, type: 'safety', kind: 'rate_limit', by: 'server', anon: null, limit, count });
     hits.clear();
     const sockets = io.engine.clientsCount;
-    if (sockets || lastSampleNonZero) record({ at, type: 'concurrency', anon: null, players: seatedPlayers(), sockets, rooms: rooms.size });
+    if (sockets || lastSampleNonZero) record({ at, type: 'concurrency', anon: null, players: seatedPlayers(), sockets, rooms: rooms.size, publicWaiting: directory.list().length });
+    // The online count moves as people come and go: refresh watchers now and then.
+    pushLobby();
     lastSampleNonZero = sockets > 0;
   }, 60_000);
   let lastSampleNonZero = false;
@@ -261,8 +317,10 @@ export function createGameServer(opts: GameServerOptions) {
 
   io.on('connection', (socket: GameSocket) => {
     const ip = clientIp(socket.request, trustProxy);
-    socketsPerIp.set(ip, (socketsPerIp.get(ip) ?? 0) + 1);
     socket.data = { ip, browserId: browserIdOf(socket.handshake.auth), check: (socket.handshake.auth as { purpose?: unknown } | null)?.purpose === 'check' };
+    const who = browserKey(socket.data.browserId, ip);
+    count(socketsPerIp, ip, 1);
+    count(socketsPerBrowser, who, 1);
     const anon = anonId(socket.data.browserId);
     socket.emit('status', control.status());
 
@@ -308,9 +366,10 @@ export function createGameServer(opts: GameServerOptions) {
     };
     const obj = (p: unknown): Record<string, unknown> => (p && typeof p === 'object' && !Array.isArray(p) ? (p as Record<string, unknown>) : {});
     /** Join and resume share one budget, spent only by failures: what a code-guessing script burns. */
-    const joinBudget = () => rate.joinIp.peek(ip) && rate.joinSocket.peek(socket.id);
+    const joinBudget = () => rate.joinBrowser.peek(who) && rate.joinIp.peek(ip) && rate.joinSocket.peek(socket.id);
     const joinFailed = <T extends Ack<JoinResult>>(res: T): T => {
       if (!res.ok) {
+        rate.joinBrowser.take(who);
         rate.joinIp.take(ip);
         rate.joinSocket.take(socket.id);
       }
@@ -319,10 +378,11 @@ export function createGameServer(opts: GameServerOptions) {
 
     const createRoom = (practice: boolean, p: unknown, ack: (r: Ack<JoinResult>) => void) => {
       if (control.maintenance.on) return ack(fail(control.maintenance.message));
-      if (!rate.create.take(ip)) return ack(fail('Too many new rooms. Wait a minute.'));
+      if (!both(rate.create, rate.createIp, who, ip)) return ack(fail('Too many new rooms. Wait a minute.'));
       if (rooms.size >= L.maxRooms) return ack(fail('The town is full right now. Try again soon.'));
       detach();
-      const room = newRoom(practice, socket.data.check);
+      const visibility = !practice && obj(p).visibility === 'public' ? 'public' : 'private';
+      const room = newRoom(practice, socket.data.check, { visibility, roomName: obj(p).roomName as string });
       const res = room.addPlayer(obj(p).name as string, socket.id, false, socket.data.browserId);
       if (!res.ok) {
         closeRoom(room.code);
@@ -335,10 +395,55 @@ export function createGameServer(opts: GameServerOptions) {
           return ack(started);
         }
       }
+      if (!practice) lobbyEvent(visibility === 'public' ? 'create_public' : 'create_private', anon, socket.data.check);
       ack(bind(room, res.seat));
     };
 
     socket.on('room:create', handle((p, ack) => typeof ack === 'function' && createRoom(false, p, ack)));
+
+    // Find a Lobby: the list now, then live updates while watching.
+    socket.on('lobby:watch', handle((ack) => {
+      if (typeof ack !== 'function') return;
+      if (!both(rate.lobbyWatch, rate.lobbyWatchIp, who, ip)) return ack(fail('Slow down'));
+      socket.join(LOBBY_ROOM);
+      ack({ ok: true, ...lobbyUpdate() });
+    }));
+    socket.on('lobby:unwatch', handle(() => void socket.leave(LOBBY_ROOM)));
+
+    /** Joins a listed room by its list id; fails if it isn't listed any more (filled, locked, started). */
+    const joinListed = (listingId: unknown, name: unknown) => {
+      const code = typeof listingId === 'string' ? directory.roomFor(listingId) : null;
+      const room = code ? rooms.get(code) : undefined;
+      if (!room || !room.listing()) return fail('That campfire is gone. Pick another.');
+      detach();
+      const res = room.addPlayer(name as string, socket.id, false, socket.data.browserId);
+      return res.ok ? bind(room, res.seat) : res;
+    };
+    socket.on('room:joinListed', handle((p, ack) => {
+      if (typeof ack !== 'function') return;
+      if (!both(rate.lobbyJoin, rate.lobbyJoinIp, who, ip)) return ack(fail('Slow down'));
+      const res = joinListed(obj(p).id, obj(p).name);
+      if (res.ok) lobbyEvent('list_join', anon, socket.data.check);
+      ack(res);
+    }));
+    // Quick Play: the fullest public room still waiting that will have us; otherwise a new public room.
+    socket.on('room:quickPlay', handle((p, ack) => {
+      if (typeof ack !== 'function') return;
+      if (!both(rate.lobbyJoin, rate.lobbyJoinIp, who, ip)) return ack(fail('Slow down'));
+      for (const row of directory.list()) {
+        const res = joinListed(row.id, obj(p).name);
+        if (res.ok) {
+          lobbyEvent('quick_join', anon, socket.data.check);
+          return ack({ ...res, created: false });
+        }
+        // A bad name fails everywhere; don't try every room.
+        if (res.error === 'Enter a name') return ack(res);
+      }
+      createRoom(false, { name: obj(p).name, visibility: 'public' }, (res) => {
+        if (res.ok) lobbyEvent('quick_create', anon, socket.data.check);
+        ack(res.ok ? { ...res, created: true } : res);
+      });
+    }));
     socket.on('room:practice', handle((p, ack) => typeof ack === 'function' && createRoom(true, p, ack)));
 
     socket.on('room:join', handle((p, ack) => {
@@ -348,6 +453,7 @@ export function createGameServer(opts: GameServerOptions) {
       if (!room) return ack(joinFailed(fail('No room with that code')));
       detach();
       const res = room.addPlayer(obj(p).name as string, socket.id, false, socket.data.browserId);
+      if (res.ok) lobbyEvent('code_join', anon, socket.data.check);
       ack(res.ok ? bind(room, res.seat) : joinFailed(res));
     }));
 
@@ -388,6 +494,9 @@ export function createGameServer(opts: GameServerOptions) {
     socket.on('lobby:removeBot', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.removeBot(seat.id, obj(p).playerId as string))));
     socket.on('lobby:kick', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.kick(seat.id, obj(p).playerId))));
     socket.on('lobby:lock', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.setLocked(seat.id, obj(p).locked))));
+    socket.on('lobby:visibility', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.setVisibility(seat.id, obj(p).visibility))));
+    socket.on('lobby:autoFill', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.setAutoFill(seat.id, obj(p)))));
+    socket.on('lobby:fill', handle((ack) => withSeat(ack, ({ room, seat }) => room.fillWithBots(seat.id))));
     socket.on('game:start', handle((ack) => withSeat(ack, ({ room, seat }) => room.start(seat.id))));
     socket.on('game:inspect', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.inspect(seat.id, obj(p).targetId as string))));
     socket.on('game:vote', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.vote(seat.id, obj(p).targetId as string))));
@@ -455,15 +564,15 @@ export function createGameServer(opts: GameServerOptions) {
 
     socket.on('disconnect', () => {
       detach();
-      const n = (socketsPerIp.get(ip) ?? 1) - 1;
-      if (n > 0) socketsPerIp.set(ip, n);
-      else socketsPerIp.delete(ip);
+      count(socketsPerIp, ip, -1);
+      count(socketsPerBrowser, who, -1);
     });
   });
 
   return {
     io,
     rooms,
+    directory,
     control,
     monitor,
     listen: async () => {

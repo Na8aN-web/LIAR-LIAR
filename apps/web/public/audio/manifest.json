@@ -5,6 +5,10 @@
       "seconds": 108
     }
   ],
+  "victory": {
+    "file": "/audio/victory-victory.mp3",
+    "seconds": 138.8
+  },
   "ambience": {
     "crows": {
       "file": "/audio/crows-crow.mp3",
@@ -29,6 +33,11 @@
       "source": "assets/source/audio/fire.mp3",
       "kind": "fire",
       "output": "fire-fire.mp3"
+    },
+    {
+      "source": "assets/source/audio/victory.mp3",
+      "kind": "victory",
+      "output": "victory-victory.mp3"
     },
     {
       "source": "assets/source/audio/westernmusic.mp3",

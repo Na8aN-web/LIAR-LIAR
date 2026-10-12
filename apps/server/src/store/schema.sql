@@ -10,11 +10,15 @@
 CREATE TABLE IF NOT EXISTS events (
   id      BIGSERIAL PRIMARY KEY,
   at      TIMESTAMPTZ NOT NULL,
-  type    TEXT NOT NULL CHECK (type IN ('visit', 'step', 'billboard', 'concurrency', 'abandoned', 'safety')),
+  type    TEXT NOT NULL,
   anon    TEXT CHECK (anon IS NULL OR anon ~ '^[A-Za-z0-9_-]{16}$'),
   data    JSONB NOT NULL DEFAULT '{}'::jsonb,
   seed    BOOLEAN NOT NULL DEFAULT FALSE
 );
+-- The allowed event types, replaced on every start so databases created by an older version
+-- accept new types too.
+ALTER TABLE events DROP CONSTRAINT IF EXISTS events_type_check;
+ALTER TABLE events ADD CONSTRAINT events_type_check CHECK (type IN ('visit', 'step', 'billboard', 'concurrency', 'abandoned', 'safety', 'lobby'));
 CREATE INDEX IF NOT EXISTS events_type_at ON events (type, at);
 CREATE INDEX IF NOT EXISTS events_anon_at ON events (anon, at) WHERE anon IS NOT NULL;
 

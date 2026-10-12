@@ -17,7 +17,8 @@ const COLOR_NAMES = PALETTE.map((c) => c.name.toLowerCase());
 
 // Exactly the fields a client may receive. A new field anywhere fails this test until it's
 // added here on purpose, so a secret can't slip out through a field nobody noticed.
-const VIEW_KEYS = ['code', 'serverNow', 'devMode', 'minPlayers', 'maxPlayers', 'you', 'players', 'settings', 'phase', 'phaseEndsAt', 'game', 'replay', 'practice', 'locked'];
+const VIEW_KEYS = ['code', 'serverNow', 'devMode', 'minPlayers', 'maxPlayers', 'you', 'players', 'settings', 'phase', 'phaseEndsAt', 'game', 'replay', 'practice', 'locked', 'room'];
+const ROOM_KEYS = ['name', 'visibility', 'autoFill', 'fillOfferAt'];
 const YOU_KEYS = ['id', 'name', 'color', 'item', 'isHost'];
 const PLAYER_KEYS = ['id', 'name', 'item', 'cosmetics', 'seat', 'isHost', 'isBot', 'connected', 'away'];
 const GAME_KEYS = [
@@ -143,6 +144,7 @@ describe('nothing secret ever reaches a client', () => {
         const ended = v.phase === 'ended';
         sameKeys(v, VIEW_KEYS);
         sameKeys(v.you, YOU_KEYS);
+        sameKeys(v.room, ROOM_KEYS);
         for (const p of v.players) sameKeys(p, PLAYER_KEYS);
         if (!ended) expect(v.replay, `${c.label}: replay before the end`).toBeNull();
         if (!v.game) continue;

@@ -2,6 +2,7 @@
 //   pnpm stats                  reads logs/games.jsonl (in apps/server)
 //   pnpm stats -- path/to/games.jsonl
 //   pnpm stats -- --all         include bot-only games, playtest:check games and admin seed data
+//   pnpm stats -- --humans      only games without a single bot
 import { readFileSync } from 'node:fs';
 import type { GameSummary, PlayerStats } from '../src/game/summary';
 import { report } from './report';
@@ -19,7 +20,9 @@ try {
   process.exit(0);
 }
 // Bot-only games, the simulated players of `pnpm playtest:check` and `pnpm admin:seed` data aren't real playtest data.
-const shown = args.includes('--all') ? games : games.filter((g) => g.bots < g.players && !g.check && !g.seed);
+const shown = (args.includes('--all') ? games : games.filter((g) => g.bots < g.players && !g.check && !g.seed)).filter(
+  (g) => !args.includes('--humans') || !(g.withBots || g.bots > 0),
+);
 console.log(`${games.length} games in ${file}${shown.length < games.length ? ` (showing the ${shown.length} played by people; --all for every game)` : ''}`);
 if (!shown.length) process.exit(0);
 

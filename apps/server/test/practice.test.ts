@@ -59,7 +59,7 @@ describe('practice games', () => {
     expect(ended).toHaveLength(0);
   });
 
-  it('leave normal rooms as they were: no bots without dev mode, every player gets a poster', () => {
+  it('leave normal rooms as they were: practice can’t be started there, every player gets a poster', () => {
     const { room } = make(false);
     const ids: string[] = [];
     for (let i = 0; i < 6; i++) {
@@ -67,10 +67,11 @@ describe('practice games', () => {
       if (!r.ok) throw new Error(r.error);
       ids.push(r.seat.id);
     }
-    expect(room.addBot(ids[0]).ok).toBe(false);
+    // Bots are allowed in any room now (games with them are tagged withBots).
+    expect(room.addBot(ids[0]).ok).toBe(true);
     expect(room.startPractice(ids[0]).ok).toBe(false);
     expect(room.start(ids[0]).ok).toBe(true);
-    expect(room.game!.order).toHaveLength(6);
+    expect(room.game!.order).toHaveLength(7);
     expect(room.settings.timers).toEqual(DEFAULT_SETTINGS.timers);
   });
 });

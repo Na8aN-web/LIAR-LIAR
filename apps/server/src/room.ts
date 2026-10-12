@@ -14,6 +14,14 @@ import {
   PRACTICE,
   REPORT_REASON_MAX,
   RULE_LIMITS,
+  AUTO_FILL,
+  ROOM_NAME_MAX,
+  defaultRoomName,
+  hasBadWords,
+  maskBadWords,
+  type AutoFill,
+  type LobbyListing,
+  type Visibility,
   SEAT_HOLD_MS,
   SWAP_RANGE,
   TIMER_LIMITS,
@@ -103,6 +111,12 @@ export interface RoomDeps {
   onEvent?: (e: AnalyticsEvent) => void;
   /** Default settings for a new room (the admins can change them). */
   defaults?: () => RoomSettings;
+  /** Public (listed in Find a Lobby) or private (code and invite link only). Default private. */
+  visibility?: Visibility;
+  /** The host's chosen room name (filtered); empty = "<host>'s Campfire". */
+  roomName?: string;
+  /** Something the lobby list shows may have changed (players, host, phase, lock, visibility...). */
+  onListingChange?: () => void;
   /** A game ended: its replay (with the secrets), for the admins to look at afterwards. */
   onFinished?: (record: FinishedGame) => void;
 }
@@ -126,6 +140,8 @@ export interface RoomSnapshot {
   posters: number | null;
   locked: boolean;
   practice: boolean;
+  visibility: Visibility;
+  name: string;
   host: string | null;
   players: { name: string; bot: boolean; connected: boolean; away: boolean; host: boolean; anon: string | null }[];
 }
@@ -214,6 +230,12 @@ export function applySettings(current: RoomSettings, p: unknown): Ack<{ settings
   return { ok: true, settings: next };
 }
 
+/** A host's room name: plain text, capped, and nothing that fails the word filter. */
+export function cleanRoomName(raw: unknown): string {
+  const name = cleanText(raw, ROOM_NAME_MAX);
+  return name && !hasBadWords(name) ? name : '';
+}
+
 export class Room {
   readonly seats = new Map<PlayerId, Seat>();
   hostId: PlayerId | null = null;
@@ -228,6 +250,14 @@ export class Room {
   idleSince: number | null = null;
   /** Host setting: no new players may join (seated players can still reconnect). */
   locked = false;
+  visibility: Visibility;
+  /** Chosen room name ('' until the host has a name: then "<host>'s Campfire"). */
+  private chosenName: string;
+  /** Opaque id for joining from the lobby list (never the room code). */
+  readonly listingId = makeId(10);
+  autoFill: AutoFill = { enabled: true, afterSec: AUTO_FILL.defaultSec };
+  /** When the auto-fill clock started: room opened, or went public. */
+  private publicSince = Date.now();
   /** Browsers kicked from this room: they can't join it again. */
   private readonly banned = new Set<string>();
   /** Current game: random id (links the stats line and feedback), and when each poster began. */
@@ -245,6 +275,8 @@ export class Room {
 
   constructor(readonly code: string, private readonly deps: RoomDeps) {
     this.settings = structuredClone(deps.defaults?.() ?? DEFAULT_SETTINGS);
+    this.visibility = deps.practice ? 'private' : (deps.visibility ?? 'private');
+    this.chosenName = cleanRoomName(deps.roomName);
     this.bots = new BotDriver(this, deps.rng, deps.bots);
   }
 
@@ -281,8 +313,10 @@ export class Room {
     if (browserId && this.banned.has(browserId)) return fail('You were removed from this room');
     // One seat per browser: a second tab can't take a second seat (it can resume the first).
     if (browserId && !isBot && [...this.seats.values()].some((s) => s.browserId === browserId)) return fail("You're already in this room");
-    if (this.seats.size >= MAX_PLAYERS) return fail('Room is full');
-    const name = this.uniqueName(cleanText(rawName, NAME_MAX));
+    if (this.seats.size >= MAX_PLAYERS) return fail('That room is full');
+    // A name that fails the word filter becomes "Stranger N" (everywhere: plates, ledger, chat, lists).
+    const typed = cleanText(rawName, NAME_MAX);
+    const name = this.uniqueName(typed && hasBadWords(typed) ? this.strangerName() : typed);
     if (!name) return fail('Enter a name');
 
     // A suggestion only (see Seat.colorPicked): drawn from colors nobody has picked.
@@ -419,6 +453,79 @@ export class Room {
     return { ok: true };
   }
 
+  // ---------------------------------------------------------------- public rooms
+
+  get roomName(): string {
+    const host = this.hostId ? this.seats.get(this.hostId) : undefined;
+    return this.chosenName || defaultRoomName(host && !hasBadWords(host.name) ? host.name : 'A stranger');
+  }
+
+  /** Host: public (listed) or private, before the game starts. */
+  setVisibility(id: PlayerId, v: unknown): Ack {
+    if (id !== this.hostId) return fail('Only the host can change that');
+    if (this.practice) return fail("Practice games can't be public");
+    if (this.phase !== 'lobby') return fail('Not during a game');
+    if (v !== 'public' && v !== 'private') return fail('Public or private');
+    if (v === 'public' && this.visibility !== 'public') this.publicSince = Date.now();
+    this.visibility = v;
+    this.broadcast();
+    return { ok: true };
+  }
+
+  setAutoFill(id: PlayerId, p: unknown): Ack {
+    if (id !== this.hostId) return fail('Only the host can change that');
+    if (!p || typeof p !== 'object') return fail('Bad setting');
+    const { enabled, afterSec } = p as Partial<AutoFill>;
+    if (enabled !== undefined && typeof enabled !== 'boolean') return fail('Bad setting');
+    if (afterSec !== undefined && !(Number.isInteger(afterSec) && afterSec >= AUTO_FILL.minSec && afterSec <= AUTO_FILL.maxSec)) {
+      return fail(`Between ${AUTO_FILL.minSec / 60} and ${AUTO_FILL.maxSec / 60} minutes`);
+    }
+    this.autoFill = { enabled: enabled ?? this.autoFill.enabled, afterSec: afterSec ?? this.autoFill.afterSec };
+    this.broadcast();
+    return { ok: true };
+  }
+
+  /** Host: bots take the empty seats up to the minimum to start. */
+  fillWithBots(id: PlayerId): Ack<{ added: number }> {
+    if (id !== this.hostId) return fail('Only the host can add bots');
+    if (this.phase !== 'lobby') return fail('Not during a game');
+    let added = 0;
+    while (this.seats.size < this.deps.minPlayers) {
+      const res = this.addBot(id);
+      if (!res.ok) return added ? { ok: true, added } : res;
+      added++;
+    }
+    return { ok: true, added };
+  }
+
+  /** When the host gets the "fill with bots?" offer (server time), or null. */
+  private fillOfferAt(): number | null {
+    if (this.visibility !== 'public' || !this.autoFill.enabled || this.phase !== 'lobby') return null;
+    if (this.humans().length >= this.deps.minPlayers || this.seats.size >= this.deps.minPlayers) return null;
+    return this.publicSince + this.autoFill.afterSec * 1000;
+  }
+
+  /**
+   * This room's row in Find a Lobby, or null when it mustn't be listed: private, locked, full,
+   * practice, already playing, or nobody here. Only what the list shows; never the code.
+   */
+  listing(): LobbyListing | null {
+    if (this.visibility !== 'public' || this.practice || this.locked || this.phase !== 'lobby') return null;
+    if (this.seats.size >= MAX_PLAYERS || !this.hasConnectedHuman()) return null;
+    const host = this.hostId ? this.seats.get(this.hostId) : undefined;
+    const players = this.seats.size;
+    return {
+      id: this.listingId,
+      name: this.roomName,
+      host: host && !hasBadWords(host.name) ? host.name : 'A stranger',
+      players,
+      bots: [...this.seats.values()].filter((s) => s.isBot).length,
+      maxPlayers: MAX_PLAYERS,
+      posters: players,
+      searches: this.settings.inspectsPerRound === 'auto' ? defaultInspects(players) : this.settings.inspectsPerRound,
+    };
+  }
+
   /** Host setting: lock the room to new players. */
   setLocked(id: PlayerId, locked: unknown): Ack {
     if (id !== this.hostId) return fail('Only the host can lock the room');
@@ -450,6 +557,12 @@ export class Room {
 
   hasConnectedHuman() {
     return this.humans().some((s) => s.connected);
+  }
+
+  /** "Stranger 1", "Stranger 2"...: the first number nobody here has. */
+  private strangerName(): string {
+    const taken = new Set([...this.seats.values()].map((s) => s.name.toLowerCase()));
+    for (let n = 1; ; n++) if (!taken.has(`stranger ${n}`)) return `Stranger ${n}`;
   }
 
   private uniqueName(name: string): string {
@@ -519,7 +632,8 @@ export class Room {
   }
 
   addBot(id: PlayerId): Ack {
-    if (!this.deps.devMode && !this.practice) return fail('Bots are dev-only');
+    // Any room may have bots (a few friends need them to reach 6). Games with bots are tagged
+    // (summary.withBots), so stats and the dashboard can keep to human-only games.
     if (id !== this.hostId) return fail('Only the host can add bots');
     const used = new Set([...this.seats.values()].map((s) => s.name));
     // Plain names ("Hank"), same style as people; the lobby marks bots with a BOT tag.
@@ -696,7 +810,10 @@ export class Room {
   sendChat(id: PlayerId, raw: unknown): Ack {
     const seat = this.seats.get(id);
     if (!seat) return fail('Not in room');
-    const text = cleanText(raw, CHAT_MAX);
+    // Public rooms are full of strangers: filtered words show as asterisks. Private rooms are
+    // friends' rooms and are left as typed (mute and report work in both).
+    const clean = cleanText(raw, CHAT_MAX);
+    const text = this.visibility === 'public' ? maskBadWords(clean) : clean;
     if (!text) return fail('Empty message');
     const now = Date.now();
     if (now - seat.lastChatAt < CHAT_COOLDOWN_MS) return fail('Slow down');
@@ -888,6 +1005,7 @@ export class Room {
       replay: this.phase === 'ended' ? this.replay : null,
       practice: this.practice,
       locked: this.locked,
+      room: { name: this.roomName, visibility: this.visibility, autoFill: { ...this.autoFill }, fillOfferAt: this.fillOfferAt() },
     };
   }
 
@@ -902,6 +1020,8 @@ export class Room {
     queueMicrotask(() => {
       this.flushQueued = false;
       for (const seat of this.seats.values()) this.sendTo(seat);
+      // Every broadcast can change the list row (players, host, phase, lock...); the list throttles.
+      this.deps.onListingChange?.();
     });
   }
 
@@ -930,6 +1050,8 @@ export class Room {
       posters: inGame ? this.game!.order.length : null,
       locked: this.locked,
       practice: this.practice,
+      visibility: this.visibility,
+      name: this.roomName,
       host: host?.name ?? null,
       players: [...this.seats.values()]
         .sort((a, b) => a.seat - b.seat)

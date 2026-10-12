@@ -31,6 +31,8 @@ const XFADE = 2.5;
 
 interface Manifest {
   music: { file: string; seconds: number }[];
+  /** Played once, quietly, when a game ends. */
+  victory?: { file: string; seconds: number } | null;
   ambience: Partial<Record<'fire' | 'wind' | 'crows', { file: string; seconds: number }>>;
 }
 
@@ -120,13 +122,20 @@ function tensionLayer(ctx: AudioContext, out: AudioNode): GainNode {
 
 let mood: Mood = 'menu';
 let started = false;
+let manifestUrl: { victory: string | null } = { victory: null };
+/** The end-of-game song while it plays (the music loop steps aside for it). */
+let victory: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+let victoryBuffer: AudioBuffer | null = null;
+/** How loud the victory song is, under the Music slider: low, a cue that the game is over. */
+const VICTORY_LEVEL = 0.32;
 let layers: Partial<Record<keyof Levels, GainNode>> = {};
 let ctxRef: AudioContext | null = null;
 
 function apply() {
   if (!ctxRef) return;
   const t = ctxRef.currentTime;
-  const l = MOODS[mood];
+  const l = { ...MOODS[mood] };
+  if (victory) l.music = 0;
   for (const k of Object.keys(l) as (keyof Levels)[]) layers[k]?.gain.setTargetAtTime(l[k], t, RAMP / 3);
 }
 
@@ -155,6 +164,7 @@ function start() {
       manifest = null;
     }
     if (!manifest) return;
+    manifestUrl = { victory: manifest.victory?.file ?? null };
     const loop = async (key: keyof Levels, url: string | undefined, bus: Bus) => {
       if (!url) return;
       const buf = await load(ctx, url);
@@ -185,6 +195,53 @@ function start() {
       setTimeout(caw, 8000 + Math.random() * 10000);
     }
   });
+}
+
+/**
+ * The victory song: once, quietly, when a game ends (the music loop fades out under it and comes
+ * back when it's over). Skipped silently if the file is missing or sound is still locked.
+ */
+export function playVictory() {
+  start();
+  whenUnlocked(async ({ ctx, buses }) => {
+    if (victory || !manifestUrl.victory) {
+      // The manifest may still be loading on a very early end: try once more shortly.
+      if (!victory && !manifestUrl.victory) setTimeout(() => manifestUrl.victory && playVictory(), 1500);
+      return;
+    }
+    victoryBuffer ??= await load(ctx, manifestUrl.victory);
+    if (!victoryBuffer || victory) return;
+    const src = ctx.createBufferSource();
+    src.buffer = victoryBuffer;
+    const gain = ctx.createGain();
+    const t = ctx.currentTime + 0.4;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(VICTORY_LEVEL, t + 1.2);
+    src.connect(gain).connect(buses.music);
+    src.start(t);
+    const mine = { src, gain };
+    victory = mine;
+    src.onended = () => {
+      if (victory === mine) {
+        victory = null;
+        apply();
+      }
+      gain.disconnect();
+    };
+    apply();
+  });
+}
+
+/** Fades the victory song out (leaving the end screen). */
+export function stopVictory() {
+  const v = victory;
+  if (!v || !ctxRef) return;
+  victory = null;
+  const t = ctxRef.currentTime;
+  v.gain.gain.cancelScheduledValues(t);
+  v.gain.gain.setTargetAtTime(0.0001, t, 0.4);
+  v.src.stop(t + 2);
+  apply();
 }
 
 /** Sets the soundscape for the current screen. Starts it on the first user gesture. */

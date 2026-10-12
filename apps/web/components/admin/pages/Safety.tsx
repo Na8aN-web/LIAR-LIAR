@@ -15,9 +15,16 @@ interface SafetyData {
 }
 
 const LIMIT_LABEL: Record<string, string> = {
-  connect: 'New connections (per IP)',
-  create: 'New rooms (per IP)',
-  joinIp: 'Wrong room codes (per IP)',
+  connect: 'New connections (per-IP ceiling)',
+  connectBrowser: 'New connections (per browser)',
+  create: 'New rooms (per browser)',
+  createIp: 'New rooms (per-IP ceiling)',
+  joinBrowser: 'Wrong room codes (per browser)',
+  joinIp: 'Wrong room codes (per-IP ceiling)',
+  lobbyWatch: 'Lobby list opens (per browser)',
+  lobbyWatchIp: 'Lobby list opens (per-IP ceiling)',
+  lobbyJoin: 'Quick Play / list joins (per browser)',
+  lobbyJoinIp: 'Quick Play / list joins (per-IP ceiling)',
   joinSocket: 'Wrong room codes (per connection)',
   events: 'Actions (per connection)',
   chat: 'Chat messages',

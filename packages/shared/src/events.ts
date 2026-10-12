@@ -2,6 +2,7 @@ import type { Cosmetics } from './cosmetics';
 import type { ColorId } from './palette';
 import type { FeedbackAnswers, HowtoStatus } from './playtest';
 import type { Announcement, ClientStep, ServerStatus, VisitPage } from './analytics';
+import type { AutoFill, LobbyListUpdate, Visibility } from './lobby';
 import type { ChatMessage, ItemType, PlayerId, PlayerView, RoomSettings } from './types';
 
 export type Ack<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
@@ -15,7 +16,15 @@ export interface JoinResult {
 
 /** Intents. The server validates every one. */
 export interface ClientToServerEvents {
-  'room:create': (p: { name: string }, ack: AckFn<JoinResult>) => void;
+  /** New room. Private: friends join by code or invite link. Public: listed in Find a Lobby. */
+  'room:create': (p: { name: string; visibility?: Visibility; roomName?: string }, ack: AckFn<JoinResult>) => void;
+  /** Join a public room from the Find a Lobby list (by its list id, never the code). */
+  'room:joinListed': (p: { id: string; name: string }, ack: AckFn<JoinResult>) => void;
+  /** Quick Play: the fullest public room still waiting, or a new public room if there are none. */
+  'room:quickPlay': (p: { name: string }, ack: AckFn<JoinResult & { created: boolean }>) => void;
+  /** Find a Lobby: start receiving the live list ("lobby:list"). The reply has the list now. */
+  'lobby:watch': (ack: AckFn<LobbyListUpdate>) => void;
+  'lobby:unwatch': () => void;
   'room:join': (p: { code: string; name: string }, ack: AckFn<JoinResult>) => void;
   /** A practice game against bots, started at once (see PRACTICE). */
   'room:practice': (p: { name: string }, ack: AckFn<JoinResult>) => void;
@@ -31,6 +40,12 @@ export interface ClientToServerEvents {
   'lobby:kick': (p: { playerId: PlayerId }, ack: AckFn) => void;
   /** Host: lock or unlock the room to new players. */
   'lobby:lock': (p: { locked: boolean }, ack: AckFn) => void;
+  /** Host, before the game: public (listed) or private (code only). */
+  'lobby:visibility': (p: { visibility: Visibility }, ack: AckFn) => void;
+  /** Host: the public room's offer to fill empty seats with bots after a while. */
+  'lobby:autoFill': (p: Partial<AutoFill>, ack: AckFn) => void;
+  /** Host: fill the empty seats with bots, up to the minimum to start. */
+  'lobby:fill': (ack: AckFn<{ added: number }>) => void;
 
   'game:start': (ack: AckFn) => void;
   'game:inspect': (p: { targetId: PlayerId }, ack: AckFn<{ entryId: string; result: ColorId[] }>) => void;
@@ -79,4 +94,6 @@ export interface ServerToClientEvents {
   roomClosed: (p: { reason: string }) => void;
   /** This browser is banned. */
   banned: () => void;
+  /** Find a Lobby, live (only while watching). */
+  'lobby:list': (u: LobbyListUpdate) => void;
 }

@@ -60,6 +60,7 @@ by whoever downloaded them.
 | File | Used for | Web copy | Source URL | License |
 | --- | --- | --- | --- | --- |
 | `westernmusic.mp3` (108 s) | Music: menu and lobby, quieter while searching, under the tension layer | `music-westernmusic.mp3`, 128 kbps | _to fill in_ | _to fill in_ |
+| `victory.mp3` (139 s) | Victory song: plays once, quietly, when a game ends | `victory-victory.mp3`, 128 kbps | _to fill in_ | _to fill in_ |
 | `fire.mp3` (594 s) | Campfire crackle loop (a 60 s cut) | `fire-fire.mp3`, 64 kbps mono | _to fill in_ | _to fill in_ |
 | `wind.mp3` (43 s) | Wind loop | `wind-wind.mp3`, 64 kbps mono | _to fill in_ | _to fill in_ |
 | `crow.mp3` (11 s) | Distant crows, now and then | `crows-crow.mp3`, 64 kbps mono | _to fill in_ | _to fill in_ |

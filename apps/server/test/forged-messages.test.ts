@@ -190,8 +190,9 @@ describe('text from players is only ever text', () => {
 });
 
 describe('rooms and sessions', () => {
-  it('room codes can’t be brute-forced: wrong guesses are rate limited per connection and per IP', async () => {
-    const env = await startServer();
+  it('room codes can’t be brute-forced: wrong guesses are rate limited per connection, per browser and per IP', async () => {
+    // A low IP ceiling so the test is quick (the real one is sized for carrier-shared IPs).
+    const env = await startServer({ limits: { joinPerIp: { burst: 60, perSecond: 1 / 60 } } });
     envs.push(env);
     const c = await env.connect('guesser');
     let refused = 0;
@@ -203,13 +204,21 @@ describe('rooms and sessions', () => {
     }
     expect(unknown).toBeLessThanOrEqual(8);
     expect(refused).toBeGreaterThan(20);
-    // A fresh connection from the same IP doesn't get a fresh budget.
-    let ipRefused = 0;
+    // Reconnecting with the same browser doesn't get a fresh budget.
+    // In all, one browser gets 20 wrong guesses (8 were spent above), however many connections it opens.
+    let browserTried = 0;
     for (let k = 0; k < 4; k++) {
-      const d = await env.connect(`guesser${k}`);
+      const d = await env.connect(`guesser${k}`, { browserId: c.browserId });
+      for (let i = 0; i < 8; i++) if ((await env.call(d, 'room:join', { code: 'QQQQQ', name: 'G' })).error?.includes('No room')) browserTried++;
+    }
+    expect(unknown + browserTried).toBe(20);
+    // A script making up a new browser id for every connection runs into the IP ceiling.
+    let ipRefused = 0;
+    for (let k = 0; k < 12; k++) {
+      const d = await env.connect(`rotator${k}`);
       for (let i = 0; i < 8; i++) if ((await env.call(d, 'room:join', { code: 'QQQQQ', name: 'G' })).error?.includes('Too many')) ipRefused++;
     }
-    expect(ipRefused).toBeGreaterThan(0);
+    expect(ipRefused).toBeGreaterThan(30);
   });
 
   it('a session token only works for its own seat, and only in its own room', async () => {
@@ -326,7 +335,7 @@ describe('production servers', () => {
     for (let i = 0; i < 6; i++) cs.push(await env.connect(`P${i}`));
     const created = await env.call(cs[0], 'room:create', { name: 'Host' });
     for (const c of cs.slice(1)) await env.call(c, 'room:join', { code: created.code, name: c.label });
-    expect((await env.call(cs[0], 'lobby:addBot')).ok).toBe(false);
+    // (Bots aren't a dev tool any more: any room may add them, and those games are tagged.)
     expect((await env.call(cs[0], 'game:start')).ok).toBe(true);
     await until(cs[0], (v) => v.phase === 'poster');
     const skip = await env.call(cs[0], 'dev:skipPhase');

@@ -17,6 +17,10 @@ interface GrowthData {
   };
   devices: { key: string; n: number }[];
   countries: { key: string; n: number }[];
+  lobby: {
+    totals: { quickJoin: number; quickCreate: number; listJoin: number; codeJoin: number; createPublic: number; createPrivate: number; publicWaitingPeak: number };
+    daily: { day: string; quickPlay: number; list: number; code: number; publicWaiting: number }[];
+  };
 }
 
 const countryName = (code: string) => {
@@ -77,6 +81,23 @@ export function GrowthPage() {
           {data.countries.length ? <Bars rows={data.countries.slice(0, 10).map((c) => ({ label: countryName(c.key), value: c.n }))} color={PALETTE.brass} /> : <Empty>No visits yet.</Empty>}
         </Card>
       </Grid>
+      <Card title="Getting into a game" note="How players got into rooms: Quick Play, the Find a Lobby list, or a code / invite link." wide>
+        <Stats>
+          <Stat label="Quick Play" value={int(data.lobby.totals.quickJoin + data.lobby.totals.quickCreate)} sub={`${int(data.lobby.totals.quickJoin)} joined a room · ${int(data.lobby.totals.quickCreate)} opened one`} />
+          <Stat label="Joined from the list" value={int(data.lobby.totals.listJoin)} />
+          <Stat label="Code or invite link" value={int(data.lobby.totals.codeJoin)} />
+          <Stat label="Rooms opened" value={int(data.lobby.totals.createPublic + data.lobby.totals.createPrivate)} sub={`${int(data.lobby.totals.createPublic)} public · ${int(data.lobby.totals.createPrivate)} private`} />
+          <Stat label="Public rooms waiting" value={int(data.lobby.totals.publicWaitingPeak)} sub="most at once" />
+        </Stats>
+        <Columns
+          days={days}
+          series={[
+            { key: 'q', label: 'Quick Play', color: PALETTE.red, values: data.lobby.daily.map((d) => d.quickPlay) },
+            { key: 'l', label: 'From the list', color: PALETTE.brass, values: data.lobby.daily.map((d) => d.list) },
+            { key: 'c', label: 'Code or link', color: PALETTE.sage, values: data.lobby.daily.map((d) => d.code) },
+          ]}
+        />
+      </Card>
       <Card title="Do new visitors come back?" note="Grouped by first visit. A rate shows once enough days have passed to measure it." wide>
         {r.cohorts.length ? (
           <div className="adm-table-wrap">

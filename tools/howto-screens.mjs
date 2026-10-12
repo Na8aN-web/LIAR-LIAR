@@ -177,7 +177,7 @@ async function nextRound() {
 }
 /** The slides are from a hunter's side: if Ada drew the outlaw, move on to the next poster. */
 async function hunterRound() {
-  for (let tries = 0; tries < 6 && (await page.locator('.wanted-banner').count()); tries++) await nextRound();
+  for (let tries = 0; tries < 6 && (await page.locator('.outlaw-banner').count()); tries++) await nextRound();
 }
 
 // ---------------------------------------------------------------- the game
@@ -185,7 +185,8 @@ try {
   await page.goto(BASE);
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await page.getByPlaceholder('Dusty').fill('Ada');
-  await page.getByRole('button', { name: 'Open a room' }).click();
+  await page.getByRole('button', { name: /Create a Room/ }).click();
+  await page.getByRole('button', { name: /^Open a (private|public) room/ }).click();
   await page.waitForURL(/\/r\//);
   await page.getByRole('button', { name: '+ Bot' }).waitFor();
   for (let i = 0; i < BOTS; i++) {

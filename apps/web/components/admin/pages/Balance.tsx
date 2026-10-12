@@ -22,7 +22,7 @@ const MODE: Record<string, string> = { everyoneOnce: 'Everyone once', randomRepe
 
 export function BalancePage() {
   const { filters } = useFilters();
-  const [f, setF] = useState({ posterMode: '', minPlayers: '', maxPlayers: '', decoys: '', inspects: '', swaps: '', botOnly: '' });
+  const [f, setF] = useState({ posterMode: '', minPlayers: '', maxPlayers: '', decoys: '', inspects: '', swaps: '', botOnly: '', who: '' });
   const { data, error, loading } = useAdmin<BalanceData>(`/balance${query(filters, f)}`);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
     setF({ ...f, [k]: e.target.type === 'checkbox' ? ((e.target as HTMLInputElement).checked ? '1' : '') : e.target.value });
@@ -49,6 +49,14 @@ export function BalancePage() {
         {select('inspects', 'Searches', opts?.inspects)}
         {select('decoys', 'Fakes', opts?.decoys)}
         {select('swaps', 'Color changes', opts?.swaps)}
+        <label className="adm-field inline">
+          <span>Players</span>
+          <select value={f.who} onChange={set('who')}>
+            <option value="">All games</option>
+            <option value="humans">Human-only games</option>
+            <option value="withBots">Games with bots</option>
+          </select>
+        </label>
         <label className="adm-check">
           <input type="checkbox" checked={f.botOnly === '1'} onChange={set('botOnly')} /> Include bot-only games
         </label>

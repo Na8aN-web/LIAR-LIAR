@@ -5,3 +5,5 @@ export * from './events';
 export * from './cosmetics';
 export * from './playtest';
 export * from './analytics';
+export * from './lobby';
+export * from './wordFilter';

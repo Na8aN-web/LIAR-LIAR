@@ -1,5 +1,6 @@
 import type { Cosmetics } from './cosmetics';
 import type { ColorId } from './palette';
+import type { RoomInfo } from './lobby';
 
 export type PlayerId = string;
 export type ItemType = 'poncho' | 'cloak' | 'bandana';
@@ -210,4 +211,6 @@ export interface PlayerView {
   practice: boolean;
   /** Host has locked the room to new players. */
   locked: boolean;
+  /** Room name, public or private, and the host's auto-fill setting. */
+  room: RoomInfo;
 }

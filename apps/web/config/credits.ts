@@ -60,6 +60,7 @@ export const CREDITS: CreditGroup[] = [
     title: 'Music and sound',
     items: [
       { name: 'Western music', use: 'Menu, lobby and the hunt', license: 'See CREDITS.md' },
+      { name: 'Victory song', use: 'Plays when a game ends', license: 'See CREDITS.md' },
       { name: 'Fire, wind and crows', use: 'The night around the fire', license: 'See CREDITS.md' },
       { name: 'Sound effects', by: '3042Official', use: 'Every click, telegram, stamp and sting, made in code', license: 'Original' },
     ],

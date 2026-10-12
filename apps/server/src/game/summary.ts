@@ -38,6 +38,8 @@ export interface GameSummary {
   check?: boolean;
   /** Made up by `pnpm admin:seed` (imported playtest files and bot games). */
   seed?: true;
+  /** At least one seat was a bot (stats and the dashboard can filter to human-only games). */
+  withBots?: true;
   /** Accusations per round, among the players who weren't the outlaw. */
   accusations?: { poster: number; correct: number; wrong: number; none: number }[];
   /** One entry per player, in seat order. */
@@ -84,6 +86,7 @@ export function summarize(
   const top = s.playerIds.find((p) => s.scores[p] === finalScores[0])!;
   return {
     ...(meta.check ? { check: true } : {}),
+    ...(s.playerIds.some(meta.isBot) ? { withBots: true as const } : {}),
     endedAt: new Date().toISOString(),
     durationMs: Date.now() - meta.startedAt,
     players: s.playerIds.length,

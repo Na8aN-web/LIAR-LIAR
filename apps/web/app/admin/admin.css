@@ -267,3 +267,4 @@
   .adm-table.adm-stack tr.adm-subrow { display: block; padding: 8px 2px; }
   .adm-table.adm-stack tr.adm-subrow td { display: block; }
 }
+.adm-room-name { display: block; color: var(--adm-ink-soft); font-size: 0.75rem; margin-top: 2px; }

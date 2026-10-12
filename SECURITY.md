@@ -44,20 +44,52 @@ by hand and checks they're refused, including malformed and oversized payloads.
 
 ## Limits (apps/server/src/security.ts)
 
-| What | Limit |
-| --- | --- |
-| Actions per connection | 40 at once, then 10 a second |
-| Wrong room codes or session tokens | 8 per connection and 20 per IP, then 1 per 15 s (successful joins and reconnects are free) |
-| New rooms (and practice games) | 5 per IP, then 1 a minute; 2,000 rooms per server |
-| Chat | 6 lines at once, then 1 per 2 s (and 0.4 s between lines per seat) |
-| Buy offers | 6 at once, then 1 per 10 s |
-| Lobby color list / color picks | 6 at once, then 1 per 3 s |
-| New connections per IP | 50 at once, then 1 a second; 40 open at once |
-| Message size | 8 KB; names 16 characters; chat 200 |
+**Limits are per browser, not per IP.** Many players share one IP address: mobile carriers put
+thousands of phones behind a few addresses (CGNAT, common in Nigeria), and a household or office
+shares one Wi-Fi. So each person's limits follow their browser (the random id it makes up, see
+below), and per-IP limits are only a much higher ceiling that stops obvious abuse, such as a
+script inventing a new browser id for every request. A client that sends no browser id (the game
+always sends one) is limited by its IP instead, so leaving the id out doesn't escape the limits.
 
-A five-character room code has 28.6 million combinations; at 1 guess per 15 seconds per IP,
-finding a live room by guessing is impractical. Codes stop working as soon as the room closes
-(the last player leaves the lobby, or 10 minutes with nobody connected).
+| What | Per connection | Per browser | Per-IP ceiling |
+| --- | --- | --- | --- |
+| Actions (any message) | 40 at once, then 10 a second | | |
+| Chat | 6 lines at once, then 1 per 2 s (and 0.4 s between lines per seat) | | |
+| Buy offers | 6 at once, then 1 per 10 s | | |
+| Lobby color list / color picks | 6 at once, then 1 per 3 s | | |
+| Wrong room codes or session tokens (successful joins and reconnects are free) | 8, then 1 per 15 s | 20, then 1 per 15 s | 300, then 1 a second |
+| New rooms (and practice games) | | 5, then 1 a minute | 200, then 2 a second |
+| Opening Find a Lobby | | 8, then 1 per 4 s | 500, then 20 a second |
+| Quick Play and joining from the list | | 8, then 1 per 3 s | 500, then 10 a second |
+| New connections | | 30, then 1 per 2 s | 1,000, then 50 a second |
+| Open connections at once | | 12 | 3,000 |
+| Rooms per server | | | 2,000 in all |
+| Message size | 8 KB; names 16 characters; room names 28; chat 200 | | |
+
+What changed from per-IP limits, and why each ceiling is where it is:
+
+- **Wrong codes** were 20 per IP: on a shared carrier IP a few typos by strangers would have
+  locked everyone out of joining. Now 20 per browser; the IP ceiling (1 a second) is what a
+  code-guessing script runs into. A five-character code has 28.6 million combinations, so even at
+  the ceiling a guesser finds a live room only rarely, and all it gets is a seat in a lobby (the
+  same as joining a public room). Session tokens are 18 random characters: unguessable either way.
+- **New rooms** were 5 per IP, then 1 a minute: the 6th person on a carrier IP couldn't open a
+  room. Now per browser; the ceiling allows 2 rooms a second from one IP.
+- **Connections** were 50 new and 40 open per IP: one busy carrier IP would have filled up. Now
+  12 open per browser (a few tabs) and 30 new (a phone on a flaky network reconnects a lot), with
+  ceilings of 3,000 open and 50 new a second per IP.
+- **Find a Lobby and Quick Play** were per connection, which a reconnect would reset. Now per
+  browser.
+- **Unchanged:** the per-connection limits (actions, chat, offers, color picks) and the admin
+  sign-in limit (5 failures per IP, then one every 3 minutes: admins aren't sharing a carrier IP
+  with players, and that one must stay strict).
+
+Limitation: a browser id is made up by the browser, so a determined script can make up new ones;
+that's exactly what the per-IP ceilings are for. Large attacks from many IPs at once need
+protection in front of the server (Cloudflare).
+
+Codes stop working as soon as the room closes (the last player leaves the lobby, or 10 minutes
+with nobody connected).
 
 ## Rooms and players
 
@@ -78,12 +110,29 @@ text-direction overrides removed, length capped) and always displayed as text: R
 3D name tags draw it onto a canvas. Nothing a player types is ever run as HTML or code. The site
 also sends a Content Security Policy that only allows the game's own scripts.
 
+**Bad-word filter** (`packages/shared/src/wordFilter.ts`): common profanity and slurs, including
+l33t spellings, spaced or dotted letters and repeated letters, with exceptions for innocent words
+that contain them (Scunthorpe, cocktail, Essex...).
+
+- **Player names:** a name that fails becomes "Stranger 1", "Stranger 2"... on the server, so the
+  original never reaches anyone: name plates, the ledger, chat, the vote screen, the lobby list,
+  feedback.
+- **Room names:** a name that fails falls back to "<host>'s Campfire".
+- **Chat in public rooms:** filtered words are replaced with asterisks of the same length
+  ("you ****"). Private rooms are among friends and are left as typed. Mute and report work in
+  both.
+
+A filter is a first line, not a guarantee: players can still report, hosts can remove, and admins
+can ban.
+
 ## Dev tools
 
 The server is in production mode unless started with `--dev` (which `pnpm dev` passes), and
-`NODE_ENV=production` refuses `--dev`. In production: no bots (except in a player's own practice
-game), no phase skipping, 6 players minimum, and the server refuses those messages even when
-sent by hand. The web build leaves the "dev: skip" button out entirely, and every `/dev` page
+`NODE_ENV=production` refuses `--dev`. In production: no phase skipping, 6 players minimum, and
+the server refuses those messages even when sent by hand. Bots aren't a dev tool any more: any
+host can add them (a few friends need them to reach 6), and every game with a bot is tagged
+`withBots` so stats and the dashboard can keep to human-only games (`pnpm stats -- --humans`;
+Balance → Players). The web build leaves the "dev: skip" button out entirely, and every `/dev` page
 returns 404. Simulation scripts (`pnpm sim`, `sweep`, `stats`) are command-line tools, not part of
 either server.
 

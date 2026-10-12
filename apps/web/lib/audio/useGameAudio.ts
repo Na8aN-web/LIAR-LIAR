@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useGame, useSecondsLeft } from '@/lib/store';
 import { playSfx } from './sfx';
-import { useMood, type Mood } from './soundscape';
+import { playVictory, stopVictory, useMood, type Mood } from './soundscape';
 
 // Turns what this client already sees into sound. Uses only this player's own view, so a
 // sound can never reveal more than the screen does (e.g. victory/despair is your own reaction,
@@ -30,6 +30,8 @@ export function useGameAudio() {
   else if (phase === 'payout') mood = 'payout';
   else if (phase === 'ended') mood = 'ended';
   useMood(mood);
+  // Leaving the room (back to the menu) ends the victory song too.
+  useEffect(() => () => stopVictory(), []);
 
   // Clock ticks: last ten seconds of searching and of the vote. Louder in the last five seconds of
   // the vote if you still haven't voted.
@@ -59,7 +61,12 @@ export function useGameAudio() {
       if (phase === 'investigation') playSfx('poster');
       if (phase === 'vote') playSfx('townBell');
       if (phase === 'payout') playSfx('coins');
-      if (phase === 'ended') playSfx('gameEnd', 0.3);
+      if (phase === 'ended') {
+        playSfx('gameEnd', 0.3);
+        // The victory song, low: everyone can tell the game is over.
+        playVictory();
+      }
+      if (p.phase === 'ended') stopVictory();
     }
     // Your vote stamped.
     const vote = game?.myVote ?? null;

@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { NAME_MAX, ROOM_CODE_LENGTH } from '@wtc/shared';
+import { NAME_MAX } from '@wtc/shared';
 import { WantedPoster } from '@/components/WantedPoster';
 import { Walkthrough } from '@/components/howto/Walkthrough';
 import { Credits } from '@/components/credits/Credits';
+import { PlayPanel } from '@/components/play/PlayPanel';
 import { SocialIcon } from '@/components/credits/SocialIcon';
 import { YOUTUBE_URL } from '@/config/brand';
 import { Modal } from '@/components/Modal';
@@ -30,38 +31,22 @@ export default function MainMenu() {
   const router = useRouter();
   const [panel, setPanel] = useState<Panel>(null);
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [playTitle, setPlayTitle] = useState('Play');
+  // /?play=find (or create, code) opens the Play panel there: handy for links ("come find a game").
+  const [playStart, setPlayStart] = useState<'menu' | 'create' | 'code' | 'find'>('menu');
+  useEffect(() => {
+    const p = new URLSearchParams(location.search).get('play');
+    if (p === 'find' || p === 'create' || p === 'code' || p === 'menu') {
+      setPlayStart(p);
+      setPanel('play');
+    }
+  }, []);
 
   useEffect(() => setName(session.getName()), []);
   // Menu music and the campfire, from the first tap.
   useMood('menu');
   useEffect(() => trackVisit('home'), []);
-
-  // Join straight from the homepage: the room asks for a name if this device has none.
-  const [quickCode, setQuickCode] = useState('');
-  const quickJoin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const c = quickCode.trim().toUpperCase();
-    if (c.length === ROOM_CODE_LENGTH) router.push(`/r/${c}`);
-  };
-
-  const enter = async (mode: 'create' | 'join') => {
-    const trimmed = name.trim();
-    if (!trimmed) return setError('Enter a name first');
-    setBusy(true);
-    setError('');
-    session.setName(trimmed);
-    const res =
-      mode === 'create'
-        ? await call('room:create', { name: trimmed })
-        : await call('room:join', { code: code.trim(), name: trimmed });
-    setBusy(false);
-    if (!res.ok) return setError(res.error);
-    session.setToken(res.code, res.token);
-    router.push(`/r/${res.code}`);
-  };
 
   // Practice with bots (end of How to Play): straight into a short game against bots.
   const practice = async () => {
@@ -99,22 +84,7 @@ export default function MainMenu() {
           <span>True Colors</span>
         </h1>
         <p className="tagline">Everyone lies. Find the outlaw.</p>
-        <form className="quick-join" onSubmit={quickJoin} aria-label="Join a room">
-          <input
-            className="code-input"
-            value={quickCode}
-            maxLength={ROOM_CODE_LENGTH}
-            placeholder="ROOM CODE"
-            aria-label="Room code"
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(e) => setQuickCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-          />
-          <button className="btn primary" disabled={quickCode.length !== ROOM_CODE_LENGTH}>
-            Join
-          </button>
-        </form>
+        {error && <p className="error menu-error">{error}</p>}
         {items.map((it, i) => (
           <div key={it.id}>
             {i > 0 && <Rope />}
@@ -130,38 +100,8 @@ export default function MainMenu() {
       </nav>
 
       {panel === 'play' && (
-        <Modal title="Play" onClose={() => setPanel(null)}>
-          <form className="stack" onSubmit={(e) => (e.preventDefault(), enter('create'))}>
-            <label className="field">
-              <span>Your name</span>
-              <input
-                value={name}
-                maxLength={NAME_MAX}
-                autoComplete="nickname"
-                placeholder="Dusty"
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-            <button className="btn primary" disabled={busy}>
-              Open a room
-            </button>
-          </form>
-          <Rope />
-          <div className="divider">or ride with a friend</div>
-          <form className="row" onSubmit={(e) => (e.preventDefault(), enter('join'))}>
-            <input
-              className="code-input"
-              value={code}
-              maxLength={ROOM_CODE_LENGTH}
-              placeholder="CODE"
-              autoCapitalize="characters"
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-            />
-            <button className="btn" disabled={busy || code.trim().length !== ROOM_CODE_LENGTH}>
-              Join
-            </button>
-          </form>
-          {error && <p className="error">{error}</p>}
+        <Modal title={playTitle} onClose={() => setPanel(null)}>
+          <PlayPanel start={playStart} onTitle={setPlayTitle} />
         </Modal>
       )}
       {panel === 'how' && <Walkthrough onClose={() => setPanel(null)} onPractice={practice} />}

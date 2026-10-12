@@ -152,6 +152,8 @@ export function adminHandler(ctx: AdminContext) {
         rooms: {
           total: rooms.length,
           open: rooms.filter((r) => !r.locked && !r.practice).length,
+          public: rooms.filter((r) => r.visibility === 'public' && !r.practice).length,
+          private: rooms.filter((r) => r.visibility === 'private' && !r.practice).length,
           locked: rooms.filter((r) => r.locked).length,
           practice: rooms.filter((r) => r.practice).length,
           inGame: rooms.filter((r) => r.phase !== 'lobby' && r.phase !== 'ended').length,
@@ -180,7 +182,7 @@ export function adminHandler(ctx: AdminContext) {
     'GET /growth': async (_req, q) => {
       const w = windowOf(q);
       const d = await data(q, w, { allEvents: true });
-      return metrics.growth(d.events, d.games, w);
+      return { ...metrics.growth(d.events, d.games, w), lobby: metrics.lobby(d.events, w) };
     },
     'GET /sources': async (_req, q) => {
       const w = windowOf(q);
@@ -201,6 +203,7 @@ export function adminHandler(ctx: AdminContext) {
         inspects: num(q.get('inspects')),
         swaps: num(q.get('swaps')),
         botOnly: q.get('botOnly') === '1',
+        who: q.get('who') === 'humans' ? 'humans' : q.get('who') === 'withBots' ? 'withBots' : undefined,
       });
     },
     'GET /feedback': async (_req, q) => {

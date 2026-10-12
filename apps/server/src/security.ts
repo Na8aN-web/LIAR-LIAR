@@ -42,29 +42,55 @@ export class RateLimiter {
   }
 }
 
-/** All limits in one place. Generous for real play, tight for scripts. */
+/**
+ * All limits in one place. Generous for real play, tight for scripts.
+ *
+ * Three kinds:
+ * - per connection: what one open game connection may do;
+ * - per browser (the random id each browser makes up): the real per-person limits. Many players
+ *   can share one IP (mobile carriers put thousands of phones behind one address, CGNAT), so a
+ *   person is never limited by what strangers on the same IP do;
+ * - per IP: only a much higher ceiling that stops obvious abuse, such as a script inventing a
+ *   new browser id for every request. Clients that send no browser id are limited by IP instead.
+ */
 export const LIMITS = {
+  // ---- per connection
   /** Any event on one connection. */
   events: { burst: 40, perSecond: 10 },
   /** Chat lines per connection (the room also enforces a short gap between lines per seat). */
   chat: { burst: 6, perSecond: 0.5 },
-  /** New rooms (and practice games) per IP. */
-  roomCreate: { burst: 5, perSecond: 1 / 60 },
-  /**
-   * Failed join and resume attempts (wrong code or token) per IP and per connection: room codes
-   * and tokens can't be brute-forced. Successful ones are free, so a whole table on one Wi-Fi
-   * can always reconnect.
-   */
-  joinPerIp: { burst: 20, perSecond: 1 / 15 },
+  /** Failed join/resume attempts on one connection. */
   joinPerSocket: { burst: 8, perSecond: 1 / 15 },
   /** Buy offers per connection. */
   offers: { burst: 6, perSecond: 1 / 10 },
   /** Lobby color list and color picks: polling these is how lobby colors could be probed. */
   colorProbe: { burst: 6, perSecond: 1 / 3 },
-  /** New connections per IP (a whole table on one Wi-Fi must still fit). */
-  connectPerIp: { burst: 50, perSecond: 1 },
-  /** Open connections per IP at once. */
-  maxSocketsPerIp: 40,
+
+  // ---- per browser
+  /** New rooms (and practice games). */
+  roomCreate: { burst: 5, perSecond: 1 / 60 },
+  /**
+   * Failed join and resume attempts (wrong code or token): room codes and tokens can't be
+   * brute-forced. Successful ones are free, so a whole table can always reconnect.
+   */
+  joinPerBrowser: { burst: 20, perSecond: 1 / 15 },
+  /** Opening Find a Lobby (the list then updates live, so there's no need to refresh). */
+  lobbyWatch: { burst: 8, perSecond: 1 / 4 },
+  /** Quick Play and joining from the list. */
+  lobbyJoin: { burst: 8, perSecond: 1 / 3 },
+  /** New connections (a phone on a flaky network reconnects often; that must still fit). */
+  connectPerBrowser: { burst: 30, perSecond: 1 / 2 },
+  /** Open connections at once (a few tabs). */
+  maxSocketsPerBrowser: 12,
+
+  // ---- per IP: ceilings for obvious abuse, sized for a carrier IP shared by thousands
+  roomCreateIp: { burst: 200, perSecond: 2 },
+  /** Failed joins from one IP: what a code-guessing script rotating browser ids runs into. */
+  joinPerIp: { burst: 300, perSecond: 1 },
+  lobbyWatchIp: { burst: 500, perSecond: 20 },
+  lobbyJoinIp: { burst: 500, perSecond: 10 },
+  connectPerIp: { burst: 1000, perSecond: 50 },
+  maxSocketsPerIp: 3000,
   /** Rooms alive at once on this server. */
   maxRooms: 2000,
   /** Largest message a client may send, bytes. */

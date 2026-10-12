@@ -119,6 +119,36 @@ export function growth(events: AnalyticsEvent[], games: GameSummary[], w: Window
   };
 }
 
+// ---------------------------------------------------------------- lobby
+
+/** How people get into rooms (Quick Play, the list, codes) and how many public rooms sit waiting. */
+export function lobby(events: AnalyticsEvent[], w: Window) {
+  const evs = of(events, 'lobby').filter((e) => inWin(e.at, w));
+  const count = (a: string, xs = evs) => xs.filter((e) => e.action === a).length;
+  const peaks = of(events, 'concurrency').filter((e) => inWin(e.at, w) && e.publicWaiting !== undefined);
+  return {
+    totals: {
+      quickJoin: count('quick_join'),
+      quickCreate: count('quick_create'),
+      listJoin: count('list_join'),
+      codeJoin: count('code_join'),
+      createPublic: count('create_public'),
+      createPrivate: count('create_private'),
+      publicWaitingPeak: Math.max(0, ...peaks.map((e) => e.publicWaiting!)),
+    },
+    daily: dayList(w).map((day) => {
+      const d = evs.filter((e) => dayOf(e.at) === day);
+      return {
+        day,
+        quickPlay: count('quick_join', d) + count('quick_create', d),
+        list: count('list_join', d),
+        code: count('code_join', d),
+        publicWaiting: Math.max(0, ...peaks.filter((e) => dayOf(e.at) === day).map((e) => e.publicWaiting!)),
+      };
+    }),
+  };
+}
+
 // ---------------------------------------------------------------- sources
 
 /** Which links bring players: each visitor credited to the source of their first visit ever. */
@@ -226,7 +256,12 @@ export interface BalanceFilter {
   inspects?: number;
   swaps?: number;
   botOnly?: boolean;
+  /** humans: only games without a single bot; withBots: only games that had bots. */
+  who?: 'humans' | 'withBots';
 }
+
+/** A game had bots (tagged since withBots was added; older lines are judged by their bot count). */
+export const hadBots = (g: GameSummary) => !!g.withBots || g.bots > 0;
 
 export const settingsKey = (g: GameSummary) => {
   const r = g.settings.rules;
@@ -250,7 +285,9 @@ export function balance(games: GameSummary[], events: AnalyticsEvent[], w: Windo
       (f.maxPlayers === undefined || g.players <= f.maxPlayers) &&
       (f.decoys === undefined || g.settings.rules.decoys === f.decoys) &&
       (f.inspects === undefined || g.inspectLimit === f.inspects) &&
-      (f.swaps === undefined || g.swapLimit === f.swaps),
+      (f.swaps === undefined || g.swapLimit === f.swaps) &&
+      (f.who !== 'humans' || !hadBots(g)) &&
+      (f.who !== 'withBots' || hadBots(g)),
   );
   const thirds = [[], [], []] as number[][];
   const escapes = [[], [], []] as number[][];
@@ -265,7 +302,9 @@ export function balance(games: GameSummary[], events: AnalyticsEvent[], w: Windo
   const perPlayer = (fn: (g: GameSummary) => number) => mean(gs.map((g) => fn(g) / g.players));
   const popular = new Map<string, number>();
   for (const g of gs) popular.set(settingsKey(g), (popular.get(settingsKey(g)) ?? 0) + 1);
-  const abandoned = of(events, 'abandoned').filter((e) => inWin(e.at, w) && (f.botOnly || e.humans > 0));
+  const abandoned = of(events, 'abandoned').filter(
+    (e) => inWin(e.at, w) && (f.botOnly || e.humans > 0) && (f.who !== 'humans' || e.humans === e.players) && (f.who !== 'withBots' || e.humans < e.players),
+  );
   return {
     games: gs.length,
     accuracy: { early: thirds[0].length ? mean(thirds[0]) : null, mid: thirds[1].length ? mean(thirds[1]) : null, late: thirds[2].length ? mean(thirds[2]) : null },
