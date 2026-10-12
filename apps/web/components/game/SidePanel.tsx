@@ -29,6 +29,16 @@ export function SidePanel() {
   const chatCount = useGame((s) => s.chat.length);
   const logCount = useGame((s) => s.view?.game?.log.length ?? 0);
   const [seen, setSeen] = useState({ chat: chatCount, log: logCount });
+  const notebookEntry = useGame((s) => s.notebookEntry);
+  const phase = useGame((s) => s.view?.phase);
+  useEffect(() => {
+    if (phase === 'vote') setOpen(false);
+  }, [phase]);
+  useEffect(() => {
+    if (!notebookEntry) return;
+    setTab('notes');
+    setOpen(true);
+  }, [notebookEntry]);
   useEffect(() => {
     if (!open) return;
     if (tab === 'chat') setSeen((s) => (s.chat === chatCount ? s : { ...s, chat: chatCount }));

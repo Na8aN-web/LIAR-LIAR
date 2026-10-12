@@ -23,7 +23,7 @@ const PLAYER_KEYS = ['id', 'name', 'item', 'cosmetics', 'seat', 'isHost', 'isBot
 const GAME_KEYS = [
   'posterIndex', 'posterCount', 'posterColor', 'pot', 'youAreWanted', 'inspectLimit', 'extraInspects', 'inspectsUsed', 'purchasesUsed',
   'log', 'myResults', 'boughtEntryIds', 'offersOut', 'offersIn', 'colorChanges', 'swapLimit', 'swapsUsed', 'swappedThisPayout',
-  'myColorHistory', 'myVote', 'scores', 'scoreDeltas', 'myScore', 'myCorrectVotes', 'myHeldEscapeBonus', 'myRounds', 'reactions',
+  'myColorHistory', 'myVote', 'votesCast', 'scores', 'scoreDeltas', 'myScore', 'myCorrectVotes', 'myHeldEscapeBonus', 'myRounds', 'reactions',
 ];
 const LOG_KEYS = ['id', 'poster', 'inspectorId', 'targetId', 'at'];
 const ROUND_KEYS = ['poster', 'color', 'wasWanted', 'escaped', 'votedFor', 'correct', 'wantedId', 'payout'];

@@ -10,6 +10,7 @@ import { useGame } from '@/lib/store';
 import { useGameAudio } from '@/lib/audio/useGameAudio';
 import { reportHowtoStatus } from '@/lib/howtoStatus';
 import { trackVisit } from '@/lib/analytics';
+import { useStreamerMode } from '@/lib/streamer';
 import { ServerBanner } from './ServerBanner';
 import { Lobby } from './lobby/Lobby';
 import { GameHud } from './game/GameHud';
@@ -21,6 +22,7 @@ type Stage = 'connecting' | 'needName' | 'in';
 
 export function RoomScreen({ code }: { code: string }) {
   const [stage, setStage] = useState<Stage>('connecting');
+  const streamer = useStreamerMode();
   // Music, ambience and game sounds for whatever this player can see.
   useGameAudio();
   useEffect(() => trackVisit('room'), []);
@@ -111,7 +113,7 @@ export function RoomScreen({ code }: { code: string }) {
       ) : stage === 'needName' ? (
         <div className="center-card">
           <form className="card stack" onSubmit={join}>
-            <h2>Join the posse in room {code}</h2>
+            <h2>Join the posse{streamer ? '' : ` in room ${code}`}</h2>
             <label className="field">
               <span>Your name</span>
               <input value={name} maxLength={NAME_MAX} autoFocus onChange={(e) => setName(e.target.value)} />

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Fog, Vector3, type PerspectiveCamera } from 'three';
 import { OrbitControls } from '@react-three/drei';
@@ -8,6 +8,7 @@ import { colorInfo, type GameView, type Phase, type PlayerView } from '@wtc/shar
 import { useBrightness } from '@/lib/brightness';
 import { eyeCounts } from '@/lib/inspections';
 import { useGame } from '@/lib/store';
+import { useStreamerMode } from '@/lib/streamer';
 import { fitCircle, measureInsets, type Insets } from './framing';
 import { PerfProbe } from './PerfProbe';
 import { SCALE, SEATED_HEIGHT, Scarecrow, type LookCue, type ReactionCue } from './Scarecrow';
@@ -94,11 +95,30 @@ function lookCues(game: GameView | null | undefined, serverNow: number, seats: M
   return out;
 }
 
-export default function Scene() {
+/**
+ * Trailer mode only (/dev/trailer, dev builds): the scene shows made-up local data, so it may
+ * paint everyone's colors. The game never passes this; there, other players' colors don't exist
+ * on the client at all.
+ */
+export interface SceneTrailer {
+  /** Item color per player id. */
+  colors: Record<string, string>;
+  labels: boolean;
+  /** Player whose scarecrow glows (null: nobody). */
+  glowId: string | null;
+  /** Camera and capture tools, rendered inside the canvas instead of the game's camera and controls. */
+  rig: ReactNode;
+  /** Where each seat is (world space), for camera moves. */
+  onSeats?: (seats: Map<string, { position: [number, number, number]; head: [number, number, number] }>) => void;
+}
+
+export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
   const view = useGame((s) => s.view);
   const selectedId = useGame((s) => s.selectedId);
   const select = useGame((s) => s.select);
   const brightness = useBrightness();
+  // Streamer mode: your own scarecrow looks like everyone else's (no real color, no glow).
+  const streamer = useStreamerMode();
   const [moved, setMoved] = useState(false);
   const [homeDistance, setHomeDistance] = useState(0);
 
@@ -111,6 +131,8 @@ export default function Scene() {
   const eyes = useMemo(() => (view?.game ? eyeCounts(view.game) : new Map<string, number>()), [view?.game]);
   const seats = useSeats(view, radius);
   const seatList = useMemo(() => [...seats.values()].map((s) => s.seat), [seats]);
+  const onSeats = trailer?.onSeats;
+  useEffect(() => onSeats?.(seats), [seats, onSeats]);
 
   const ringR = ringRadius(radius);
   const game = view?.game;
@@ -158,10 +180,12 @@ export default function Scene() {
             return (
               <Scarecrow
                 key={p.id}
-                name={isMe ? 'You' : p.name}
+                name={isMe && !trailer ? 'You' : p.name}
                 item={isMe ? me!.item : p.item}
                 cosmetics={p.cosmetics}
-                colorHex={isMe ? colorInfo(me!.color).hex : null}
+                colorHex={trailer ? (trailer.colors[p.id] ?? null) : isMe && !streamer ? colorInfo(me!.color).hex : null}
+                glowHex={trailer ? (trailer.glowId === p.id ? (trailer.colors[p.id] ?? null) : null) : isMe && !streamer && view?.phase !== 'lobby' ? colorInfo(me!.color).hex : null}
+                label={trailer ? trailer.labels : true}
                 position={s.position}
                 rotationY={s.rotationY}
                 pose={s.pose}
@@ -179,6 +203,10 @@ export default function Scene() {
 
         <PerfProbe />
         <ScreenProbe seats={seats} me={me?.id} eyes={eyes} />
+        {trailer ? (
+          trailer.rig
+        ) : (
+          <>
         <CameraRig radius={radius} ringR={ringR} onMoved={setMoved} onHome={setHomeDistance} />
         <OrbitControls
           makeDefault
@@ -194,8 +222,10 @@ export default function Scene() {
           maxPolarAngle={1.36}
           rotateSpeed={0.7}
         />
+          </>
+        )}
       </Canvas>
-      {moved && (
+      {moved && !trailer && (
         <button type="button" className="btn small view-reset" onClick={() => window.dispatchEvent(new Event(RESET_EVENT))} aria-label="Reset the camera view">
           Reset view
         </button>

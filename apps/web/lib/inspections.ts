@@ -50,3 +50,30 @@ export function byInspector(entries: InspectLogEntry[]): { inspectorId: PlayerId
   for (const e of entries) groups.set(e.inspectorId, [...(groups.get(e.inspectorId) ?? []), e]);
   return [...groups.entries()].map(([inspectorId, es]) => ({ inspectorId, entries: es }));
 }
+
+/**
+ * The first poster whose findings still hold: the latest poster that had color changes before
+ * it (anyone might have changed, so older findings could be stale). Same rule as the Notebook.
+ */
+export function freshFrom(game: GameView): number {
+  let start = 0;
+  game.colorChanges.forEach((n, poster) => {
+    if (n > 0 && poster <= game.posterIndex) start = poster;
+  });
+  return start;
+}
+
+export type Suspicion = 'ruledOut' | 'possible';
+
+/**
+ * What this player's own findings (their searches and ones they bought) say about one suspect
+ * and the current poster color. Every search result includes the real color, so a result
+ * without the poster color rules them out; if every result has it, they're possible. Nothing
+ * searched since colors last changed: null. Uses only this client's own results.
+ */
+export function suspicion(game: GameView, targetId: PlayerId): Suspicion | null {
+  const start = freshFrom(game);
+  const results = game.log.filter((e) => e.targetId === targetId && e.poster >= start && game.myResults[e.id]).map((e) => game.myResults[e.id]);
+  if (!results.length) return null;
+  return results.every((r) => r.includes(game.posterColor)) ? 'possible' : 'ruledOut';
+}

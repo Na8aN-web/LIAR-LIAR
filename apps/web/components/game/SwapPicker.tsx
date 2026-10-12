@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { colorInfo } from '@wtc/shared';
 import { call } from '@/lib/socket';
 import { useGame } from '@/lib/store';
+import { useStreamerMode } from '@/lib/streamer';
 
 /**
  * Change your own color between posters (payout phase only). The server picks a
@@ -16,20 +17,23 @@ export function SwapPicker() {
   const toast = useGame((s) => s.showToast);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const streamer = useStreamerMode();
 
   if (game.swapLimit <= 0) return null;
   if (game.posterIndex + 1 >= game.posterCount) {
     return <p className="hint swap-note">Last poster. No more changing colors.</p>;
   }
   const left = game.swapLimit - game.swapsUsed;
-  const mine = colorInfo(view.you.color);
+  const real = colorInfo(view.you.color);
+  // Streamer mode: no swatch, no name on screen.
+  const mine = streamer ? { name: 'your color', hex: 'transparent' } : real;
 
   const swap = async () => {
     setBusy(true);
     const res = await call('swap:color');
     setBusy(false);
     setConfirming(false);
-    toast(res.ok ? `You're now ${colorInfo(res.color).name}.` : res.error);
+    if (!res.ok) toast(res.error);
   };
 
   return (

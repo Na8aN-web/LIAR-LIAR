@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimationMixer, Color, DoubleSide, LoopOnce, LoopRepeat, MeshStandardMaterial, Quaternion, Vector3, type AnimationAction, type Bone } from 'three';
+import { AdditiveBlending, AnimationMixer, Color, DoubleSide, LoopOnce, LoopRepeat, MeshBasicMaterial, MeshStandardMaterial, Quaternion, SpriteMaterial, Vector3, type AnimationAction, type Bone } from 'three';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { DEFAULT_COSMETICS, type Cosmetics, type ItemType } from '@wtc/shared';
 import { NameLabel } from './NameLabel';
+import { glowTexture } from './town/glow';
 import { neutralItemMaterial } from './neutralMaterial';
 import { MODEL_HEIGHT, SEATED_TOP, SIT_HIPS, createInstance, useScarecrowModel, type ClipName, type SitPose } from './scarecrowModel';
 
@@ -42,6 +43,8 @@ interface Props {
   look?: LookCue | null;
   /** Name plate above the head (off on the homepage). */
   label?: boolean;
+  /** Your own scarecrow: a soft glow in your color, so you can find yourself in the circle. */
+  glowHex?: string | null;
 }
 
 /** World height of a standing scarecrow. */
@@ -70,7 +73,7 @@ const smooth = (t: number) => t * t * (3 - 2 * t);
  * mixer, plus their item skinned to the torso. Clicks and hover go to an invisible capsule,
  * so the pointer never raycasts the skinned mesh. Local +z faces front.
  */
-export function Scarecrow({ name, item, cosmetics = DEFAULT_COSMETICS, colorHex, position, rotationY, selected, faded, eyeCount, onSelect, pose, seed, reaction, look, label = true }: Props) {
+export function Scarecrow({ name, item, cosmetics = DEFAULT_COSMETICS, colorHex, position, rotationY, selected, faded, eyeCount, onSelect, pose, seed, reaction, look, label = true, glowHex = null }: Props) {
   const model = useScarecrowModel();
   const [hover, setHover] = useState(false);
   const inst = useMemo(
@@ -252,6 +255,8 @@ export function Scarecrow({ name, item, cosmetics = DEFAULT_COSMETICS, colorHex,
         </mesh>
       )}
 
+      {glowHex && <SelfGlow hex={glowHex} />}
+
       {label && (
       <NameLabel
         name={name}
@@ -262,6 +267,32 @@ export function Scarecrow({ name, item, cosmetics = DEFAULT_COSMETICS, colorHex,
         faded={faded}
       />
       )}
+    </group>
+  );
+}
+
+/**
+ * A pool of light in your color on the ground around your seat, and a faint halo behind you,
+ * breathing slowly. Additive quads (no real light), so it costs next to nothing.
+ */
+function SelfGlow({ hex }: { hex: string }) {
+  const pool = useMemo(() => new MeshBasicMaterial({ map: glowTexture(), color: hex, transparent: true, blending: AdditiveBlending, depthWrite: false, opacity: 0.8 }), [hex]);
+  const halo = useMemo(() => new SpriteMaterial({ map: glowTexture(), color: hex, transparent: true, blending: AdditiveBlending, depthWrite: false, opacity: 0.45 }), [hex]);
+  useEffect(() => () => pool.dispose(), [pool]);
+  useEffect(() => () => halo.dispose(), [halo]);
+  const t = useRef(0);
+  useFrame((_, dt) => {
+    t.current += dt;
+    const k = 0.5 + 0.5 * Math.sin(t.current * 1.6);
+    pool.opacity = 0.65 + 0.3 * k;
+    halo.opacity = 0.3 + 0.2 * k;
+  });
+  return (
+    <group raycast={noRaycast}>
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.025, 0.1]} material={pool} raycast={noRaycast}>
+        <planeGeometry args={[3.6, 3.6]} />
+      </mesh>
+      <sprite position={[0, SEATED_HEIGHT * 0.55, -0.15]} scale={[2.6, SEATED_HEIGHT * 1.45, 1]} material={halo} raycast={noRaycast} />
     </group>
   );
 }

@@ -23,6 +23,7 @@ import {
   type RoomSettings,
 } from '@wtc/shared';
 import { call } from '@/lib/socket';
+import { useStreamerMode } from '@/lib/streamer';
 import { session } from '@/lib/session';
 import { useGame } from '@/lib/store';
 import { ChatPanel } from '../game/ChatPanel';
@@ -45,6 +46,7 @@ export function Lobby() {
   const [intro, setIntro] = useState(false);
   useEffect(() => setIntro(!hasSeenWalkthrough()), []);
 
+  const streamer = useStreamerMode();
   const inviteLink = typeof window !== 'undefined' ? `${location.origin}/r/${view.code}` : '';
   const share = async () => {
     try {
@@ -110,7 +112,7 @@ export function Lobby() {
         <header className="lobby-head">
           <div>
             <div className="label">Room code</div>
-            <div className="room-code">{view.code}</div>
+            <div className="room-code">{streamer ? <span title="Hidden in streamer mode">•••••</span> : view.code}</div>
           </div>
           <div className="row">
             <button className="btn" onClick={share}>

@@ -474,6 +474,7 @@ export function gameViewFor(s: GameState, me: PlayerId): GameView {
     swappedThisPayout: !!s.swappedThisPayout[me],
     myColorHistory: structuredClone(s.colorHistory[me] ?? []),
     myVote: s.votes[me] ?? null,
+    votesCast: Object.keys(s.votes).length,
     scores: s.publicScores,
     scoreDeltas: s.scoreDeltas,
     myScore: s.scores[me],

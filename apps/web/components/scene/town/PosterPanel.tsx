@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { CanvasTexture, DoubleSide, SRGBColorSpace } from 'three';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { CanvasTexture, DoubleSide, SRGBColorSpace, type Group } from 'three';
 import { colorInfo, type ColorId } from '@wtc/shared';
 import { useCanvasFonts } from '@/lib/canvasFonts';
 import { PAPER_URL, POSTER_H, POSTER_W, drawPoster } from '../../poster/posterArt';
@@ -67,12 +68,53 @@ export function PosterPanel({
 
   useEffect(() => () => texture.dispose(), [texture]);
 
+  // A new poster slams onto the wall: flies in from the street, hits, bounces a touch.
+  const group = useRef<Group>(null);
+  const slam = useRef<number | null>(null);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (number !== null) slam.current = 0;
+  }, [number, color]);
+  useFrame((_, dt) => {
+    const g = group.current;
+    if (!g || slam.current === null) return;
+    slam.current += Math.min(dt, 0.05);
+    const t = slam.current;
+    const IN = 0.28;
+    if (t < IN) {
+      const k = 1 - (1 - t / IN) ** 3;
+      g.position.z = 0.9 * (1 - k);
+      g.scale.setScalar(1.5 - 0.5 * k);
+      g.rotation.z = -0.35 * (1 - k);
+    } else {
+      // Settle: a quick decaying wobble after the hit.
+      const s = t - IN;
+      const wobble = Math.exp(-s * 9) * Math.sin(s * 40);
+      g.position.z = 0;
+      g.scale.setScalar(1 + 0.04 * wobble);
+      g.rotation.z = 0.05 * wobble;
+      if (s > 0.6) {
+        g.scale.setScalar(1);
+        g.rotation.z = 0;
+        slam.current = null;
+      }
+    }
+  });
+
   return (
-    <mesh position={position} rotation-z={0.03}>
+    <group position={position}>
+    <group ref={group}>
+    <mesh rotation-z={0.03} name="wanted-poster">
       <planeGeometry args={[POSTER_PANEL_W, POSTER_PANEL_H]} />
       {/* Self-lit a little so it reads under the porch at night (no real light). */}
       <meshStandardMaterial map={texture} transparent alphaTest={0.05} roughness={1} side={DoubleSide} emissive="#ffffff" emissiveIntensity={0.42} emissiveMap={texture} />
     </mesh>
+    </group>
+    </group>
   );
 }
 

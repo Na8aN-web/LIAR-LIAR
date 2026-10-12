@@ -396,11 +396,35 @@ input:disabled, select:disabled { opacity: 0.65; }
 .topbar .brass-value { font-size: 1.15rem; }
 .sound-toggle { min-width: 26px; padding: 0; font-size: 0.95rem; }
 
-.wanted-banner {
-  margin: 8px var(--gutter) 0; padding: 7px 12px; text-align: center; color: var(--cream);
-  font-family: var(--font-display), serif; letter-spacing: 0.06em; font-size: 1.02rem;
-  background: var(--noise), var(--oxblood); border: 2px solid #3d0d0d; box-shadow: inset 0 0 0 2px rgba(255, 210, 180, 0.25), 0 6px 16px rgba(0, 0, 0, 0.5);
+/* "YOU: ● Red": always in the top bar; pulses when your color changes. */
+.you-badge {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 3px; padding: 1px 8px 1px 6px; border-radius: 10px;
+  font-size: 0.72rem; letter-spacing: 0.08em; color: var(--cream-soft); background: rgba(0, 0, 0, 0.32); border: 1px solid rgba(243, 230, 196, 0.25); white-space: nowrap;
 }
+.you-badge b { color: var(--cream); letter-spacing: 0.03em; font-size: 0.8rem; }
+.you-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: #6b5a45; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.35), 0 0 8px currentColor; }
+.you-badge.hidden { font-style: italic; }
+.you-badge.hidden .you-dot { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.25); }
+.you-badge.pulse { animation: you-pulse 1.6s ease-out 2; }
+@keyframes you-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(241, 215, 143, 0.7); }
+  30% { transform: scale(1.12); box-shadow: 0 0 0 6px rgba(241, 215, 143, 0.25); }
+  100% { transform: scale(1); box-shadow: 0 0 0 10px rgba(241, 215, 143, 0); }
+}
+
+/* The outlaw's private banner: big, red, stamped in. Only ever on their own screen. */
+.outlaw-banner {
+  margin: 8px var(--gutter) 0; padding: 9px 14px 10px; text-align: center; color: var(--cream);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--noise), radial-gradient(ellipse at 50% 0%, #a12a22, var(--oxblood) 70%); border: 2px solid #3d0d0d;
+  box-shadow: inset 0 0 0 2px rgba(255, 210, 180, 0.3), 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 40px rgba(165, 53, 44, 0.45);
+  animation: outlaw-in 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both, outlaw-glow 2.4s ease-in-out 0.6s infinite;
+}
+.outlaw-stamp { font-family: var(--font-display), serif; font-size: 1.7rem; letter-spacing: 0.1em; line-height: 1.05; color: #ffe9c2; text-shadow: 0 2px 0 #3d0d0d; }
+.outlaw-line { font-size: 0.92rem; font-weight: 700; letter-spacing: 0.02em; }
+@keyframes outlaw-in { 0% { transform: scale(1.6) rotate(-4deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes outlaw-glow { 50% { box-shadow: inset 0 0 0 2px rgba(255, 210, 180, 0.3), 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 60px rgba(220, 70, 50, 0.7); } }
+@media (prefers-reduced-motion: reduce) { .outlaw-banner, .you-badge.pulse { animation: none; } }
 
 /* Action panel (paper): suspect picker or target card. */
 .action-bar { margin: 0 var(--gutter) 8px; padding: 10px 12px; }
@@ -501,6 +525,22 @@ input:disabled, select:disabled { opacity: 0.65; }
 .note-text span { color: #5c4630; font-size: 0.88rem; }
 .note .btn { font-family: var(--serif); }
 .note-offer .note-head { color: var(--sage); }
+.note-deal .note-head { color: var(--oxblood); }
+.note-colors { margin: 3px 0 1px; }
+.note .row { margin-top: 6px; }
+/* Notebook findings: one line per search you made or bought. */
+.findings { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.findings li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 3px 6px; border-radius: 3px; border-left: 3px solid transparent; transition: background 0.4s; }
+.findings li.bought { border-left-color: var(--brass); }
+.findings li.focus { background: rgba(201, 162, 74, 0.35); animation: finding-flash 0.9s ease-out 3; }
+@keyframes finding-flash { 50% { background: rgba(201, 162, 74, 0.6); } }
+.finding-src { font-size: 0.74rem; color: var(--ink-soft); font-style: italic; min-width: 9.5em; }
+.bought-from { font-size: 0.72rem; color: var(--ink-soft); font-style: italic; margin-left: 2px; }
+.tag.bought { white-space: nowrap; }
+/* Streamer mode switch (Settings). */
+.streamer-toggle { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.switch-row { display: flex; align-items: center; gap: 10px; }
+.switch-row input { width: 22px; height: 22px; accent-color: var(--oxblood); }
 .note-inspected .note-head { color: var(--oxblood); }
 @keyframes note-in { from { transform: translateY(-120%); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .note { animation: none; } }
@@ -556,7 +596,8 @@ input:disabled, select:disabled { opacity: 0.65; }
 
   .hud { display: grid; grid-template-columns: 1fr 380px; grid-template-rows: auto auto 1fr auto; }
   .topbar { grid-column: 1; grid-row: 1; margin: 16px; max-width: 640px; }
-  .wanted-banner { grid-column: 1; grid-row: 2; margin: 0 16px; max-width: 640px; }
+  .outlaw-banner { grid-column: 1; grid-row: 2; margin: 0 16px; max-width: 640px; }
+  .outlaw-stamp { font-size: 2.1rem; }
   .hud-spacer { grid-column: 1; grid-row: 3; }
   .action-bar { grid-column: 1; grid-row: 4; margin: 0 auto 20px; width: min(640px, calc(100% - 32px)); }
   .side-panel { grid-column: 2; grid-row: 1 / -1; height: 100dvh; min-height: 0; border-radius: 0; padding: 0 8px 8px; }
@@ -564,7 +605,8 @@ input:disabled, select:disabled { opacity: 0.65; }
   .tabs .tab-toggle { display: none; }
   .center-card { right: 380px; }
   .dev-skip { right: 396px; top: 24px; }
-  .notes-stack { right: 380px; }
+  /* Telegrams drop over the top of the side panel, clear of the top bar, the outlaw banner and the scene. */
+  .notes-stack { left: auto; right: 0; width: 380px; top: 52px; padding: 0 12px; }
   .target-body { max-height: 40dvh; }
   .btn { font-size: 0.82rem; letter-spacing: 0.06em; }
   .btn.small { font-size: 0.72rem; }
@@ -754,3 +796,146 @@ input:disabled, select:disabled { opacity: 0.65; }
 .legal-list dd { margin: 2px 0 0; line-height: 1.55; }
 .legal-card a { color: var(--oxblood); }
 .legal-card code { background: rgba(46, 28, 14, 0.08); padding: 0 4px; border-radius: 3px; }
+
+/* =====================================================================
+   Trailer mode (/dev/trailer, dev builds only)
+   ===================================================================== */
+.trailer { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.trailer-stage { position: relative; overflow: hidden; background: #0b0d19; }
+.trailer-stage .scene { position: absolute !important; inset: 0; }
+.trailer-telegram { position: absolute; top: 6%; left: 50%; width: min(440px, 80%); transform: translateX(-50%); z-index: 5; animation: tr-telegram 0.45s cubic-bezier(0.2, 1.3, 0.4, 1) both; pointer-events: none; }
+@keyframes tr-telegram { from { transform: translate(-50%, -140%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+.trailer-panel {
+  position: absolute; top: 10px; right: 10px; bottom: 10px; width: 300px; overflow-y: auto; z-index: 10; padding: 10px 12px;
+  background: rgba(16, 11, 7, 0.9); color: var(--cream); border: 1px solid rgba(201, 162, 74, 0.35); border-radius: 6px; font-size: 0.82rem;
+}
+.trailer-panel header { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.trailer-panel header b { font-family: var(--font-display), serif; font-weight: 400; font-size: 1.15rem; color: var(--brass-light); }
+.trailer-panel section { border-top: 1px solid rgba(243, 230, 196, 0.15); padding: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+.trailer-panel h4 { margin: 0; font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brass); }
+.trailer-panel button, .trailer-panel select, .trailer-panel input:not([type='checkbox']) {
+  font: inherit; font-size: 0.78rem; color: var(--cream); background: rgba(255, 240, 200, 0.07); border: 1px solid rgba(243, 230, 196, 0.3); border-radius: 4px; padding: 5px 8px; min-height: 30px; color-scheme: dark;
+}
+.trailer-panel input:not([type='checkbox']) { width: 100%; }
+.trailer-panel button:hover:not(:disabled) { background: rgba(201, 162, 74, 0.25); }
+.trailer-panel button.on { background: var(--brass); color: var(--ink); font-weight: 700; }
+.tr-row { display: flex; gap: 6px; align-items: flex-end; flex-wrap: wrap; }
+.tr-row > button { flex: 1 1 auto; }
+.tr-field { display: flex; flex-direction: column; gap: 2px; flex: none; font-size: 0.68rem; color: var(--cream-soft); }
+.tr-row .tr-field { flex: 1 1 110px; }
+.tr-field.tiny { flex: 0 0 64px; }
+.tr-check { display: flex; align-items: center; gap: 6px; }
+.tr-check input { width: 16px; height: 16px; min-height: 0; margin: 0; accent-color: var(--brass); }
+/* Nothing but the scene in recordings: hide the Next.js dev badge on this page. */
+body:has(.trailer) nextjs-portal { display: none !important; }
+.tr-path span { flex: 1; }
+.tr-path span small { color: var(--cream-soft); }
+.tr-path > button { flex: 0 0 auto; }
+.tr-hint { font-size: 0.68rem; color: var(--cream-soft); }
+
+/* =====================================================================
+   Phase cues: tracker, banners, vote heads-up, and the vote panel
+   ===================================================================== */
+/* SEARCH > VOTE > PAYOUT in the top bar. */
+.phase-tracker { display: flex; align-items: center; gap: 4px; list-style: none; margin: 2px 0 1px; padding: 0; font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream-soft); }
+.phase-tracker li { padding: 1px 6px; border-radius: 8px; border: 1px solid transparent; white-space: nowrap; }
+.phase-tracker li + li::before { content: '\203A'; margin: 0 6px 0 -4px; color: rgba(243, 230, 196, 0.4); }
+.phase-tracker li.done { opacity: 0.55; }
+@media (max-width: 899px) {
+  /* Phones: the tracker and the phase banners name the phase; keep the top bar short. */
+  .hud .phase-name { display: none; }
+  .phase-tracker { font-size: 0.56rem; letter-spacing: 0.05em; gap: 2px; }
+  .phase-tracker li { padding: 1px 4px; }
+  .phase-tracker li + li::before { margin: 0 4px 0 -2px; }
+}
+.phase-tracker li.on { color: var(--ink); background: linear-gradient(180deg, var(--brass-light), var(--brass)); border-color: var(--brass-dark); font-weight: 700; }
+
+/* A banner as each phase starts. */
+.phase-banner { position: fixed; z-index: 70; left: 0; right: 0; top: 34%; display: flex; justify-content: center; pointer-events: none; animation: phase-banner 1.9s ease-in-out both; }
+.phase-banner span {
+  font-family: var(--font-display), serif; font-size: clamp(1.9rem, 8vw, 3.6rem); letter-spacing: 0.08em; text-transform: uppercase; line-height: 1;
+  padding: 14px 26px 16px; border-radius: 3px; border: 3px double currentColor; background: var(--noise), var(--parchment); color: var(--ink);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.65); transform: rotate(-2deg);
+}
+.phase-banner.vote span { background: var(--noise), var(--oxblood); color: #ffe9c2; border-color: #ffe9c2; }
+.phase-banner.payout span { background: var(--noise), linear-gradient(180deg, var(--brass-light), var(--brass) 60%, var(--brass-dark)); color: #2a1a06; }
+@keyframes phase-banner {
+  0% { opacity: 0; transform: scale(1.7); }
+  14% { opacity: 1; transform: scale(0.96); }
+  20% { transform: scale(1); }
+  80% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-14px); }
+}
+
+/* Last ten seconds of the search. */
+/* In the screen flow just above the suspect bar, where telegrams never cover it. */
+.vote-soon {
+  align-self: center; margin: 0 auto 8px; pointer-events: none;
+  padding: 6px 14px; border-radius: 3px; background: var(--telegram); color: var(--ink); font-family: var(--font-telegram), monospace; font-size: 0.95rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); border-top: 3px dashed rgba(46, 28, 14, 0.3); animation: vote-soon 1s ease-in-out infinite; white-space: nowrap;
+}
+.vote-soon b { color: var(--oxblood); font-size: 1.15rem; }
+@keyframes vote-soon { 50% { transform: scale(1.05); } }
+
+/* Streamer mode's outlaw cue: a wordless, colorless badge flash in a corner. */
+.outlaw-flash { position: fixed; z-index: 75; right: 10px; top: 46%; color: rgba(243, 230, 196, 0.85); animation: outlaw-flash 2s ease-in-out both; pointer-events: none; }
+@keyframes outlaw-flash { 0%, 100% { opacity: 0; transform: scale(0.6); } 15%, 80% { opacity: 1; transform: scale(1); } }
+
+/* The vote panel: slides up over the scene. */
+.vote-panel {
+  flex: 1 1 auto; min-height: 0; margin: 8px var(--gutter) 8px; display: flex; flex-direction: column; overflow: hidden;
+  color: var(--ink); background: var(--noise), var(--parchment); border: 2px solid var(--parchment-edge); border-radius: 6px;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.55), inset 0 0 0 4px rgba(184, 149, 88, 0.25); animation: vote-in 0.5s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+}
+@keyframes vote-in { from { transform: translateY(70%); opacity: 0; } to { transform: none; opacity: 1; } }
+.vote-panel.urgent { animation: vote-shake 0.9s ease-in-out infinite; border-color: var(--oxblood); }
+@keyframes vote-shake { 0%, 50%, 100% { transform: none; } 10% { transform: translateX(-4px) rotate(-0.4deg); } 20% { transform: translateX(4px) rotate(0.4deg); } 30% { transform: translateX(-3px); } 40% { transform: translateX(2px); } }
+.vote-head { text-align: center; padding: 12px 14px 8px; border-bottom: 1px dashed rgba(46, 28, 14, 0.3); }
+.vote-head h2 { font-size: clamp(1.6rem, 6.5vw, 2.4rem); color: var(--oxblood); text-transform: uppercase; letter-spacing: 0.07em; line-height: 1.05; }
+.vote-clock { font-family: var(--font-display), serif; font-size: 2rem; line-height: 1.1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.vote-clock.low { color: var(--oxblood); animation: vote-clock 1s steps(2) infinite; }
+@keyframes vote-clock { 50% { opacity: 0.55; } }
+.vote-sub { font-size: 0.82rem; color: var(--ink-soft); font-style: italic; }
+.vote-warning { font-weight: 700; color: var(--oxblood); font-size: 1rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.vote-grid { list-style: none; margin: 0; padding: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; overflow-y: auto; flex: 1 1 auto; min-height: 0; align-content: start; }
+.vote-card {
+  position: relative; width: 100%; min-height: 64px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; text-align: left; overflow: hidden;
+  color: var(--ink); background: rgba(255, 248, 225, 0.55); border: 2px solid rgba(46, 28, 14, 0.35); border-radius: 4px; box-shadow: 0 2px 0 rgba(46, 28, 14, 0.2);
+}
+.vote-card:hover:not(:disabled) { background: rgba(255, 248, 225, 0.85); }
+.vote-card.on { border: 3px solid var(--brass); padding: 7px 9px; background: rgba(241, 215, 143, 0.45); box-shadow: 0 0 0 2px var(--brass-dark), 0 4px 12px rgba(124, 93, 31, 0.4); }
+.vote-card:disabled { cursor: default; opacity: 1; }
+.vote-card.gone { opacity: 0.55; }
+.vote-card .cosmetic-icon { flex: none; }
+.vote-card-body { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; flex: 1; text-align: left; }
+.vote-name { font-size: 1rem; font-variant: small-caps; letter-spacing: 0.03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vote-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.eye-plate.small { font-size: 0.72rem; padding: 0 5px; }
+.vote-tag { white-space: nowrap; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 1px 5px; border-radius: 2px; }
+.vote-tag.out { color: var(--ink-faint); border: 1px solid var(--ink-faint); text-decoration: line-through; }
+.vote-tag.maybe { color: var(--cream); background: var(--oxblood); }
+.accused-stamp {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%) rotate(-12deg); padding: 1px 6px; border: 2.5px solid var(--oxblood); border-radius: 3px;
+  color: var(--oxblood); font-family: var(--font-display), serif; font-size: 1.05rem; letter-spacing: 0.1em; text-transform: uppercase; background: rgba(255, 248, 225, 0.75);
+  animation: stamp-in 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+@keyframes stamp-in { from { transform: translateY(-50%) rotate(-12deg) scale(2.2); opacity: 0; } to { transform: translateY(-50%) rotate(-12deg) scale(1); opacity: 1; } }
+.vote-card.accused { border-color: var(--oxblood); }
+.vote-foot { padding: 10px; border-top: 1px dashed rgba(46, 28, 14, 0.3); background: rgba(236, 220, 180, 0.9); }
+.vote-accuse { width: 100%; min-height: 54px; font-size: 1.05rem !important; letter-spacing: 0.08em; }
+.vote-locked { text-align: center; font-size: 0.95rem; color: var(--ink-soft); padding: 8px 0; }
+.vote-locked b { color: var(--ink); font-size: 1.1rem; }
+@media (prefers-reduced-motion: reduce) { .vote-panel, .vote-panel.urgent, .phase-banner, .vote-soon, .vote-clock.low { animation: none; } }
+@media (min-width: 900px) {
+  .vote-panel { grid-column: 1; grid-row: 3 / 5; align-self: end; width: min(720px, calc(100% - 32px)); max-height: calc(100dvh - 150px); margin: 0 auto 16px; }
+  .vote-grid { gap: 10px; padding: 12px 14px; }
+  .phase-banner { right: 380px; }
+  .vote-soon { grid-column: 1; grid-row: 3; align-self: end; justify-self: center; margin: 0 0 12px; }
+  .outlaw-flash { right: 396px; top: 24px; }
+}
+
+/* "+2 more": telegrams that didn't fit (phones show two at once). */
+.notes-more {
+  pointer-events: auto; align-self: center; padding: 4px 14px; min-height: 32px; border-radius: 14px; font-family: var(--font-telegram), monospace; font-size: 0.85rem;
+  color: var(--ink); background: var(--telegram); border: 1px solid rgba(46, 28, 14, 0.35); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}

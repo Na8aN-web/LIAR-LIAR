@@ -18,7 +18,8 @@ export type Sfx =
   | 'victory'
   | 'despair'
   | 'rustle'
-  | 'gameEnd';
+  | 'gameEnd'
+  | 'townBell';
 
 type Ctx = AudioContext;
 
@@ -92,6 +93,24 @@ function bell(ctx: Ctx, out: AudioNode, at: number, freq: number, peak: number) 
   ].forEach(([ratio, g]) => tone(ctx, out, at, { type: 'sine', freq: freq * ratio, peak: peak * g, decay: 1.4 / Math.sqrt(ratio) }));
 }
 
+/**
+ * One stroke of a big town bell: church-bell partials (hum, prime, minor third, fifth,
+ * nominal), long ring-out, and the iron clapper's strike. Much lower and longer than the small
+ * offer bell, so it can't be mistaken for anything else.
+ */
+function townBellStroke(ctx: Ctx, out: AudioNode, at: number, freq: number, peak: number) {
+  burst(ctx, out, at, { type: 'bandpass', freq: 2600, q: 3, peak: peak * 0.35, decay: 0.05 });
+  [
+    [0.5, 0.55, 3.2],
+    [1, 1, 2.4],
+    [1.19, 0.5, 2.0],
+    [1.5, 0.3, 1.6],
+    [2, 0.4, 1.3],
+    [2.51, 0.16, 0.9],
+    [3.0, 0.1, 0.7],
+  ].forEach(([ratio, g, decay]) => tone(ctx, out, at, { type: 'sine', freq: freq * ratio, peak: peak * g, attack: 0.003, decay }));
+}
+
 /** Telegraph sounder: "click" on key down, softer "clack" on key up. */
 function telegraph(ctx: Ctx, out: AudioNode, at: number, pattern: string) {
   let t = at;
@@ -156,6 +175,11 @@ const PLAY: Record<Sfx, (ctx: Ctx, out: AudioNode, t: number) => void> = {
     tone(ctx, out, t, { type: 'sine', freq: 150, to: 80, peak: 0.25, decay: 0.08 });
     pluck(ctx, out, t + 0.14, NOTE.D4, 0.16, 0.5);
     pluck(ctx, out, t + 0.32, NOTE.A3, 0.18, 1.1);
+  },
+  // The town bell tolls twice: voting is open.
+  townBell: (ctx, out, t) => {
+    townBellStroke(ctx, out, t, 196, 0.32);
+    townBellStroke(ctx, out, t + 0.85, 196, 0.26);
   },
   // Pocket-watch ticks for the last seconds.
   tick: (ctx, out, t) => burst(ctx, out, t, { type: 'bandpass', freq: 4200, q: 5, peak: 1, decay: 0.02 }),
@@ -223,14 +247,14 @@ const PLAY: Record<Sfx, (ctx: Ctx, out: AudioNode, t: number) => void> = {
 const LEVEL: Partial<Record<Sfx, number>> = { click: 0.5, tick: 0.6, tock: 0.6, rustle: 0.8 };
 
 /** Plays a sound effect (silently skipped before the first tap, or when muted). */
-export function playSfx(name: Sfx, delay = 0) {
+export function playSfx(name: Sfx, delay = 0, gain = 1) {
   const e = audio();
   if (!e) return;
   const out = e.ctx.createGain();
-  out.gain.value = LEVEL[name] ?? 1;
+  out.gain.value = (LEVEL[name] ?? 1) * gain;
   out.connect(e.buses.effects);
   PLAY[name](e.ctx, out, e.ctx.currentTime + 0.01 + delay);
-  setTimeout(() => out.disconnect(), (delay + 4) * 1000);
+  setTimeout(() => out.disconnect(), (delay + 5) * 1000);
 }
 
 export const SFX_NAMES = Object.keys(PLAY) as Sfx[];

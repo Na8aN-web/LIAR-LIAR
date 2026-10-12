@@ -13,6 +13,8 @@ import { useMood, type Mood } from './soundscape';
 const TICK_FROM = 10;
 /** Tension music for the final seconds of the search phase (and the whole vote). */
 const TENSION_FROM = 20;
+/** The vote's last seconds: louder ticks if you haven't voted (matches the vote panel's warning). */
+const URGENT_FROM = 5;
 
 export function useGameAudio() {
   const view = useGame((s) => s.view);
@@ -29,14 +31,16 @@ export function useGameAudio() {
   else if (phase === 'ended') mood = 'ended';
   useMood(mood);
 
-  // Clock ticks: last ten seconds of searching and of the vote.
+  // Clock ticks: last ten seconds of searching and of the vote. Louder in the last five seconds of
+  // the vote if you still haven't voted.
   const lastTick = useRef<number | null>(null);
+  const hurry = phase === 'vote' && !game?.myVote && left !== null && left <= URGENT_FROM;
   useEffect(() => {
     if ((phase !== 'investigation' && phase !== 'vote') || left === null || left > TICK_FROM || left <= 0) return;
     if (lastTick.current === left) return;
     lastTick.current = left;
-    playSfx(left % 2 ? 'tick' : 'tock');
-  }, [left, phase]);
+    playSfx(left % 2 ? 'tick' : 'tock', 0, hurry ? 2.4 : 1);
+  }, [left, phase, hurry]);
 
   // Phase changes.
   const prev = useRef<{ phase: string | null; poster: number | null; vote: string | null; color: string | null; reaction: string | null }>({
@@ -49,12 +53,12 @@ export function useGameAudio() {
   useEffect(() => {
     const p = prev.current;
     const poster = game?.posterIndex ?? null;
-    // The poster sound plays with its telegram (Notifications); payout and game end play here.
+    // Each phase starts with its own sound (the new poster's plays with its telegram, in
+    // Notifications): a slam as the search opens, the town bell for the vote, coins at the payout.
     if (phase !== p.phase && p.phase !== null) {
-      if (phase === 'payout') {
-        const paid = !!me && (game?.scoreDeltas[me] ?? 0) > 0;
-        if (paid || Object.keys(game?.scoreDeltas ?? {}).length) playSfx('coins');
-      }
+      if (phase === 'investigation') playSfx('poster');
+      if (phase === 'vote') playSfx('townBell');
+      if (phase === 'payout') playSfx('coins');
       if (phase === 'ended') playSfx('gameEnd', 0.3);
     }
     // Your vote stamped.

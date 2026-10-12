@@ -619,9 +619,8 @@ export class Room {
     if (!this.game || this.phase !== 'vote') return fail('Voting is closed');
     const res = engine.castVote(this.game, id, targetId);
     if (!res.ok) return res;
-    // Votes are secret: only the voter gets an update.
-    const seat = this.seats.get(id);
-    if (seat) this.sendTo(seat);
+    // Who voted for whom stays secret; everyone sees the count go up ("6/9 have voted").
+    this.broadcast();
     this.checkVotesDone();
     return { ok: true };
   }

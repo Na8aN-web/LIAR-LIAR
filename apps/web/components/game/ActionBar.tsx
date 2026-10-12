@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import { call } from '@/lib/socket';
-import { useGame, usePlayerName } from '@/lib/store';
+import { useGame } from '@/lib/store';
 import { TargetCard } from './TargetCard';
 
 /**
  * Contextual panel above the side panel. Nothing selected: player chips to pick from.
- * A scarecrow selected: the target card (what you know about them) with Inspect or Vote.
+ * A scarecrow selected: the target card (what you know about them) with Search.
  */
 export function ActionBar() {
   const view = useGame((s) => s.view)!;
@@ -15,7 +15,6 @@ export function ActionBar() {
   const selectedId = useGame((s) => s.selectedId);
   const select = useGame((s) => s.select);
   const toast = useGame((s) => s.showToast);
-  const nameOf = usePlayerName();
   const [busy, setBusy] = useState(false);
 
   const others = view.players.filter((p) => p.id !== view.you.id);
@@ -71,41 +70,7 @@ export function ActionBar() {
     );
   }
 
-  if (view.phase === 'vote') {
-    if (game.myVote) {
-      return (
-        <div className="action-bar">
-          <div className="locked">
-            You accused <b>{nameOf(game.myVote)}</b>. Sealed.
-          </div>
-        </div>
-      );
-    }
-    const vote = async () => {
-      if (!selectedId) return;
-      setBusy(true);
-      const res = await call('game:vote', { targetId: selectedId });
-      setBusy(false);
-      if (!res.ok) toast(res.error);
-    };
-    if (selectedId) {
-      return (
-        <div className="action-bar vote">
-          <TargetCard
-            targetId={selectedId}
-            onClose={() => select(null)}
-            primary={
-              <button className="btn primary" disabled={busy} onClick={vote}>
-                Accuse
-              </button>
-            }
-          />
-        </div>
-      );
-    }
-    return <div className="action-bar vote">{playerChips("Who's the outlaw? Your accusation stays sealed.")}</div>;
-  }
-
+  // The vote has its own full panel (VotePanel).
   return null;
 
   function playerChips(label: string, extra?: React.ReactNode) {

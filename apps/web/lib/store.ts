@@ -13,6 +13,8 @@ interface GameStore {
   muted: PlayerId[];
   connected: boolean;
   selectedId: PlayerId | null;
+  /** A finding to show in the Notebook (from a telegram's "Open in Notebook"). */
+  notebookEntry: string | null;
   toast: { id: number; text: string } | null;
   setView: (v: PlayerView) => void;
   setChat: (m: ChatMessage[]) => void;
@@ -20,6 +22,7 @@ interface GameStore {
   mute: (id: PlayerId) => void;
   setConnected: (c: boolean) => void;
   select: (id: PlayerId | null) => void;
+  openNotebook: (entryId: string | null) => void;
   showToast: (text: string) => void;
   reset: () => void;
 }
@@ -31,6 +34,7 @@ export const useGame = create<GameStore>((set) => ({
   muted: [],
   connected: false,
   selectedId: null,
+  notebookEntry: null,
   toast: null,
   setView: (v) =>
     set((s) => ({
@@ -44,8 +48,9 @@ export const useGame = create<GameStore>((set) => ({
   mute: (id) => set((s) => ({ muted: [...s.muted, id], chat: s.chat.filter((m) => m.playerId !== id) })),
   setConnected: (connected) => set({ connected }),
   select: (selectedId) => set({ selectedId }),
+  openNotebook: (notebookEntry) => set({ notebookEntry }),
   showToast: (text) => set({ toast: { id: Date.now(), text } }),
-  reset: () => set({ view: null, chat: [], muted: [], selectedId: null, toast: null }),
+  reset: () => set({ view: null, chat: [], muted: [], selectedId: null, notebookEntry: null, toast: null }),
 }));
 
 /** Whole seconds left in the current phase, ticking. */

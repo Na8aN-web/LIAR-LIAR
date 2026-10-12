@@ -3,7 +3,7 @@
 import type { InspectLogEntry } from '@wtc/shared';
 import { buyState, canBuyNow } from '@/lib/inspections';
 import { call } from '@/lib/socket';
-import { useGame } from '@/lib/store';
+import { useGame, usePlayerName } from '@/lib/store';
 
 /**
  * Buy control for one log entry: a button, a status tag, or nothing (own inspects, inspects of you).
@@ -15,10 +15,11 @@ export function BuyButton({ entry, label }: { entry: InspectLogEntry; label?: st
   const toast = useGame((s) => s.showToast);
   const { buyPrice, purchaseCap } = view.settings.rules;
   const state = buyState(game, view.you.id, entry);
+  const nameOf = usePlayerName();
 
   if (state === 'mine' || state === 'aboutMe') return null;
   const prefix = label ? `${label}: ` : '';
-  if (state === 'bought') return <span className="tag">{prefix}bought</span>;
+  if (state === 'bought') return <span className="tag bought">{prefix}bought from {nameOf(entry.inspectorId)}</span>;
   if (state === 'pending') return <span className="tag">{prefix}offer wired</span>;
   if (state === 'refused') return <span className="tag">{prefix}turned down</span>;
   if (view.phase !== 'investigation') return null;

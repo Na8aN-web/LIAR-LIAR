@@ -150,6 +150,8 @@ export interface GameView {
   /** Private: your own color history. */
   myColorHistory: ColorChange[];
   myVote: PlayerId | null;
+  /** Public: how many players have voted on this poster so far (never who). */
+  votesCast: number;
   /** Public scores, updated after each payout. */
   scores: Record<PlayerId, number>;
   /** Score changes from the most recent payout. */

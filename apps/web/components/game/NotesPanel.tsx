@@ -1,7 +1,9 @@
 'use client';
 
-import type { ColorId } from '@wtc/shared';
-import { useGame } from '@/lib/store';
+import { useEffect, useState } from 'react';
+import type { ColorId, InspectLogEntry } from '@wtc/shared';
+import { freshFrom } from '@/lib/inspections';
+import { useGame, usePlayerName } from '@/lib/store';
 import { ColorChip } from '../Chip';
 
 const intersect = (results: ColorId[][]) => results.reduce((acc, r) => acc.filter((c) => r.includes(c)));
@@ -14,12 +16,29 @@ const intersect = (results: ColorId[][]) => results.reduce((acc, r) => acc.filte
 export function NotesPanel() {
   const view = useGame((s) => s.view)!;
   const game = view.game!;
+  const nameOf = usePlayerName();
+  const focusEntry = useGame((s) => s.notebookEntry);
+  const openNotebook = useGame((s) => s.openNotebook);
+  const [highlight, setHighlight] = useState<string | null>(null);
+
+  // Opened from a telegram: scroll to that finding and flash it.
+  useEffect(() => {
+    if (!focusEntry) return;
+    setHighlight(focusEntry);
+    openNotebook(null);
+    const raf = requestAnimationFrame(() => document.getElementById(`finding-${focusEntry}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    const t = setTimeout(() => setHighlight(null), 3500);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [focusEntry, openNotebook]);
+
+  /** Where a finding came from: your own search, or bought from whoever searched. */
+  const source = (e: InspectLogEntry) => (e.inspectorId === view.you.id ? 'Your search' : `Bought from ${nameOf(e.inspectorId)}`);
 
   // First poster of the current era: the latest poster that had color changes before it.
-  let eraStart = 0;
-  game.colorChanges.forEach((n, poster) => {
-    if (n > 0 && poster <= game.posterIndex) eraStart = poster;
-  });
+  const eraStart = freshFrom(game);
 
   const fresh = new Map<string, ColorId[][]>();
   const stale = new Map<string, { results: ColorId[][]; lastPoster: number }>();
@@ -40,6 +59,7 @@ export function NotesPanel() {
       fresh: fresh.get(p.id),
       possible: fresh.has(p.id) ? intersect(fresh.get(p.id)!) : null,
       stale: stale.get(p.id),
+      findings: game.log.filter((e) => e.targetId === p.id && game.myResults[e.id]).sort((a, b) => b.at - a.at),
     }));
 
   if (!rows.length) {
@@ -54,7 +74,7 @@ export function NotesPanel() {
         </p>
       )}
       <ul className="notes">
-        {rows.map(({ p, fresh, possible, stale }) => (
+        {rows.map(({ p, fresh, possible, stale, findings }) => (
           <li key={p.id}>
             <div className="notes-head">
               <b>{p.name}</b>
@@ -77,6 +97,20 @@ export function NotesPanel() {
                 ))}
               </div>
             )}
+            <ul className="findings">
+              {findings.map((e) => (
+                <li key={e.id} id={`finding-${e.id}`} className={`${highlight === e.id ? 'focus' : ''}${e.inspectorId === view.you.id ? '' : ' bought'}`}>
+                  <span className="finding-src">
+                    {source(e)} · poster {e.poster + 1}
+                  </span>
+                  <span className="chip-row tight">
+                    {game.myResults[e.id].map((c) => (
+                      <ColorChip key={c} color={c} dim={e.poster < eraStart} />
+                    ))}
+                  </span>
+                </li>
+              ))}
+            </ul>
             {stale && (
               <div className="notes-stale muted">
                 Before poster {eraStart + 1} (may be stale, last seen on poster {stale.lastPoster + 1}):
