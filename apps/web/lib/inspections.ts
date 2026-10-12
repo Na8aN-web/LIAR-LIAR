@@ -1,4 +1,4 @@
-import type { GameView, InspectLogEntry, PlayerId } from '@wtc/shared';
+import type { ColorId, GameView, InspectLogEntry, PlayerId } from '@wtc/shared';
 
 // Client-side views over the public inspect log. Uses only data this client already has.
 
@@ -51,29 +51,44 @@ export function byInspector(entries: InspectLogEntry[]): { inspectorId: PlayerId
   return [...groups.entries()].map(([inspectorId, es]) => ({ inspectorId, entries: es }));
 }
 
+export interface Findings {
+  /** Your own and bought results about this player, newest first. */
+  entries: InspectLogEntry[];
+  /** Colors that fit every finding in the newest run that agrees (null: no findings). */
+  possible: ColorId[] | null;
+  /** How many of the newest findings agree; older ones contradict them (a likely color change). */
+  agreeing: number;
+}
+
 /**
- * The first poster whose findings still hold: the latest poster that had color changes before
- * it (anyone might have changed, so older findings could be stale). Same rule as the Notebook.
+ * What this player's own findings (their searches and ones they bought) say about one player.
+ * Color changes are secret, so findings are read newest first: every result includes the real
+ * color, so they keep combining while they agree. An older result that leaves nothing in common
+ * means that player probably changed color since; it and anything older stop counting.
  */
-export function freshFrom(game: GameView): number {
-  let start = 0;
-  game.colorChanges.forEach((n, poster) => {
-    if (n > 0 && poster <= game.posterIndex) start = poster;
-  });
-  return start;
+export function findingsAbout(game: GameView, targetId: PlayerId): Findings {
+  // The log is in the order things happened; newest last.
+  const entries = game.log.filter((e) => e.targetId === targetId && game.myResults[e.id]).reverse();
+  if (!entries.length) return { entries, possible: null, agreeing: 0 };
+  let possible = game.myResults[entries[0].id].slice();
+  let agreeing = 1;
+  for (; agreeing < entries.length; agreeing++) {
+    const next = possible.filter((c) => game.myResults[entries[agreeing].id].includes(c));
+    if (!next.length) break;
+    possible = next;
+  }
+  return { entries, possible, agreeing };
 }
 
 export type Suspicion = 'ruledOut' | 'possible';
 
 /**
- * What this player's own findings (their searches and ones they bought) say about one suspect
- * and the current poster color. Every search result includes the real color, so a result
- * without the poster color rules them out; if every result has it, they're possible. Nothing
- * searched since colors last changed: null. Uses only this client's own results.
+ * Whether this player's findings rule a suspect out for the current poster color: every search
+ * result includes the real color, so a poster color missing from the agreeing findings rules
+ * them out. Nothing searched: null.
  */
 export function suspicion(game: GameView, targetId: PlayerId): Suspicion | null {
-  const start = freshFrom(game);
-  const results = game.log.filter((e) => e.targetId === targetId && e.poster >= start && game.myResults[e.id]).map((e) => game.myResults[e.id]);
-  if (!results.length) return null;
-  return results.every((r) => r.includes(game.posterColor)) ? 'possible' : 'ruledOut';
+  const { possible } = findingsAbout(game, targetId);
+  if (!possible) return null;
+  return possible.includes(game.posterColor) ? 'possible' : 'ruledOut';
 }

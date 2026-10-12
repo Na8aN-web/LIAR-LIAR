@@ -1,17 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { ColorId, InspectLogEntry } from '@wtc/shared';
-import { freshFrom } from '@/lib/inspections';
+import { colorInfo, type InspectLogEntry } from '@wtc/shared';
+import { findingsAbout, type Findings } from '@/lib/inspections';
 import { useGame, usePlayerName } from '@/lib/store';
 import { ColorChip } from '../Chip';
 
-const intersect = (results: ColorId[][]) => results.reduce((acc, r) => acc.filter((c) => r.includes(c)));
-
 /**
- * What you've learned about each player from your own and bought inspects.
- * Results only combine since the last round of color changes; anything older
- * is shown separately as possibly stale, because anyone might have changed.
+ * Your findings as a feed, newest first: "You searched Hank. The colors were …". The newest
+ * finding about each player also says what it all adds up to (what they could be wearing, and
+ * whether that clears them for this poster). Bought findings are in the feed too.
  */
 export function NotesPanel() {
   const view = useGame((s) => s.view)!;
@@ -34,95 +32,96 @@ export function NotesPanel() {
     };
   }, [focusEntry, openNotebook]);
 
-  /** Where a finding came from: your own search, or bought from whoever searched. */
-  const source = (e: InspectLogEntry) => (e.inspectorId === view.you.id ? 'Your search' : `Bought from ${nameOf(e.inspectorId)}`);
-
-  // First poster of the current era: the latest poster that had color changes before it.
-  const eraStart = freshFrom(game);
-
-  const fresh = new Map<string, ColorId[][]>();
-  const stale = new Map<string, { results: ColorId[][]; lastPoster: number }>();
-  for (const e of game.log) {
-    const r = game.myResults[e.id];
-    if (!r) continue;
-    if (e.poster >= eraStart) fresh.set(e.targetId, [...(fresh.get(e.targetId) ?? []), r]);
-    else {
-      const prev = stale.get(e.targetId);
-      stale.set(e.targetId, { results: [...(prev?.results ?? []), r], lastPoster: e.poster });
-    }
+  // Newest first (the log is in the order things happened).
+  const feed = game.log.filter((e) => game.myResults[e.id] && e.targetId !== view.you.id).reverse();
+  if (!feed.length) {
+    return (
+      <p className="muted pad">
+        Tap a player to search them. Every search lands here, newest first. A color that shows up every time you search someone is their real one.
+      </p>
+    );
   }
 
-  const rows = view.players
-    .filter((p) => p.id !== view.you.id && (fresh.has(p.id) || stale.has(p.id)))
-    .map((p) => ({
-      p,
-      fresh: fresh.get(p.id),
-      possible: fresh.has(p.id) ? intersect(fresh.get(p.id)!) : null,
-      stale: stale.get(p.id),
-      findings: game.log.filter((e) => e.targetId === p.id && game.myResults[e.id]).sort((a, b) => b.at - a.at),
-    }));
+  const about = new Map<string, Findings>();
+  const findings = (id: string) => {
+    if (!about.has(id)) about.set(id, findingsAbout(game, id));
+    return about.get(id)!;
+  };
+  const poster = colorInfo(game.posterColor);
 
-  if (!rows.length) {
-    return <p className="muted pad">Search someone and your findings land here. A color that shows up every time is the real one.</p>;
-  }
+  const title = (e: InspectLogEntry) =>
+    e.inspectorId === view.you.id ? (
+      <>
+        You searched <b>{nameOf(e.targetId)}</b>
+      </>
+    ) : (
+      <>
+        Bought: {nameOf(e.inspectorId)}&rsquo;s search of <b>{nameOf(e.targetId)}</b>
+      </>
+    );
 
   return (
     <div className="notebook">
-      {eraStart > 0 && (
-        <p className="hint log-hint">
-          Folks changed colors before poster {eraStart + 1}. Only findings since then are combined.
-        </p>
-      )}
-      <ul className="notes">
-        {rows.map(({ p, fresh, possible, stale, findings }) => (
-          <li key={p.id}>
-            <div className="notes-head">
-              <b>{p.name}</b>
-              {possible && possible.length === 1 ? (
-                <span className="known">
-                  wears <ColorChip color={possible[0]} strong />
-                </span>
-              ) : possible ? (
-                <span className="muted">
-                  {possible.length} possible · {fresh!.length} {fresh!.length > 1 ? 'searches' : 'search'}
-                </span>
-              ) : (
-                <span className="muted">not searched since colors changed</span>
-              )}
-            </div>
-            {possible && possible.length > 1 && (
-              <div className="chip-row tight">
-                {possible.map((c) => (
-                  <ColorChip key={c} color={c} strong={c === game.posterColor} />
-                ))}
+      <p className="hint log-hint">Newest first. A color that shows up in every search of someone is their real color.</p>
+      <ul className="feed">
+        {feed.map((e) => {
+          const f = findings(e.targetId);
+          const index = f.entries.findIndex((x) => x.id === e.id);
+          const newest = index === 0;
+          const stale = index >= f.agreeing;
+          const name = nameOf(e.targetId);
+          return (
+            <li
+              key={e.id}
+              id={`finding-${e.id}`}
+              className={`feed-item${highlight === e.id ? ' focus' : ''}${e.inspectorId === view.you.id ? '' : ' bought'}${stale ? ' stale' : ''}`}
+            >
+              <div className="feed-head">
+                <span>{title(e)}</span>
+                <span className="feed-when">poster {e.poster + 1}</span>
               </div>
-            )}
-            <ul className="findings">
-              {findings.map((e) => (
-                <li key={e.id} id={`finding-${e.id}`} className={`${highlight === e.id ? 'focus' : ''}${e.inspectorId === view.you.id ? '' : ' bought'}`}>
-                  <span className="finding-src">
-                    {source(e)} · poster {e.poster + 1}
-                  </span>
-                  <span className="chip-row tight">
-                    {game.myResults[e.id].map((c) => (
-                      <ColorChip key={c} color={c} dim={e.poster < eraStart} />
-                    ))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {stale && (
-              <div className="notes-stale muted">
-                Before poster {eraStart + 1} (may be stale, last seen on poster {stale.lastPoster + 1}):
-                <div className="chip-row tight">
-                  {intersect(stale.results).map((c) => (
-                    <ColorChip key={c} color={c} dim />
+              <div className="feed-colors">
+                <span className="muted">The colors were</span>
+                <span className="chip-row tight">
+                  {game.myResults[e.id].map((c) => (
+                    <ColorChip key={c} color={c} strong={c === game.posterColor} dim={stale} />
                   ))}
-                </div>
+                </span>
               </div>
-            )}
-          </li>
-        ))}
+              {newest && f.possible && (
+                <div className="feed-sum">
+                  {f.possible.length === 1 ? (
+                    <p>
+                      <b>{name}</b> wears <ColorChip color={f.possible[0]} strong />
+                      {f.possible[0] === game.posterColor ? <span className="feed-alert"> That&rsquo;s the poster color!</span> : null}
+                    </p>
+                  ) : (
+                    <p>
+                      <b>{name}</b> could be wearing{' '}
+                      <span className="chip-row inline">
+                        {f.possible.map((c) => (
+                          <ColorChip key={c} color={c} strong={c === game.posterColor} />
+                        ))}
+                      </span>{' '}
+                      <span className="muted">
+                        ({f.possible.length} left{f.agreeing > 1 ? ` after ${f.agreeing} searches` : ''})
+                      </span>
+                    </p>
+                  )}
+                  {f.possible.length > 1 &&
+                    (f.possible.includes(game.posterColor) ? (
+                      <p className="muted">{poster.name} is still possible. Search them again to narrow it down.</p>
+                    ) : (
+                      <p className="feed-clear">Not {poster.name}: {name} isn&rsquo;t the outlaw this poster.</p>
+                    ))}
+                  {f.agreeing < f.entries.length && (
+                    <p className="muted">Older findings about {name} don&rsquo;t match these: they probably changed color, so those are faded.</p>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

@@ -5,12 +5,14 @@ export const MAX_PLAYERS = 15;
 
 export const STARTING_POINTS = 100;
 export const BASE_POT = 100;
-export const ESCAPE_BONUS = 50;
+export const ESCAPE_BONUS = 100;
 export const BUY_INSPECT_PRICE = 20;
 export const EXTRA_INSPECT_PRICE = 50;
 /** Searches per extra-search purchase. 2 keeps a search ($25) dearer than buying someone's findings ($20). */
 export const EXTRA_INSPECT_COUNT = 2;
 export const PURCHASE_CAP = 3;
+/** Price of changing your color (between posters). Goes to the next bounty, like extra searches. */
+export const SWAP_PRICE = 30;
 
 /** Seconds of "First poster coming up in 5, 4…" before the first poster of a game. */
 export const GAME_COUNTDOWN_SECONDS = 5;
@@ -31,9 +33,9 @@ export const POSTER_MODES: PosterMode[] = ['everyoneOnce', 'randomRepeats'];
 export const INSPECT_RANGE = { min: 2, max: 5 } as const;
 export const SWAP_RANGE = { min: 0, max: 5 } as const;
 
-/** 'auto' color swaps: about 1 per 4 posters (3 at 10 players, 4 at 15). */
+/** 'auto' color changes: no limit beyond one per payout (each costs SWAP_PRICE). */
 export function defaultSwaps(posterCount: number): number {
-  return Math.min(SWAP_RANGE.max, Math.ceil(posterCount / 4));
+  return Math.max(0, posterCount - 1);
 }
 
 export function defaultInspects(playerCount: number): number {
@@ -73,6 +75,7 @@ export const DEFAULT_RULES: GameRules = {
   extraInspectPrice: EXTRA_INSPECT_PRICE,
   extraInspectCount: EXTRA_INSPECT_COUNT,
   purchaseCap: PURCHASE_CAP,
+  swapPrice: SWAP_PRICE,
   // Playtest default (spec: 2). The simulator found 3 keeps mid/late posters from being solved outright.
   decoys: 3,
 };
@@ -86,6 +89,7 @@ export const RULE_LIMITS: Record<keyof GameRules, [number, number]> = {
   extraInspectPrice: [0, 300],
   extraInspectCount: [1, 5],
   purchaseCap: [0, 6],
+  swapPrice: [0, 300],
   decoys: [1, 4],
 };
 

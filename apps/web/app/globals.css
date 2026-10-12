@@ -286,6 +286,14 @@ input:disabled, select:disabled { opacity: 0.65; }
   background: linear-gradient(to bottom, rgba(8, 5, 3, 0.15), rgba(8, 5, 3, 0.75) 40%);
 }
 .panel { padding: 16px; }
+/* Phones: the lobby folded down to a bar at the bottom, so the campfire shows. */
+.lobby.lobby-peek { inset: auto 0 0 0; background: none; overflow: visible; pointer-events: none; padding-top: 0; }
+.lobby.lobby-peek > * { pointer-events: auto; }
+.lobby-peek-bar { padding: 10px 14px 12px; }
+.lobby-peek-bar .lobby-actions { margin-top: 8px; }
+.peek-code { font-family: var(--font-display), serif; letter-spacing: 0.12em; color: var(--oxblood); }
+.lobby-hide { align-self: flex-end; background: rgba(20, 12, 6, 0.75); color: var(--cream); border-color: var(--cream-soft); }
+.lobby-hide .muted { color: var(--cream-soft); font-size: 0.75rem; }
 .panel h3 { color: var(--oxblood); }
 .lobby-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .lobby-head .btn:not(.primary) { color: var(--ink); border-color: var(--ink); background: rgba(255, 248, 225, 0.35); }
@@ -501,7 +509,7 @@ html.smooth .vote-soon, html.smooth .vote-panel.urgent, html.smooth .vote-clock.
 
 /* Nothing selected: one Hints button where the suspect list used to be. */
 .action-bar.hints-bar { align-self: center; padding: 6px; }
-.hints-btn { min-height: 44px; padding: 8px 34px; font-size: 1rem; letter-spacing: 0.1em; }
+.hints-btn { min-height: 54px; padding: 10px 48px; font-size: 1.2rem; letter-spacing: 0.12em; }
 /* Hints: a sheet over the bottom half of the screen. */
 .modal.hints-sheet { min-height: 50dvh; }
 .hint-goal { font-size: 1.15rem; line-height: 1.4; margin-bottom: 8px; }
@@ -564,6 +572,20 @@ html.smooth .vote-soon, html.smooth .vote-panel.urgent, html.smooth .vote-clock.
 .note-colors { margin: 3px 0 1px; }
 .note .row { margin-top: 6px; }
 /* Notebook findings: one line per search you made or bought. */
+/* Notebook feed: newest first. */
+.feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; }
+.feed-item { padding: 7px 8px 8px; border-radius: 3px; border-left: 3px solid var(--oxblood); background: rgba(255, 248, 230, 0.35); transition: background 0.4s; }
+.feed-item.bought { border-left-color: var(--brass); }
+.feed-item.stale { opacity: 0.6; }
+.feed-item.focus { background: rgba(201, 162, 74, 0.35); animation: finding-flash 0.9s ease-out 3; }
+.feed-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.feed-head b { font-variant: small-caps; letter-spacing: 0.03em; }
+.feed-when { font-size: 0.72rem; color: var(--ink-soft); font-style: italic; white-space: nowrap; }
+.feed-colors { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 2px; font-size: 0.82rem; }
+.feed-sum { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 3px; font-size: 0.86rem; }
+.feed-sum p { margin: 0; }
+.feed-clear { color: var(--sage); font-weight: 700; }
+.feed-alert { color: var(--oxblood); font-weight: 700; }
 .findings { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
 .findings li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 3px 6px; border-radius: 3px; border-left: 3px solid transparent; transition: background 0.4s; }
 .findings li.bought { border-left-color: var(--brass); }

@@ -68,16 +68,26 @@ describe('bot knowledge', () => {
     expect(brain.suspects(k)).not.toContain(wanted);
   });
 
-  it('treats results from before a swap round as stale, discounted by the public count', () => {
-    const g = engine.createGame(players(6), { inspectLimit: 3, posterMode: 'everyoneOnce', swapLimit: 2 }, secureRng);
-    engine.inspect(g, 'p0', 'p1', secureRng);
-    engine.resolvePoster(g);
-    expect(engine.swapColor(g, 'p2', secureRng).ok).toBe(true);
-    engine.advancePoster(g);
-    expect(g.colorChanges[1]).toBe(1);
-    const k = brain.know(viewOf(g, 'p0'));
-    expect(k.possible.has('p1')).toBe(false);
-    expect(k.stale.get('p1')?.reliability).toBeCloseTo(1 - 1 / 5);
+  it('reads findings newest first and keeps a contradicting older one as stale', () => {
+    for (let k = 0; k < 40; k++) {
+      const g = engine.createGame(players(6), { inspectLimit: 3, posterMode: 'everyoneOnce', swapLimit: 2 }, secureRng);
+      const first = engine.inspect(g, 'p0', 'p1', secureRng);
+      if (!first.ok) throw new Error(first.error);
+      engine.resolvePoster(g);
+      expect(engine.swapColor(g, 'p1', secureRng).ok).toBe(true);
+      engine.advancePoster(g);
+      const second = engine.inspect(g, 'p0', 'p1', secureRng);
+      if (!second.ok) throw new Error(second.error);
+      const kn = brain.know(viewOf(g, 'p0'));
+      const both = second.result.filter((c) => first.result.includes(c));
+      if (both.length) {
+        expect(kn.possible.get('p1')).toEqual(both);
+        expect(kn.stale.has('p1')).toBe(false);
+      } else {
+        expect(kn.possible.get('p1')).toEqual(second.result);
+        expect(kn.stale.get('p1')?.colors).toEqual(first.result);
+      }
+    }
   });
 
   it('swap policy fires once exposure reaches the threshold', () => {

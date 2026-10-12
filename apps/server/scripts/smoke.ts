@@ -158,7 +158,7 @@ async function main() {
       swapped = true;
     }
     if (v.phase === 'poster' && swapped && v.game!.posterIndex === 1) {
-      assert((views.B.game!.colorChanges[1] ?? 0) >= 1, 'public swap count at next poster');
+      assert(!('colorChanges' in views.B.game!), 'color changes are never announced');
     }
     const skipped: any = await call(a, 'dev:skipPhase');
     assert(skipped.ok, `skip ${v.phase}: ${skipped.error} (server phase now ${views.A.phase})`);

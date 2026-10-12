@@ -112,9 +112,7 @@ export function GameHud() {
   const streamer = useStreamerMode();
   const { rank, tied } = useMyRank();
   const poster = colorInfo(game.posterColor);
-  const changed = game.colorChanges[game.posterIndex] ?? 0;
   const countdown = useGameCountdown();
-  const changedText = changed ? `${changed} ${changed === 1 ? 'player' : 'players'} changed colors.` : null;
 
   if (view.phase === 'ended') return <Replay />;
 
@@ -131,7 +129,6 @@ export function GameHud() {
           <div className="phase-sub">
             <span className="wide-only">Poster </span>
             {game.posterIndex + 1}/{game.posterCount} · ${game.pot}
-            {changedText && ` · ${changed} swapped`}
           </div>
           <YouBadge color={view.you.color} />
         </div>
@@ -163,7 +160,6 @@ export function GameHud() {
             number={game.posterIndex + 1}
             of={game.posterCount}
             subtitle={game.youAreWanted && !streamer ? "That's you. Don't get caught." : undefined}
-            note={changedText}
           />
         </div>
       )}

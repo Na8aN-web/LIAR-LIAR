@@ -3,54 +3,242 @@
   "format": "9:16",
   "duration": 27,
   "fps": 60,
-  "music": { "file": "/audio/music-westernmusic.mp3", "volume": 0.75, "bpm": 80.25, "offset": 0.046, "fadeOut": 1.5 },
+  "music": {
+    "file": "/audio/music-westernmusic.mp3",
+    "volume": 0.75,
+    "bpm": 80.25,
+    "offset": 0.046,
+    "fadeOut": 1.5
+  },
   "ambience": 0.25,
   "cast": {
     "players": 8,
-    "names": ["June", "Hank", "Dolly", "Silas", "Boone", "Pearl", "Clem", "Etta"],
-    "colors": ["green", "red", "blue", "yellow", "pink", "orange", "teal", "tan"],
+    "names": [
+      "June",
+      "Hank",
+      "Dolly",
+      "Silas",
+      "Boone",
+      "Pearl",
+      "Clem",
+      "Etta"
+    ],
+    "colors": [
+      "green",
+      "red",
+      "blue",
+      "yellow",
+      "pink",
+      "orange",
+      "teal",
+      "tan"
+    ],
     "wanted": "Hank"
   },
-  "look": { "grain": 0.05, "vignette": 0.45 },
+  "look": {
+    "grain": 0.05,
+    "vignette": 0.45
+  },
   "endCard": {
     "url": "wantedtruecolors.com",
     "discord": "discord.gg/wantedtruecolors"
   },
   "shots": [
-    { "at": 0, "camera": { "preset": "poster" }, "label": "Hook" },
-    { "at": 2.0, "camera": { "preset": "orbit" }, "label": "The circle" },
-    { "at": 4.4, "camera": { "preset": "closeUp", "target": "Hank" }, "label": "Search" },
-    { "at": 10.5, "camera": { "preset": "circleSlow" }, "label": "Lies" },
-    { "at": 13.2, "camera": { "preset": "closeUp", "target": "Hank" }, "label": "Freeze" },
-    { "at": 15.1, "camera": { "preset": "pushIn", "target": "Hank" }, "label": "Vote" },
-    { "at": 18.7, "camera": { "preset": "lowAngle" }, "label": "Bounty" },
-    { "at": 21.3, "camera": { "preset": "orbit" }, "label": "Rivals" },
-    { "at": 23.0, "camera": { "preset": "revealTown" }, "label": "End card" }
+    {
+      "at": 0,
+      "camera": {
+        "preset": "poster"
+      },
+      "label": "Hook"
+    },
+    {
+      "at": 2,
+      "camera": {
+        "preset": "orbit"
+      },
+      "label": "The circle"
+    },
+    {
+      "at": 4.4,
+      "camera": {
+        "preset": "closeUp",
+        "target": "Hank"
+      },
+      "label": "Search"
+    },
+    {
+      "at": 10.5,
+      "camera": {
+        "preset": "circleSlow"
+      },
+      "label": "Lies"
+    },
+    {
+      "at": 13.2,
+      "camera": {
+        "preset": "closeUp",
+        "target": "Hank"
+      },
+      "label": "Freeze"
+    },
+    {
+      "at": 15.1,
+      "camera": {
+        "preset": "pushIn",
+        "target": "Hank"
+      },
+      "label": "Vote"
+    },
+    {
+      "at": 18.7,
+      "camera": {
+        "preset": "lowAngle"
+      },
+      "label": "Bounty"
+    },
+    {
+      "at": 21.3,
+      "camera": {
+        "preset": "orbit"
+      },
+      "label": "Rivals"
+    },
+    {
+      "at": 23,
+      "camera": {
+        "preset": "revealTown"
+      },
+      "label": "End card"
+    }
   ],
   "events": [
-    { "at": 0, "type": "flash", "color": "white", "dur": 0.2 },
-    { "at": 0, "type": "posterSlam", "dur": 2.2 },
-    { "at": 1.9, "type": "title", "text": "ONE OF YOU IS THE OUTLAW", "in": "slam", "out": "fade", "pos": "upper", "dur": 2.4 },
-
-    { "at": 4.4, "type": "title", "text": "SEARCH PLAYERS", "in": "slide", "out": "fade", "pos": "top", "dur": 1.8 },
-    { "at": 4.6, "type": "searchReveal", "target": "Hank", "searcher": "June", "dur": 5.9 },
-
-    { "at": 10.5, "type": "title", "text": "EVERYONE LIES", "in": "stamp", "out": "fade", "pos": "top", "dur": 1.8 },
-    { "at": 11.0, "type": "bubble", "who": "Hank", "text": "Not me. I'm Tan.", "dur": 2 },
-    { "at": 11.8, "type": "bubble", "who": "Dolly", "text": "It's Hank!", "dur": 1.8 },
-    { "at": 13.4, "type": "freeze", "who": "Hank", "label": "HANK — LYING", "dur": 1.6 },
-
-    { "at": 15.1, "type": "title", "text": "FIND THE OUTLAW", "in": "slam", "out": "fade", "pos": "upper", "dur": 1.6 },
-    { "at": 15.6, "type": "vote", "target": "Hank", "dur": 3 },
-
-    { "at": 18.7, "type": "title", "text": "CLAIM THE BOUNTY", "in": "slide", "out": "fade", "pos": "top", "dur": 2.2, "color": "brass" },
-    { "at": 19.0, "type": "payout", "amount": 150, "dur": 2.4 },
-    { "at": 19.0, "type": "slowmo", "speed": 0.35, "dur": 1.6 },
-
-    { "at": 21.3, "type": "title", "text": "OUTSMART YOUR RIVALS", "in": "slam", "out": "burn", "pos": "upper", "dur": 1.9 },
-    { "at": 21.4, "type": "colorChange", "who": "Dolly", "to": "purple" },
-
-    { "at": 23.0, "type": "dust", "dur": 0.8 },
-    { "at": 23.3, "type": "endCard", "dur": 3.7 }
+    {
+      "at": "beat:0",
+      "type": "flash",
+      "color": "white",
+      "dur": 0.2
+    },
+    {
+      "at": "beat:1",
+      "type": "posterSlam",
+      "dur": 2.2
+    },
+    {
+      "at": "beat:3",
+      "type": "title",
+      "text": "ONE OF YOU IS THE OUTLAW",
+      "in": "slam",
+      "out": "fade",
+      "pos": "upper",
+      "dur": 2.4
+    },
+    {
+      "at": 4.4,
+      "type": "title",
+      "text": "SEARCH PLAYERS",
+      "in": "slide",
+      "out": "fade",
+      "pos": "top",
+      "dur": 1.8
+    },
+    {
+      "at": 4.6,
+      "type": "searchReveal",
+      "target": "Hank",
+      "searcher": "June",
+      "dur": 5.9
+    },
+    {
+      "at": 10.5,
+      "type": "title",
+      "text": "EVERYONE LIES",
+      "in": "stamp",
+      "out": "fade",
+      "pos": "top",
+      "dur": 1.8
+    },
+    {
+      "at": 11,
+      "type": "bubble",
+      "who": "Hank",
+      "text": "Not me. I'm Tan.",
+      "dur": 2
+    },
+    {
+      "at": "beat:16",
+      "type": "bubble",
+      "who": "Dolly",
+      "text": "It's Hank!",
+      "dur": 1.8
+    },
+    {
+      "at": 13.4,
+      "type": "freeze",
+      "who": "Hank",
+      "label": "HANK — LYING",
+      "dur": 1.6
+    },
+    {
+      "at": 15.1,
+      "type": "title",
+      "text": "FIND THE OUTLAW",
+      "in": "slam",
+      "out": "fade",
+      "pos": "upper",
+      "dur": 1.6
+    },
+    {
+      "at": 15.6,
+      "type": "vote",
+      "target": "Hank",
+      "dur": 3
+    },
+    {
+      "at": 18.7,
+      "type": "title",
+      "text": "CLAIM THE BOUNTY",
+      "in": "slide",
+      "out": "fade",
+      "pos": "top",
+      "dur": 2.2,
+      "color": "brass"
+    },
+    {
+      "at": 19,
+      "type": "payout",
+      "amount": 150,
+      "dur": 2.4
+    },
+    {
+      "at": 19,
+      "type": "slowmo",
+      "speed": 0.35,
+      "dur": 1.6
+    },
+    {
+      "at": 21.3,
+      "type": "title",
+      "text": "OUTSMART YOUR RIVALS",
+      "in": "slam",
+      "out": "burn",
+      "pos": "upper",
+      "dur": 1.9
+    },
+    {
+      "at": 21.4,
+      "type": "colorChange",
+      "who": "Dolly",
+      "to": "purple"
+    },
+    {
+      "at": 23,
+      "type": "dust",
+      "dur": 0.8
+    },
+    {
+      "at": 23.3,
+      "type": "endCard",
+      "dur": 3.7
+    }
   ]
 }

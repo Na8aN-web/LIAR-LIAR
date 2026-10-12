@@ -76,7 +76,7 @@ export function howToSlides({ settings = DEFAULT_SETTINGS, playerCount = TYPICAL
       'again',
       'Search again to find the truth',
       [
-        text('Search the same person again and you get new fakes, but the real color always shows up.'),
+        text('Search the same person again and one fewer color is left in the running each time. The real color always shows up.'),
         example('Example: second search: Cyan, Lavender, Red, Pink. Third: Green, Lavender, Cyan, Blue. Lavender showed up every time, so Hank wears Lavender.'),
         tip(`Quick trick: if the poster color isn’t among the ${shown}, that person is definitely not the outlaw.`),
         text(`You get ${searches} searches per round.`),
@@ -136,7 +136,7 @@ export function howToSlides({ settings = DEFAULT_SETTINGS, playerCount = TYPICAL
       'Changing colors, and winning',
       [
         text(
-          'After each round, you can change your color a few times per game. You get a random new color. Everyone hears how many players changed, but never who. Use it when too many people know your color.',
+          `After each round, you can pay ${$(r.swapPrice)} to change your color. You get a random new color, and nobody is told you changed. Use it when too many people know your color.`,
         ),
         text('The player with the most money after the last poster wins.'),
       ],

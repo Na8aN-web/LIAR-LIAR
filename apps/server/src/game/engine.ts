@@ -16,7 +16,7 @@ import {
   type RoundResult,
 } from '@wtc/shared';
 import { makeId, type Rng } from '../rng';
-import { inspectResult } from './decoys';
+import { inspectResult, narrowedResult } from './decoys';
 import { posterOrders } from './posterOrder';
 
 // Pure game rules. No sockets, timers or rendering in here; the Room drives phases.
@@ -36,8 +36,11 @@ export interface GameState {
   swapsUsed: Record<PlayerId, number>;
   /** Players who changed color this payout (one each, final). Gives the public count. Cleared each poster. */
   swappedThisPayout: Record<PlayerId, true>;
-  /** Public count of players who changed color before each poster. */
+  /** How many players changed color before each poster. Stats only: never sent to players. */
   colorChanges: number[];
+  /** Colors still possible per searcher and target ("searcher|target"), from that searcher's own
+   *  searches. Each repeat search narrows it by one. Server-only. */
+  narrow: Record<string, ColorId[]>;
   /** Target's real color at the time of each inspect, by log entry id. Server-only. */
   realAt: Record<string, ColorId>;
   /** Escape bonuses earned but not paid yet. Paid at the end of the game, so the public
@@ -114,6 +117,7 @@ export function createGame(
     swapsUsed: perPlayer(ids, () => 0),
     swappedThisPayout: {},
     colorChanges: [0],
+    narrow: {},
     realAt: {},
     heldEscapeBonus: perPlayer(ids, () => 0),
     finished: false,
@@ -263,7 +267,14 @@ export function inspect(
   if (inspectorId === targetId) return { ok: false, error: "You can't inspect yourself" };
   if (inspectsLeft(s, inspectorId) <= 0) return { ok: false, error: 'No inspects left this round' };
 
-  const result = inspectResult(Object.values(s.colors), s.colors[targetId], s.colors[inspectorId], rng, s.rules.decoys);
+  const real = s.colors[targetId];
+  const key = `${inspectorId}|${targetId}`;
+  // Earlier searches narrow this one, unless the target has since changed color (then start over).
+  const before = s.narrow[key]?.includes(real) ? s.narrow[key] : null;
+  const result = before
+    ? narrowedResult(Object.values(s.colors), real, s.colors[inspectorId], before, rng, s.rules.decoys)
+    : inspectResult(Object.values(s.colors), real, s.colors[inspectorId], rng, s.rules.decoys);
+  s.narrow[key] = before ? before.filter((c) => result.includes(c)) : result.slice();
   const entry: InspectLogEntry = { id: makeId(6), poster: s.posterIndex, inspectorId, targetId, at: now };
   s.inspectsUsed[inspectorId] += 1;
   s.log.push(entry);
@@ -273,8 +284,9 @@ export function inspect(
 }
 
 // ------------------------------------------------------------------ color swaps
-// A player may change their own color up to swapLimit times per game, only
-// between posters (the Room allows it during payouts). Colors stay unique.
+// A player may change their own color, for rules.swapPrice, up to swapLimit times per game and
+// only between posters (the Room allows it during payouts). Colors stay unique. Nobody is told:
+// not who, not how many.
 
 /** Palette colors no player holds right now. */
 export function freeColors(s: GameState): ColorId[] {
@@ -296,11 +308,16 @@ export function swapColor(s: GameState, id: PlayerId, rng: Rng): Result<{ color:
   if (s.swapLimit <= 0) return { ok: false, error: 'Color swaps are off in this game' };
   if (s.swappedThisPayout[id]) return { ok: false, error: 'You already changed color this payout' };
   if (swapsLeft(s, id) <= 0) return { ok: false, error: 'No color swaps left' };
+  const price = s.rules.swapPrice ?? 0;
+  if (s.scores[id] < price) return { ok: false, error: `A color change costs $${price}` };
   const free = freeColors(s);
   if (!free.length) return { ok: false, error: 'No free colors right now' };
   const color = free[rng.int(free.length)];
   s.swappedThisPayout[id] = true;
   s.swapsUsed[id] += 1;
+  // Paid privately, like an extra search: the money goes to the next bounty.
+  s.scores[id] -= price;
+  s.pots[Math.min(s.posterIndex + 1, s.pots.length - 1)] += price;
   s.colors[id] = color;
   return { ok: true, color };
 }
@@ -469,7 +486,6 @@ export function gameViewFor(s: GameState, me: PlayerId): GameView {
     boughtEntryIds: bought.slice(),
     offersOut: s.offers.filter((o) => o.buyerId === me),
     offersIn: s.offers.filter((o) => o.sellerId === me),
-    colorChanges: s.colorChanges.slice(),
     swapLimit: s.swapLimit,
     swapsUsed: s.swapsUsed[me] ?? 0,
     swappedThisPayout: !!s.swappedThisPayout[me],

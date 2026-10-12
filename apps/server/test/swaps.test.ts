@@ -124,10 +124,10 @@ describe('color swaps', () => {
     if (!third.ok) expect(third.error).toMatch(/No color swaps left/);
   });
 
-  it("scales 'auto' with game length: about 1 per 4 posters", async () => {
-    expect([6, 8, 10, 12, 15].map(defaultSwaps)).toEqual([2, 2, 3, 3, 4]);
+  it("'auto' allows one change per payout (each one is paid for)", async () => {
+    expect([6, 8, 10, 12, 15].map(defaultSwaps)).toEqual([5, 7, 9, 11, 14]);
     const { room } = await startedRoom('auto', 10);
-    expect(room.game!.swapLimit).toBe(3);
+    expect(room.game!.swapLimit).toBe(9);
   });
 
   it('rejects swaps from disconnected players', async () => {
@@ -137,26 +137,29 @@ describe('color swaps', () => {
     expect(room.swapColor(ids[3]).ok).toBe(false);
   });
 
-  it('announces only a public count at the next poster, and the poster uses current colors', async () => {
+  it('announces nothing, charges the swapper, and the poster uses current colors', async () => {
     const { room, ids, goTo, viewsTo } = await startedRoom();
     await goTo('payout');
     const nextWanted = room.game!.order[1];
     const swappers = [nextWanted, ids.find((id) => id !== nextWanted)!];
     const newColors: Record<string, string> = {};
+    const before = Object.fromEntries(swappers.map((s) => [s, room.game!.scores[s]]));
+    const pot = room.game!.pots[1];
     for (const s of swappers) {
       const res = room.swapColor(s);
       if (!res.ok) throw new Error(res.error);
       newColors[s] = res.color;
     }
+    const price = room.game!.rules.swapPrice;
+    expect(price).toBeGreaterThan(0);
+    for (const s of swappers) expect(room.game!.scores[s]).toBe(before[s] - price);
+    expect(room.game!.pots[1]).toBe(pot + 2 * price);
     await goTo('poster');
     for (const id of ids) {
       const v = viewsTo(id).at(-1)!;
-      expect(v.game!.colorChanges[1]).toBe(2);
+      expect('colorChanges' in v.game!).toBe(false);
       expect(v.game!.posterColor).toBe(newColors[nextWanted]);
     }
-    await goTo('payout');
-    await goTo('poster');
-    expect(viewsTo(ids[0]).at(-1)!.game!.colorChanges[2]).toBe(0);
   });
 
   it('never tells another client who swapped', async () => {

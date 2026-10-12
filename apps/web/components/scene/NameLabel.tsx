@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { CanvasTexture, LinearFilter, SRGBColorSpace, Vector3, type Sprite } from 'three';
 import { useCanvasFonts } from '@/lib/canvasFonts';
 
@@ -15,6 +15,8 @@ interface Props {
   /** Times inspected this poster. 0 hides the eye badge. */
   eyeCount?: number;
   faded?: boolean;
+  /** Tap on the plate. */
+  onClick?: (e: ThreeEvent<MouseEvent>) => void;
 }
 
 /** Tag height on screen in CSS pixels: 17px on phones, up to 25px on wide screens. */
@@ -45,7 +47,7 @@ function drawEye(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numbe
 }
 
 /** Name tag drawn to a canvas texture on a sprite: a wood plaque (brass when selected) with a brass eye plate. */
-export function NameLabel({ name, position, expanded = false, highlight = false, eyeCount = 0, faded = false }: Props) {
+export function NameLabel({ name, position, expanded = false, highlight = false, eyeCount = 0, faded = false, onClick }: Props) {
   const ref = useRef<Sprite>(null);
   const text = tagName(name);
 
@@ -135,7 +137,15 @@ export function NameLabel({ name, position, expanded = false, highlight = false,
   });
 
   return (
-    <sprite ref={ref} position={position} renderOrder={expanded ? 20 : 10}>
+    <sprite
+      ref={ref}
+      position={position}
+      renderOrder={expanded ? 20 : 10}
+      // Tapping the plate (name or eye badge) picks the scarecrow, same as tapping its body.
+      onClick={onClick}
+      onPointerOver={onClick ? () => (document.body.style.cursor = 'pointer') : undefined}
+      onPointerOut={onClick ? () => (document.body.style.cursor = '') : undefined}
+    >
       <spriteMaterial map={texture} transparent opacity={faded ? 0.45 : 1} depthTest={false} depthWrite={false} fog={false} />
     </sprite>
   );

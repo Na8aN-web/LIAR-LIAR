@@ -14,7 +14,6 @@ import {
   TIMER_LIMITS,
   colorInfo,
   defaultInspects,
-  defaultSwaps,
   type ColorId,
   type CosmeticSlot,
   type Cosmetics,
@@ -46,6 +45,8 @@ export function Lobby() {
   const desktop = useIsDesktop();
   // Before a player's first game: offer the walkthrough once (Skip closes it for good).
   const [intro, setIntro] = useState(false);
+  // Phones: fold the lobby down to a small bar so the campfire and everyone's scarecrow show.
+  const [peek, setPeek] = useState(false);
   useEffect(() => setIntro(!hasSeenWalkthrough()), []);
 
   const streamer = useStreamerMode();
@@ -107,9 +108,42 @@ export function Lobby() {
     </ul>
   );
 
+  const startButton = isHost ? (
+    <button className="btn primary grow" disabled={!enough} onClick={() => act(call('game:start'))}>
+      {enough ? 'Start the hunt' : `Need ${minPlayers - players.length} more riders`}
+    </button>
+  ) : (
+    <p className="muted">Waiting on the host to start the hunt…</p>
+  );
+
+  if (peek && !desktop) {
+    return (
+      <div className="lobby lobby-peek">
+        {intro && <Walkthrough intro numbers={{ settings, playerCount: players.length }} onClose={() => setIntro(false)} />}
+        <section className="panel lobby-peek-bar">
+          <div className="row between">
+            <span>
+              <span className="label">Room</span> <b className="peek-code">{streamer ? '•••••' : view.code}</b>
+              <span className="muted"> · {players.length} {players.length === 1 ? 'rider' : 'riders'}</span>
+            </span>
+            <button className="btn small" onClick={() => setPeek(false)}>
+              Show lobby ▴
+            </button>
+          </div>
+          <div className="lobby-actions">{startButton}</div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="lobby">
       {intro && <Walkthrough intro numbers={{ settings, playerCount: players.length }} onClose={() => setIntro(false)} />}
+      {!desktop && (
+        <button className="btn small lobby-hide" onClick={() => setPeek(true)}>
+          Hide lobby ▾ <span className="muted">see the campfire</span>
+        </button>
+      )}
       <section className="panel lobby-main">
         <header className="lobby-head">
           <div>
@@ -133,9 +167,7 @@ export function Lobby() {
         <div className="lobby-actions">
           {isHost ? (
             <>
-              <button className="btn primary grow" disabled={!enough} onClick={() => act(call('game:start'))}>
-                {enough ? 'Start the hunt' : `Need ${minPlayers - players.length} more riders`}
-              </button>
+              {startButton}
               {/* Bots in any room: a few friends need them to reach the minimum. Games with bots are tagged in the stats. */}
               {players.length < maxPlayers && (
                 <>
@@ -375,6 +407,7 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
     extraInspectPrice: 'Extra searches',
     extraInspectCount: 'Searches per buy',
     purchaseCap: 'Deals / round',
+    swapPrice: 'Color change',
     decoys: 'Decoys per look',
   };
   const inspectOptions = Array.from({ length: INSPECT_RANGE.max - INSPECT_RANGE.min + 1 }, (_, i) => INSPECT_RANGE.min + i);
@@ -398,13 +431,13 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
           </select>
         </label>
         <label>
-          <span>Color changes per player</span>
+          <span>Most color changes (${settings.rules.swapPrice} each)</span>
           <select
             disabled={!editable}
             value={String(settings.colorSwaps)}
             onChange={(e) => update({ colorSwaps: e.target.value === 'auto' ? 'auto' : Number(e.target.value) })}
           >
-            <option value="auto">Auto ({defaultSwaps(playerCount)})</option>
+            <option value="auto">No limit (1 per payout)</option>
             {Array.from({ length: SWAP_RANGE.max - SWAP_RANGE.min + 1 }, (_, i) => SWAP_RANGE.min + i).map((n) => (
               <option key={n} value={n}>
                 {n === 0 ? 'Off' : n}

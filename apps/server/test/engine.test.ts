@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE_POT, BUY_INSPECT_PRICE, COLOR_IDS, ESCAPE_BONUS, EXTRA_INSPECT_COUNT, EXTRA_INSPECT_PRICE, STARTING_POINTS, type ColorId } from '@wtc/shared';
+import { BASE_POT, DEFAULT_RULES, BUY_INSPECT_PRICE, COLOR_IDS, ESCAPE_BONUS, EXTRA_INSPECT_COUNT, EXTRA_INSPECT_PRICE, STARTING_POINTS, type ColorId } from '@wtc/shared';
 import * as engine from '../src/game/engine';
 import { inspectResult } from '../src/game/decoys';
 import { posterOrders } from '../src/game/posterOrder';
@@ -8,6 +8,35 @@ import { secureRng } from '../src/rng';
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, color: COLOR_IDS[i] }));
 const newGame = (n = 6, posterMode: 'everyoneOnce' | 'randomRepeats' = 'everyoneOnce') =>
   engine.createGame(players(n), { inspectLimit: 3, posterMode }, secureRng);
+
+describe('repeat searches', () => {
+  it('narrow the possible colors by one each time: 4, 3, 2, then the real one', () => {
+    for (let k = 0; k < 200; k++) {
+      const g = engine.createGame(players(8), { inspectLimit: 6, posterMode: 'everyoneOnce', rules: { ...DEFAULT_RULES, decoys: 3 } }, secureRng);
+      let possible: ColorId[] | null = null;
+      for (const want of [4, 3, 2, 1, 1]) {
+        const r = engine.inspect(g, 'p0', 'p3', secureRng);
+        if (!r.ok) throw new Error(r.error);
+        expect(r.result).toHaveLength(4);
+        expect(new Set(r.result).size).toBe(4);
+        expect(r.result).toContain(g.colors.p3);
+        expect(r.result).not.toContain(g.colors.p0);
+        possible = possible ? possible.filter((c) => r.result.includes(c)) : r.result.slice();
+        expect(possible).toHaveLength(want);
+      }
+      expect(possible).toEqual([g.colors.p3]);
+    }
+  });
+
+  it('are separate per searcher', () => {
+    const g = engine.createGame(players(8), { inspectLimit: 3, posterMode: 'everyoneOnce' }, secureRng);
+    engine.inspect(g, 'p0', 'p3', secureRng);
+    engine.inspect(g, 'p0', 'p3', secureRng);
+    const other = engine.inspect(g, 'p1', 'p3', secureRng);
+    if (!other.ok) throw new Error(other.error);
+    expect(g.narrow['p1|p3']).toHaveLength(other.result.length);
+  });
+});
 
 describe('decoys', () => {
   it('returns the real color plus 2 decoys, never the inspector color', () => {

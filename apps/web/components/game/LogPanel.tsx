@@ -62,12 +62,10 @@ export function LogPanel() {
                 </span>
               </div>
               {posters.map(([poster, list], i) => {
-                const swaps = game.colorChanges[poster] ?? 0;
                 return (
                   <details key={poster} className="log-poster-group" open={i === 0}>
                     <summary>
                       Poster {poster + 1} · {list.length} {list.length === 1 ? 'search' : 'searches'}
-                      {swaps > 0 && <span className="muted"> · {swaps} changed colors before</span>}
                     </summary>
                     {isMe ? (
                       // Nothing to buy about yourself: one wrapped line of names.

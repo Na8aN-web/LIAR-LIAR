@@ -41,49 +41,42 @@ export interface Knowledge {
 }
 
 /**
- * Swap rounds split the game into eras. Results only intersect within an era, because
- * anyone might have changed color in between. The public count of swappers says how
- * much older eras can still be trusted.
+ * Color changes are secret, so findings are read newest first: results keep combining while
+ * they agree (every result includes the real color), and the first older one that contradicts
+ * them marks a likely color change. That older evidence is kept as stale, half-trusted.
  */
 export function know(view: PlayerView): Knowledge {
   const game = view.game!;
   const me = view.you.id;
-  const changes = game.colorChanges;
-  const eraOf = (poster: number) => changes.slice(1, poster + 1).filter((n) => n > 0).length;
-  const currentEra = eraOf(game.posterIndex);
-  const myOwnSwapAfter = new Set(game.myColorHistory.map((h) => h.afterPoster).filter((p) => p !== null));
 
-  // Per target, per era: intersection of results.
-  const byEra = new Map<PlayerId, Map<number, ColorId[]>>();
-  for (const e of game.log) {
+  const byTarget = new Map<PlayerId, ColorId[][]>();
+  for (const e of [...game.log].reverse()) {
     const r = game.myResults[e.id];
     if (!r || e.targetId === me) continue;
-    const eras = byEra.get(e.targetId) ?? new Map<number, ColorId[]>();
-    const era = eraOf(e.poster);
-    const prev = eras.get(era);
-    eras.set(era, prev ? prev.filter((c) => r.includes(c)) : r.slice());
-    byEra.set(e.targetId, eras);
+    byTarget.set(e.targetId, [...(byTarget.get(e.targetId) ?? []), r]);
   }
 
   const possible = new Map<PlayerId, ColorId[]>();
   const stale = new Map<PlayerId, StaleEvidence>();
-  const otherCount = view.players.filter((p) => p.id !== me).length || 1;
-  for (const [p, eras] of byEra) {
-    const fresh = eras.get(currentEra);
-    if (fresh) possible.set(p, fresh);
-    const older = [...eras.keys()].filter((era) => era < currentEra).sort((a, b) => b - a)[0];
-    if (older === undefined) continue;
-    // Reliability: for each swap round since that era, the chance this player wasn't among the swappers.
-    let reliability = 1;
-    for (let q = 1; q <= game.posterIndex; q++) {
-      if (!changes[q] || eraOf(q) <= older) continue;
-      const othersSwapped = changes[q] - (myOwnSwapAfter.has(q - 1) ? 1 : 0);
-      reliability *= Math.max(0, 1 - othersSwapped / otherCount);
+  for (const [p, results] of byTarget) {
+    let cur = results[0].slice();
+    let i = 1;
+    for (; i < results.length; i++) {
+      const next = cur.filter((c) => results[i].includes(c));
+      if (!next.length) break;
+      cur = next;
     }
-    stale.set(p, { colors: eras.get(older)!, reliability });
+    possible.set(p, cur);
+    if (i < results.length) {
+      const older = results.slice(i).reduce((acc, r) => {
+        const next = acc.filter((c) => r.includes(c));
+        return next.length ? next : acc;
+      });
+      stale.set(p, { colors: older, reliability: 0.5 });
+    }
   }
 
-  // Propagate within the current era: my color and anyone's resolved color can't belong to someone else.
+  // Propagate: my color and anyone's resolved color can't belong to someone else.
   for (let pass = 0; pass < 3; pass++) {
     const resolved = new Map<ColorId, PlayerId>();
     for (const [p, cs] of possible) if (cs.length === 1) resolved.set(cs[0], p);

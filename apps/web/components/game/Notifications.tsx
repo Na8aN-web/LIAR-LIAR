@@ -71,12 +71,10 @@ export function Notifications() {
     lastPoster.current = game.posterIndex;
     const isStart = prev === null ? view.phase === 'poster' : prev !== game.posterIndex;
     if (!isStart) return;
-    const changed = game.colorChanges[game.posterIndex] ?? 0;
     push({
       id: `poster-${game.posterIndex}`,
       kind: 'poster',
       title: `New poster ${game.posterIndex + 1} of ${game.posterCount}. Bounty $${game.pot}.`,
-      body: changed ? `${changed} ${changed === 1 ? 'player' : 'players'} changed colors.` : undefined,
       until: Date.now() + SHOW_MS.poster,
     });
   }, [game.posterIndex]); // eslint-disable-line react-hooks/exhaustive-deps

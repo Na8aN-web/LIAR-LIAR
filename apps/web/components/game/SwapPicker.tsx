@@ -7,9 +7,9 @@ import { useGame } from '@/lib/store';
 import { useStreamerMode } from '@/lib/streamer';
 
 /**
- * Change your own color between posters (payout phase only). The server picks a
- * random free color; nobody ever sees which colors are free. One change per payout,
- * final, so the button asks for confirmation first.
+ * Change your own color between posters (payout phase only), for a price. The server picks
+ * a random free color; nobody ever sees which colors are free, and nobody is told anyone
+ * changed. One change per payout, final, so the button asks for confirmation first.
  */
 export function SwapPicker() {
   const view = useGame((s) => s.view)!;
@@ -24,6 +24,8 @@ export function SwapPicker() {
     return <p className="hint swap-note">Last poster. No more changing colors.</p>;
   }
   const left = game.swapLimit - game.swapsUsed;
+  const price = view.settings.rules.swapPrice;
+  const broke = game.myScore < price;
   const real = colorInfo(view.you.color);
   // Streamer mode: no swatch, no name on screen.
   const mine = streamer ? { name: 'your color', hex: 'transparent' } : real;
@@ -50,21 +52,18 @@ export function SwapPicker() {
               You&apos;re wearing <b>{mine.name}</b>.
             </>
           )}
-          <span className="muted">
-            {' '}
-            {left} of {game.swapLimit} {game.swapLimit === 1 ? 'change' : 'changes'} left
-          </span>
+
         </span>
         {!game.swappedThisPayout && left > 0 && !confirming && (
-          <button className="btn small" onClick={() => setConfirming(true)}>
-            Change colors
+          <button className="btn small" disabled={broke} title={broke ? 'Not enough in your purse' : undefined} onClick={() => setConfirming(true)}>
+            Change colors · ${price}
           </button>
         )}
       </div>
       {confirming && (
         <div className="swap-row swap-confirm">
           <span className="grow">
-            Spend 1 of your {left} {left === 1 ? 'change' : 'changes'} on a random new color? No take-backs.
+            Pay ${price} for a random new color? No take-backs.
           </span>
           <button className="btn small primary" disabled={busy} onClick={swap}>
             Change
@@ -77,7 +76,7 @@ export function SwapPicker() {
       <p className="hint swap-note">
         {game.swappedThisPayout
           ? 'One change per payout. Try again after the next poster.'
-          : 'You get a random free color. Folks only hear how many changed, never who.'}
+          : `You get a random free color. Nobody is told you changed. The $${price} goes to the next bounty.`}
       </p>
     </div>
   );

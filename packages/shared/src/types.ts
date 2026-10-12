@@ -30,6 +30,8 @@ export interface GameRules {
   /** Searches you get for one extra-search purchase. */
   extraInspectCount: number;
   purchaseCap: number;
+  /** Price of one color change. */
+  swapPrice: number;
   /** Decoy colors shown with the real one on each inspect (spec: 2). */
   decoys: number;
 }
@@ -37,7 +39,7 @@ export interface GameRules {
 export interface RoomSettings {
   /** 'auto' = 3 for 6–11 players, 4 for 12–15. */
   inspectsPerRound: number | 'auto';
-  /** Color changes per player per game. 'auto' = about 1 per 4 posters (see defaultSwaps). 0 = off. */
+  /** Most color changes per player per game. 'auto' = one per payout (see defaultSwaps). 0 = off. Each one costs rules.swapPrice. */
   colorSwaps: number | 'auto';
   posterMode: PosterMode;
   timers: PhaseTimers;
@@ -144,8 +146,6 @@ export interface GameView {
   boughtEntryIds: string[];
   offersOut: OfferView[];
   offersIn: OfferView[];
-  /** Public: players who changed color before each poster (index = poster). Never says who. */
-  colorChanges: number[];
   swapLimit: number;
   swapsUsed: number;
   /** You already changed color this payout (one per payout, final). */

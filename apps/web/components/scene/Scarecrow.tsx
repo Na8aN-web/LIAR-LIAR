@@ -267,6 +267,7 @@ export function Scarecrow({ objectName, name, item, cosmetics = DEFAULT_COSMETIC
         highlight={selected}
         eyeCount={eyeCount}
         faded={faded}
+        onClick={onSelect ? click : undefined}
       />
       )}
     </group>

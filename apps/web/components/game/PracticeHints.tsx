@@ -29,7 +29,7 @@ function nextHint(v: NonNullable<ReturnType<typeof useGame.getState>['view']>, s
           ? { id: 'press-search', place: 'bottom', text: `Press Search. You’ll see ${r.decoys + 1} colors: one is their real color, the rest are fakes.` }
           : { id: 'tap', place: 'bottom', text: 'Tap a scarecrow to search them. Stuck? Press Hints.' };
       if (g.inspectsUsed === 1 && left > 0)
-        return { id: 'again', place: 'bottom', text: 'Search the same scarecrow again. The color that shows up every time is their real one.' };
+        return { id: 'again', place: 'bottom', text: 'Search the same scarecrow again: one fewer color is left in the running each time. The one that keeps showing up is their real color.' };
       if (!saidSomething) return { id: 'talk', place: 'side', text: 'Open Chat to share a clue, or a lie. Anyone can lie, so trust your own searches.' };
       return {
         id: 'buy',

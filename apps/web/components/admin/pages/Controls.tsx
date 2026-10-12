@@ -23,6 +23,7 @@ const RULE_LABEL: Record<keyof GameRules, string> = {
   extraInspectPrice: 'Price of extra searches',
   extraInspectCount: 'Searches per purchase',
   purchaseCap: 'Purchases per round',
+  swapPrice: 'Price of a color change',
   decoys: 'Fake colors per search',
 };
 
