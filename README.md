@@ -141,6 +141,8 @@ Web: `GAME_SERVER_INTERNAL_URL` (default `http://127.0.0.1:3001`): where the web
 
 Playtesting, including the remote setup (`pnpm playtest`, Cloudflare Tunnel): see [PLAYTEST.md](PLAYTEST.md).
 
+Going live (Railway, Postgres, Cloudflare, Sentry, admin login): see [DEPLOY.md](DEPLOY.md). Production runs from the `Dockerfile` via `tools/start-prod.mjs`.
+
 ## Rules of the code
 
 - The server holds every secret. Clients only get `PlayerView` from `room.viewFor()`, never the raw state.

@@ -10,10 +10,31 @@ function arg(name, fallback) {
   return Number(i >= 0 ? process.argv[i + 1] : fallback);
 }
 
-export function startProxy({ port = 8080, webPort = 3000, serverPort = 3001 } = {}) {
+/** 200 when a local port answers `path` with a 2xx/3xx/4xx (it's up), within 3 s. */
+function answers(port, path) {
+  return new Promise((resolve) => {
+    const r = http.get({ host: '127.0.0.1', port, path, timeout: 3000 }, (res) => {
+      res.resume();
+      resolve((res.statusCode ?? 500) < 500);
+    });
+    r.on('error', () => resolve(false));
+    r.on('timeout', () => {
+      r.destroy();
+      resolve(false);
+    });
+  });
+}
+
+export function startProxy({ port = 8080, webPort = 3000, serverPort = 3001, host = undefined, health = false } = {}) {
   const targetFor = (url = '') => (url.startsWith('/socket.io') ? serverPort : webPort);
 
-  const proxy = http.createServer((req, res) => {
+  const proxy = http.createServer(async (req, res) => {
+    // Production health check (the host polls it): both the game server and the web app up.
+    if (health && req.url === '/healthz') {
+      const [game, web] = await Promise.all([answers(serverPort, '/health'), answers(webPort, '/privacy')]);
+      res.writeHead(game && web ? 200 : 503, { 'content-type': 'text/plain', 'cache-control': 'no-store' });
+      return res.end(game && web ? 'ok' : `game:${game} web:${web}`);
+    }
     const upstream = http.request(
       { host: '127.0.0.1', port: targetFor(req.url), method: req.method, path: req.url, headers: req.headers },
       (up) => {
@@ -46,7 +67,7 @@ export function startProxy({ port = 8080, webPort = 3000, serverPort = 3001 } = 
     socket.on('error', close);
   });
 
-  return new Promise((resolve) => proxy.listen(port, () => resolve(proxy)));
+  return new Promise((resolve) => proxy.listen(port, host, () => resolve(proxy)));
 }
 
 if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}` || process.argv[1]?.endsWith('proxy.mjs')) {

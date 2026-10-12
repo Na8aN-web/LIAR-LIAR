@@ -1,0 +1,16 @@
+.git
+**/node_modules
+**/.next
+**/dist
+out
+logs
+apps/server/logs
+screenshots
+assets/source
+trailers
+**/.env
+**/.env.*
+CREDITS.md.txt
+*.mp4
+*.mov
+*.wav

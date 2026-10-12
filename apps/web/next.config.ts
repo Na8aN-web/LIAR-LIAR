@@ -15,6 +15,17 @@ function gameServerSources(): string[] {
   return out;
 }
 
+/** Where browser error reports go (Sentry), if a DSN was set at build time. */
+function errorReportSources(): string[] {
+  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+  if (!dsn) return [];
+  try {
+    return [new URL(dsn).origin];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Content Security Policy: the page may only run its own scripts, load its own files and talk to
  * its own game server. Player text is always rendered as text (React escapes it; canvas draws
@@ -28,7 +39,7 @@ const csp = [
   "img-src 'self' blob: data:",
   "font-src 'self'",
   "media-src 'self' blob:",
-  `connect-src ${gameServerSources().join(' ')} blob: data:${isDev ? ' ws: http:' : ''}`,
+  `connect-src ${[...gameServerSources(), ...errorReportSources()].join(' ')} blob: data:${isDev ? ' ws: http:' : ''}`,
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

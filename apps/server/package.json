@@ -20,6 +20,7 @@
     "admin:seed": "tsx scripts/admin-seed.ts"
   },
   "dependencies": {
+    "@sentry/node": "^11.6.0",
     "@wtc/shared": "workspace:*",
     "pg": "^8.23.1",
     "socket.io": "^4.8.4"

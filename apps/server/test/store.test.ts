@@ -49,7 +49,8 @@ const stores: [string, () => Promise<Store>][] = [
   ['postgres', async () => new PostgresStore(new PGlite())],
 ];
 
-describe.each(stores)('%s store', (_name, make) => {
+// PGlite (Postgres in WebAssembly) takes a few seconds to start, more when the whole suite runs at once.
+describe.each(stores)('%s store', { timeout: 30_000 }, (_name, make) => {
   it('keeps events, games, feedback and the audit log, and filters by time and type', async () => {
     const s = await make();
     await s.init();

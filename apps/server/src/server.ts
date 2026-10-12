@@ -20,6 +20,7 @@ import {
 import { Room, type FeedbackEntry, type FinishedGame, type Seat } from './room';
 import type { GameSummary } from './game/summary';
 import { secureRng, type Rng } from './rng';
+import { reportError } from './errors';
 import { LIMITS, RateLimiter, browserIdOf, clientIp, originAllowed } from './security';
 import { anonId, countryOf, deviceOf, type AnalyticsEvent, type LobbyAction } from './analytics/events';
 import { MemoryLobbyDirectory, type LobbyDirectory } from './lobby/directory';
@@ -356,6 +357,7 @@ export function createGameServer(opts: GameServerOptions) {
           fn(...args);
         } catch (err) {
           console.error('handler error', err instanceof Error ? err.message : 'unknown');
+          reportError(err, 'socket handler');
           reply(fail('Server error'));
         }
       };

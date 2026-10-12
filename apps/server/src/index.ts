@@ -5,10 +5,12 @@ import { createGameServer } from './server';
 import { createStore } from './store';
 import { isPasswordHash } from './admin/crypto';
 import { Monitor } from './admin/monitor';
+import { initErrorReporting } from './errors';
 
 // Local secrets (the admin login from `pnpm admin:setup`) live in apps/server/.env.local, which
 // git ignores. On a real host, set the same variables in its environment instead.
 if (existsSync('.env.local')) process.loadEnvFile('.env.local');
+initErrorReporting();
 
 // Dev tools (bots, phase skipping, 2-player lobbies) are opt-in: `--dev` on the command line
 // (pnpm dev passes it). A server started any other way is a production server, and
