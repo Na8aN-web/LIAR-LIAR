@@ -84,8 +84,18 @@ make a room, press **Fill to 6** and play a round with the bots.
 4. **Network → WebSockets: on** (it's on by default; the game needs it).
 5. **Caching → Cache Rules → Create rule** "Game files": *URI Path starts with* `/models/` *or*
    `/textures/` *or* `/audio/` *or* `/ads/` *or* `/branding/` → **Eligible for cache**, Edge TTL
-   **Ignore cache-control header, 1 month**, Browser TTL **1 day**. These files rarely change;
-   after replacing one, use **Caching → Purge Cache** for its URL.
+   **Ignore cache-control header, 1 month**, Browser TTL **1 day**. These folders only hold files
+   that ship with the code, so they only change when you deploy. When a deploy changes one of
+   them, either give it a new file name (nothing to purge) or use **Caching → Purge Cache** for
+   its URL; otherwise players keep the old copy for up to a month.
+
+   **Billboards replaced in `/admin` aren't affected.** They're never stored under `/ads/`: the
+   game loads them from `/billboards/<slot>?v=<version>`, where the version is a fingerprint of
+   the image, so every upload gets a new address and shows straight away. Resetting a billboard
+   in `/admin` switches back to its built-in `/ads/` image. Don't add `/billboards/` to this rule
+   (it would override the server's own caching), and leave **Caching → Configuration → Caching
+   level** on **Standard** (the default), not *Ignore query string*: the `?v=` part is what makes
+   each upload a new address.
 6. **Access on /admin**: follow [SECURITY.md → Cloudflare Access](SECURITY.md#cloudflare-access-at-launch),
    then add `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` to the Railway variables.
 7. Once the domain works: remove the `up.railway.app` address (**Settings → Networking**, the
