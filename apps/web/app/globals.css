@@ -272,6 +272,15 @@ input:disabled, select:disabled { opacity: 0.65; }
 .room { position: fixed; inset: 0; overflow: hidden; }
 .scene { position: absolute !important; inset: 0; touch-action: none; }
 
+/* The room is about to close (idle or too old), and the "you're away" nudge. */
+.closing-banner, .away-banner {
+  position: fixed; z-index: 70; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 2 * var(--gutter)));
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between;
+  padding: 10px 14px; border-radius: 4px; font-size: 0.9rem; line-height: 1.35; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+.closing-banner { top: calc(10px + var(--safe-top)); background: #f3e6c4; color: #2b2016; border: 2px solid var(--oxblood); }
+.away-banner { bottom: calc(150px + var(--safe-bottom)); background: var(--oxblood); color: var(--cream); border: 1px solid #3d0d0d; }
+
 /* Loading curtain: hides the scene until it's all in, then fades away (components/SceneCurtain). */
 .scene-curtain {
   position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center;

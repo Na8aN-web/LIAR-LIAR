@@ -46,6 +46,7 @@ import {
 import { BotDriver, type BotConfig } from './bots/driver';
 import { summarize, type GameSummary } from './game/summary';
 import * as engine from './game/engine';
+import { DEFAULT_TIMEOUTS, type RoomTimeouts } from './timeouts';
 import { makeId, pick, type Rng } from './rng';
 import { HOWTO_STATUSES, parseFeedback, type FeedbackAnswers, type HowtoStatus } from './playtest';
 import { sameToken } from './security';
@@ -82,6 +83,14 @@ export interface Seat {
   reconnects: number;
   /** What the player did with How to Play, as their browser reports it. */
   howto: HowtoStatus | null;
+  /** Last deliberate input (see timeouts.ts: never a page load, reconnect or background report). */
+  lastInputAt: number;
+  /** Any input during the current poster. */
+  actedThisPoster: boolean;
+  /** Posters in a row without any input (away at timeouts.awayAfterPosters, removed at removeAfterPosters). */
+  idlePosters: number;
+  /** Removed for being away too long: the seat stays in the game's records, the player is gone. */
+  removed: boolean;
 }
 
 export type Send = <E extends keyof ServerToClientEvents>(
@@ -104,8 +113,10 @@ export interface RoomDeps {
   bots?: Partial<BotConfig>;
   /** Called when the last human has left a room in the lobby: the room (and its code) can go. */
   onEmpty?: () => void;
-  /** Tell a kicked player's connection, then drop it. */
-  kick?: (socketId: string) => void;
+  /** Tell a kicked player's connection, then drop it. With a reason: shown to them as why. */
+  kick?: (socketId: string, reason?: string) => void;
+  /** Idle and AFK limits (default: DEFAULT_TIMEOUTS). */
+  timeouts?: RoomTimeouts;
   /** Called with each player's answers to the end-of-game feedback form. */
   onFeedback?: (entry: FeedbackEntry) => void;
   /** Anonymous analytics (funnel steps, kicks, reports, abandoned games). */
@@ -249,6 +260,12 @@ export class Room {
   chat: ChatMessage[] = [];
   /** Set while no human is connected; used by the room sweeper. */
   idleSince: number | null = null;
+  /** Last deliberate input from anyone, or a join (lobby and end-screen idle checks). */
+  lastActivityAt = Date.now();
+  /** When the room last entered the lobby (the lobby's hard limit counts from here). */
+  lobbySince = Date.now();
+  /** About to close: when, and why. Shown to the room; the room is off Find a Lobby meanwhile. */
+  closing: { at: number; why: 'idle' | 'maxAge' } | null = null;
   /** Host setting: no new players may join (seated players can still reconnect). */
   locked = false;
   visibility: Visibility;
@@ -344,8 +361,13 @@ export class Room {
       disconnects: 0,
       reconnects: 0,
       howto: null,
+      lastInputAt: now,
+      actedThisPoster: false,
+      idlePosters: 0,
+      removed: false,
     };
     this.seats.set(seat.id, seat);
+    if (!isBot) this.noteActivity(now);
     if (!this.hostId && !isBot) this.hostId = seat.id;
     if (!isBot) this.trackStep('lobby', [seat]);
     this.broadcast();
@@ -454,6 +476,138 @@ export class Room {
     return { ok: true };
   }
 
+  // ---------------------------------------------------------------- idle rooms and AFK players
+
+  /** The server always passes its limits. A room made on its own (tests, tools) never removes
+   *  idle players unless it's given limits that say so. */
+  private get timeouts(): RoomTimeouts {
+    return this.deps.timeouts ?? { ...DEFAULT_TIMEOUTS, awayAfterPosters: Infinity, removeAfterPosters: Infinity };
+  }
+
+  /** Something happened in the room (input or a join): it's not idle, so an idle warning is off. */
+  private noteActivity(now = Date.now()) {
+    this.lastActivityAt = now;
+    if (this.closing?.why === 'idle') {
+      this.closing = null;
+      this.broadcast();
+    }
+  }
+
+  /**
+   * A player did something on purpose (the server calls this for input events only: never for
+   * reconnects, page loads or background reports). Clears their idle count, and an away mark
+   * that came from idling.
+   */
+  noteInput(id: PlayerId, now = Date.now()) {
+    const seat = this.seats.get(id);
+    if (!seat || seat.isBot || seat.removed) return;
+    seat.lastInputAt = now;
+    seat.actedThisPoster = true;
+    if (seat.idlePosters > 0 || (seat.away && seat.connected)) {
+      seat.idlePosters = 0;
+      if (seat.away && seat.connected) {
+        seat.away = false;
+        this.broadcast();
+      }
+    }
+    this.noteActivity(now);
+  }
+
+  /** After each poster: players who did nothing all poster count up; away, then removed. */
+  private reviewIdlePlayers() {
+    const { awayAfterPosters, removeAfterPosters } = this.timeouts;
+    let changed = false;
+    for (const s of this.humans()) {
+      if (s.removed) continue;
+      if (s.actedThisPoster) s.idlePosters = 0;
+      else s.idlePosters++;
+      s.actedThisPoster = false;
+      if (s.idlePosters >= removeAfterPosters) {
+        this.removeIdle(s);
+        changed = true;
+      } else if (s.idlePosters >= awayAfterPosters && !s.away) {
+        s.away = true;
+        changed = true;
+      }
+    }
+    if (changed) this.broadcast();
+  }
+
+  /** Removed for idling: like a host kick mid-game (the seat stays in the game's records), but no ban. */
+  private removeIdle(seat: Seat) {
+    this.track({ type: 'safety', kind: 'kick', by: 'server', anon: null, target: seat.anon });
+    seat.removed = true;
+    seat.away = true;
+    seat.token = makeId(18);
+    if (seat.holdTimer) clearTimeout(seat.holdTimer);
+    seat.holdTimer = null;
+    const socketId = seat.socketId;
+    seat.socketId = null;
+    seat.connected = false;
+    if (this.hostId === seat.id) this.transferHost();
+    if (socketId) this.deps.kick?.(socketId, `You were removed from the game after ${seat.idlePosters} posters in a row without doing anything.`);
+  }
+
+  /** How long this game should take, from its settings (all posters, every phase, plus the countdown). */
+  private expectedGameMs(): number {
+    if (!this.game) return 0;
+    const t = this.settings.timers;
+    return (this.game.order.length * (t.poster + t.investigation + t.vote + t.payout) + GAME_COUNTDOWN_SECONDS) * 1000;
+  }
+
+  /**
+   * Called by the server every few seconds. Applies the idle limits (see timeouts.ts) and returns
+   * why the room should close now, or null to keep it.
+   */
+  tick(now = Date.now()): string | null {
+    const T = this.timeouts;
+    // Nobody connected at all.
+    if (this.hasConnectedHuman()) this.idleSince = null;
+    else if (this.idleSince === null) this.idleSince = now;
+    if (this.idleSince !== null && now - this.idleSince >= T.emptyRoomMs) return 'Everyone left, so the room closed.';
+
+    const inGame = !!this.game && this.phase !== 'lobby' && this.phase !== 'ended';
+    if (inGame) {
+      // Everyone human was removed or left for good: nobody to play for.
+      if (this.humans().every((s) => s.removed)) return 'Everyone left, so the room closed.';
+      if (now - this.gameStartedAt > this.expectedGameMs() * T.gameOvertimeFactor + T.gameOvertimeExtraMs) {
+        return 'This game ran far longer than it should have, so the room closed.';
+      }
+      return null;
+    }
+
+    // Lobby and end screen.
+    if (this.closing && now >= this.closing.at) {
+      return this.closing.why === 'idle'
+        ? 'This campfire went cold: nothing happened for a while, so the room closed. Make a new one any time.'
+        : 'This room was open for an hour without a game, so it closed. Make a new one any time.';
+    }
+    const maxAt = this.lobbySince + T.lobbyMaxMs;
+    if (this.phase === 'lobby' && now >= maxAt - T.lobbyIdleGraceMs && this.closing?.why !== 'maxAge') {
+      this.closing = { at: maxAt, why: 'maxAge' };
+      this.broadcast();
+    } else if (!this.closing && now - this.lastActivityAt >= T.lobbyIdleMs) {
+      this.closing = { at: now + T.lobbyIdleGraceMs, why: 'idle' };
+      this.broadcast();
+    }
+
+    // Public lobby: an inactive host hands over to the most active player who's waiting.
+    if (this.phase === 'lobby' && this.visibility === 'public' && this.hostId) {
+      const host = this.seats.get(this.hostId);
+      if (host && now - host.lastInputAt >= T.hostAfkMs) {
+        const next = this.humans()
+          .filter((s) => s.id !== host.id && s.connected && now - s.lastInputAt < T.hostAfkMs)
+          .sort((a, b) => b.lastInputAt - a.lastInputAt)[0];
+        if (next) {
+          this.hostId = next.id;
+          this.clearHostTimer();
+          this.broadcast();
+        }
+      }
+    }
+    return null;
+  }
+
   // ---------------------------------------------------------------- public rooms
 
   get roomName(): string {
@@ -512,7 +666,7 @@ export class Room {
    */
   listing(): LobbyListing | null {
     if (this.visibility !== 'public' || this.practice || this.locked || this.phase !== 'lobby') return null;
-    if (this.seats.size >= MAX_PLAYERS || !this.hasConnectedHuman()) return null;
+    if (this.seats.size >= MAX_PLAYERS || !this.hasConnectedHuman() || this.closing) return null;
     const host = this.hostId ? this.seats.get(this.hostId) : undefined;
     const players = this.seats.size;
     return {
@@ -680,6 +834,8 @@ export class Room {
     );
     this.replay = null;
     this.gameStartedAt = Date.now();
+    this.closing = null;
+    for (const s of this.seats.values()) Object.assign(s, { actedThisPoster: false, idlePosters: 0 });
     this.gameId = makeId(9);
     this.posterStarts = [];
     this.feedbackFrom.clear();
@@ -714,7 +870,13 @@ export class Room {
     this.replay = null;
     this.phase = 'lobby';
     this.phaseEndsAt = null;
-    for (const s of [...this.seats.values()]) if (s.away) this.seats.delete(s.id);
+    // Gone players leave with the game; anyone still here who was only idle is welcome back.
+    for (const s of [...this.seats.values()]) {
+      if (s.away && (!s.connected || s.removed)) this.seats.delete(s.id);
+      else Object.assign(s, { away: false, idlePosters: 0, actedThisPoster: false });
+    }
+    this.lobbySince = this.lastActivityAt = Date.now();
+    this.closing = null;
     for (const s of this.seats.values()) s.colorPicked = false; // back to suggestions
     this.bots.onPhase('lobby');
     this.broadcast();
@@ -724,6 +886,7 @@ export class Room {
   // ---------------------------------------------------------------- game intents
 
   inspect(id: PlayerId, targetId: PlayerId): Ack<{ entryId: string; result: ColorId[] }> {
+    this.noteInput(id);
     if (!this.game || this.phase !== 'investigation') return fail('You can only inspect during the investigation');
     const res = engine.inspect(this.game, id, targetId, this.rng);
     if (!res.ok) return res;
@@ -732,6 +895,7 @@ export class Room {
   }
 
   vote(id: PlayerId, targetId: PlayerId): Ack {
+    this.noteInput(id);
     if (!this.game || this.phase !== 'vote') return fail('Voting is closed');
     const res = engine.castVote(this.game, id, targetId);
     if (!res.ok) return res;
@@ -751,6 +915,7 @@ export class Room {
   }
 
   offer(id: PlayerId, entryId: unknown): Ack<{ offerId: string }> {
+    this.noteInput(id);
     if (!this.game || this.phase !== 'investigation') return fail('You can only buy during the investigation');
     if (typeof entryId !== 'string') return fail('Unknown inspect');
     const res = engine.makeOffer(this.game, id, entryId);
@@ -761,6 +926,7 @@ export class Room {
   }
 
   respondOffer(id: PlayerId, offerId: unknown, accept: unknown): Ack {
+    this.noteInput(id);
     if (!this.game || this.phase !== 'investigation') return fail('Offers are closed');
     if (typeof offerId !== 'string' || typeof accept !== 'boolean') return fail('Bad response');
     const res = engine.respondOffer(this.game, id, offerId, accept);
@@ -770,6 +936,7 @@ export class Room {
   }
 
   buyExtraInspect(id: PlayerId): Ack {
+    this.noteInput(id);
     if (!this.game || this.phase !== 'investigation') return fail('You can only buy during the investigation');
     const res = engine.buyExtraInspect(this.game, id);
     if (!res.ok) return res;
@@ -789,6 +956,7 @@ export class Room {
 
   /** The server picks a random free color. Only the swapper is told. */
   swapColor(id: PlayerId): Ack<{ color: ColorId }> {
+    this.noteInput(id);
     const seat = this.seats.get(id);
     const err = this.swapWindow(seat);
     if (err) return fail(err);
@@ -802,7 +970,8 @@ export class Room {
   /** End the vote early once everyone who can act has voted. */
   private checkVotesDone() {
     if (!this.game || this.phase !== 'vote') return;
-    const active = [...this.seats.values()].filter((s) => s.isBot || s.connected);
+    // Away players (gone, or idle for posters) don't hold the vote open.
+    const active = [...this.seats.values()].filter((s) => (s.isBot || s.connected) && !s.away);
     if (active.length && active.every((s) => this.game!.votes[s.id])) {
       this.clearPhaseTimer();
       this.phaseTimer = setTimeout(() => this.onPhaseEnd(), 800);
@@ -810,6 +979,7 @@ export class Room {
   }
 
   sendChat(id: PlayerId, raw: unknown): Ack {
+    this.noteInput(id);
     const seat = this.seats.get(id);
     if (!seat) return fail('Not in room');
     // Public rooms are full of strangers: filtered words show as asterisks. Private rooms are
@@ -925,6 +1095,7 @@ export class Room {
         return this.enterPhase('vote');
       case 'vote':
         engine.resolvePoster(game);
+        this.reviewIdlePlayers();
         engine.setPosterReactions(game, this.deps.rng);
         return this.enterPhase('payout');
       case 'payout':
@@ -1007,7 +1178,7 @@ export class Room {
       replay: this.phase === 'ended' ? this.replay : null,
       practice: this.practice,
       locked: this.locked,
-      room: { name: this.roomName, visibility: this.visibility, autoFill: { ...this.autoFill }, fillOfferAt: this.fillOfferAt() },
+      room: { name: this.roomName, visibility: this.visibility, autoFill: { ...this.autoFill }, fillOfferAt: this.fillOfferAt(), closing: this.closing ? { ...this.closing } : null },
     };
   }
 

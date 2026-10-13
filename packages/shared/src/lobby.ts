@@ -53,4 +53,9 @@ export interface RoomInfo {
   autoFill: AutoFill;
   /** Server time (ms) when the host is offered to fill empty seats with bots; null = not now. */
   fillOfferAt: number | null;
+  /**
+   * The room is about to close: server time (ms) it closes at, and why. 'idle': nothing has
+   * happened for a while (any action keeps it open); 'maxAge': open too long without a game.
+   */
+  closing: { at: number; why: 'idle' | 'maxAge' } | null;
 }

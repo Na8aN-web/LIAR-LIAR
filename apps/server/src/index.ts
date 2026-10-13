@@ -6,6 +6,7 @@ import { createStore } from './store';
 import { isPasswordHash } from './admin/crypto';
 import { Monitor } from './admin/monitor';
 import { initErrorReporting } from './errors';
+import { timeoutsFromEnv } from './timeouts';
 
 // Local secrets (the admin login from `pnpm admin:setup`) live in apps/server/.env.local, which
 // git ignores. On a real host, set the same variables in its environment instead.
@@ -70,8 +71,17 @@ monitor.captureConsole();
 // none of it as files.
 const store = await createStore();
 
+const timeouts = timeoutsFromEnv();
+const min = (ms: number) => `${+(ms / 60_000).toFixed(2)} min`;
+console.log(
+  `Idle limits: lobby warns after ${min(timeouts.lobbyIdleMs)} idle, closes ${min(timeouts.lobbyIdleGraceMs)} later; ` +
+    `lobby max ${min(timeouts.lobbyMaxMs)}; AFK host ${min(timeouts.hostAfkMs)}; players away after ${timeouts.awayAfterPosters} idle posters, ` +
+    `removed after ${timeouts.removeAfterPosters}; games close past ${timeouts.gameOvertimeFactor}× their length + ${min(timeouts.gameOvertimeExtraMs)}; ` +
+    `empty rooms after ${min(timeouts.emptyRoomMs)}`,
+);
 const server = createGameServer({
   port,
+  timeouts,
   devMode,
   minPlayers,
   corsOrigin: devMode && !fixedOrigins.length && !originsFile ? true : allowedOrigins,

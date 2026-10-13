@@ -134,6 +134,15 @@ Security and Cloudflare Access: [SECURITY.md](SECURITY.md#admin-dashboard-admin)
 | `ANALYTICS_STORE` | `file` | `postgres` to use Postgres instead (with `DATABASE_URL`, and `DATABASE_SSL=1` if the host requires TLS). |
 | `ADMIN_PASSWORD_HASH`, `ADMIN_TOTP_SECRET` | none | Admin login, written by `pnpm admin:setup` to `apps/server/.env.local` (git-ignored). Unset: `/admin` stays locked. |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | none | Cloudflare Access in front of `/admin`: the admin API then also requires Cloudflare's signed token. |
+| `ROOM_LOBBY_IDLE_MIN` | 10 | A lobby (or end screen) with no player input this long warns "This campfire's going cold…" and leaves Find a Lobby. Input means real actions (chat, settings, starting, searching, voting…), never an open tab, a reconnect or the page's own reports. |
+| `ROOM_LOBBY_IDLE_GRACE_MIN` | 5 | After that warning, the room closes unless someone does something (or presses "We're still here"). |
+| `ROOM_HOST_AFK_MIN` | 5 | Public lobbies: a host with no input this long, while others wait, hands host to the most recently active player. |
+| `ROOM_AWAY_AFTER_POSTERS` | 2 | In a game, posters in a row with no input before a player is marked away (shown to everyone; they no longer hold the vote open). |
+| `ROOM_REMOVE_AFTER_POSTERS` | 3 | ...and before they're removed from the room. |
+| `ROOM_LOBBY_MAX_MIN` | 60 | A room in the lobby closes this long after it opened (or went back to the lobby), however busy. Warned `ROOM_LOBBY_IDLE_GRACE_MIN` (5) minutes before. |
+| `ROOM_GAME_OVERTIME_FACTOR`, `ROOM_GAME_OVERTIME_EXTRA_MIN` | 2, 10 | A game still running after twice its expected length (all posters and phases) plus 10 minutes is closed. |
+| `ROOM_EMPTY_MIN` | 10 | A room with nobody connected closes. |
+| `ROOM_SWEEP_SECONDS` | 15 | How often rooms are checked. |
 
 **Security:** see [SECURITY.md](SECURITY.md) for what the server enforces, the limits, and how to deploy safely (HTTPS, origins).
 

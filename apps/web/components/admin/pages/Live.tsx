@@ -39,6 +39,8 @@ interface LiveData {
     node: string;
   };
   errors: { at: string; message: string }[];
+  history: { at: number; rooms: number; players: number; heapMb: number; rssMb: number }[];
+  closed: Record<string, number>;
   finished: { gameId: string; code: string; endedAt: string; players: number }[];
   maintenance: { on: boolean; message: string };
 }
@@ -193,6 +195,28 @@ export function LivePage() {
         <Stat label="Response delay" value={`${dec(s.eventLoopDelayMs.p99, 0)} ms`} sub={`worst ${dec(s.eventLoopDelayMs.max, 0)} ms · up ${duration(s.uptimeSec)}`} tone={s.eventLoopDelayMs.p99 > 100 ? 'warn' : undefined} />
       </Stats>
 
+      <Card
+        title="Leak watch"
+        note="Once a minute for the last 3 hours. Rooms should rise and fall with players; memory that keeps climbing while rooms don't is a leak."
+        wide
+      >
+        <div className="adm-leak">
+          <Spark label="Rooms" points={data.history.map((h) => h.rooms)} unit="" />
+          <Spark label="Players" points={data.history.map((h) => h.players)} unit="" />
+          <Spark label="Heap" points={data.history.map((h) => h.heapMb)} unit=" MB" />
+          <Spark label="Total memory" points={data.history.map((h) => h.rssMb)} unit=" MB" />
+        </div>
+        <p className="adm-note">
+          Rooms closed since the server started:{' '}
+          {Object.keys(data.closed).length
+            ? Object.entries(data.closed)
+                .sort((a, b) => b[1] - a[1])
+                .map(([why, n]) => `${why} (${n})`)
+                .join(' · ')
+            : 'none yet'}
+        </p>
+      </Card>
+
       <Card title="Rooms" note="Live, public information only. Colors, the outlaw, votes and search results appear only once a game has ended." wide>
         {data.rooms.list.length === 0 ? (
           <Empty>No rooms open right now.</Empty>
@@ -328,5 +352,44 @@ export function LivePage() {
         </div>
       )}
     </>
+  );
+}
+
+/** A small line chart: one value per minute, with the latest value and the range. */
+function Spark({ label, points, unit }: { label: string; points: number[]; unit: string }) {
+  const W = 220;
+  const H = 54;
+  if (points.length < 2) {
+    return (
+      <div className="adm-spark">
+        <div className="adm-spark-head">
+          <span>{label}</span>
+          <b>{points.length ? `${Math.round(points[0])}${unit}` : '–'}</b>
+        </div>
+        <p className="adm-note">Collecting (one point a minute)…</p>
+      </div>
+    );
+  }
+  const lo = Math.min(...points);
+  const hi = Math.max(...points);
+  const span = hi - lo || 1;
+  const d = points.map((v, i) => `${i ? 'L' : 'M'}${((i / (points.length - 1)) * W).toFixed(1)},${(H - 4 - ((v - lo) / span) * (H - 8)).toFixed(1)}`).join(' ');
+  return (
+    <div className="adm-spark">
+      <div className="adm-spark-head">
+        <span>{label}</span>
+        <b>
+          {Math.round(points[points.length - 1])}
+          {unit}
+        </b>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" role="img" aria-label={`${label}, last ${points.length} minutes`}>
+        <path d={d} fill="none" stroke="currentColor" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="adm-spark-range">
+        {Math.round(lo)}–{Math.round(hi)}
+        {unit} over {points.length} min
+      </div>
+    </div>
   );
 }

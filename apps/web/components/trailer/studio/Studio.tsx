@@ -185,7 +185,7 @@ function gameAt(plan: Plan, t: number): GameAt {
     replay: null,
     practice: false,
     locked: false,
-    room: { name: 'Trailer', visibility: 'private', autoFill: { enabled: false, afterSec: 120 }, fillOfferAt: null },
+    room: { name: 'Trailer', visibility: 'private', autoFill: { enabled: false, afterSec: 120 }, fillOfferAt: null, closing: null },
   } as unknown as PlayerView;
   const sig = JSON.stringify([posterIndex, posterColor, pot, reactions?.key, log.length, colors]);
   return { view, colors, sig };

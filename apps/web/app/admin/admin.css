@@ -268,3 +268,11 @@
   .adm-table.adm-stack tr.adm-subrow td { display: block; }
 }
 .adm-room-name { display: block; color: var(--adm-ink-soft); font-size: 0.75rem; margin-top: 2px; }
+
+/* Live page: leak watch sparklines. */
+.adm-leak { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.adm-spark { color: var(--adm-red); }
+.adm-spark-head { display: flex; justify-content: space-between; align-items: baseline; color: inherit; }
+.adm-spark-head span { color: var(--adm-ink-soft); font-size: 0.8rem; }
+.adm-spark-head b { color: var(--adm-ink); }
+.adm-spark-range { font-size: 0.72rem; color: var(--adm-ink-soft); }

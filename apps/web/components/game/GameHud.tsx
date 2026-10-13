@@ -113,6 +113,8 @@ export function GameHud() {
   const { rank, tied } = useMyRank();
   const poster = colorInfo(game.posterColor);
   const countdown = useGameCountdown();
+  // Marked away for idling (still connected): a nudge before the server removes them.
+  const meAway = !!view.players.find((p) => p.id === view.you.id && p.away && p.connected);
 
   if (view.phase === 'ended') return <Replay />;
 
@@ -164,6 +166,12 @@ export function GameHud() {
         </div>
       )}
 
+      {meAway && (
+        <div className="away-banner" role="alert">
+          You&rsquo;ve been quiet for a while, so you&rsquo;re marked <b>away</b>. Search, chat or vote to come back, or you&rsquo;ll be
+          removed after the next poster.
+        </div>
+      )}
       <Notifications />
       <PracticeHints />
 

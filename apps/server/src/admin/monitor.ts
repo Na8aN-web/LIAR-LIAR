@@ -14,6 +14,23 @@ export class Monitor {
     this.loop.enable();
   }
 
+  /** Once a minute for the last 3 hours: rooms, players and memory (the Live page's leak watch). */
+  readonly history: { at: number; rooms: number; players: number; heapMb: number; rssMb: number }[] = [];
+  /** Rooms closed since the server started, by reason. */
+  readonly closed: Record<string, number> = {};
+
+  record(sample: { rooms: number; players: number }) {
+    const m = process.memoryUsage();
+    this.history.push({ at: Date.now(), ...sample, heapMb: m.heapUsed / 2 ** 20, rssMb: m.rss / 2 ** 20 });
+    if (this.history.length > 180) this.history.splice(0, this.history.length - 180);
+  }
+
+  noteClosed(reason: string) {
+    // Group by the reason's first words, so the list stays short.
+    const key = reason.split(/[,:.]/)[0].slice(0, 60);
+    this.closed[key] = (this.closed[key] ?? 0) + 1;
+  }
+
   /** Remembers the last 100 errors (messages only; handlers never log payloads or tokens). */
   recordError(message: string) {
     this.errors.unshift({ at: new Date().toISOString(), message: message.slice(0, 500) });

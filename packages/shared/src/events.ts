@@ -30,6 +30,8 @@ export interface ClientToServerEvents {
   'room:practice': (p: { name: string }, ack: AckFn<JoinResult>) => void;
   'room:resume': (p: { code: string; token: string }, ack: AckFn<JoinResult>) => void;
   'room:leave': () => void;
+  /** "We're still here": keeps an idle room from closing. */
+  'room:stillHere': (ack: AckFn) => void;
 
   'lobby:colors': (ack: AckFn<{ available: ColorId[] }>) => void;
   'lobby:setLook': (p: { item?: ItemType; color?: ColorId; cosmetics?: Partial<Cosmetics> }, ack: AckFn) => void;

@@ -160,6 +160,9 @@ export function adminHandler(ctx: AdminContext) {
           list: rooms.sort((a, b) => humans(b).length - humans(a).length),
         },
         server: ctx.monitor.system(),
+        // Leak watch: rooms, players and memory once a minute (last 3 hours), and why rooms closed.
+        history: ctx.monitor.history,
+        closed: ctx.monitor.closed,
         errors: ctx.monitor.errors.slice(0, 30),
         finished: ctx.finished().map((f) => ({ gameId: f.gameId, code: f.code, endedAt: f.endedAt, players: Object.keys(f.names).length })),
         maintenance: ctx.control.maintenance,

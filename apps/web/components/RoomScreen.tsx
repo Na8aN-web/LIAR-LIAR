@@ -11,6 +11,7 @@ import { useGameAudio } from '@/lib/audio/useGameAudio';
 import { reportHowtoStatus } from '@/lib/howtoStatus';
 import { trackVisit } from '@/lib/analytics';
 import { useStreamerMode } from '@/lib/streamer';
+import { ClosingBanner } from './ClosingBanner';
 import { SceneCurtain } from './SceneCurtain';
 import { ServerBanner } from './ServerBanner';
 import { Lobby } from './lobby/Lobby';
@@ -133,6 +134,7 @@ export function RoomScreen({ code }: { code: string }) {
         </div>
       )}
       {stage === 'in' && !connected && <div className="conn-banner">Lost the trail. Reconnecting…</div>}
+      {stage === 'in' && <ClosingBanner />}
       <Toast />
       <ServerBanner />
     </div>

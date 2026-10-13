@@ -20,6 +20,7 @@ import {
 import { Room, type FeedbackEntry, type FinishedGame, type Seat } from './room';
 import type { GameSummary } from './game/summary';
 import { secureRng, type Rng } from './rng';
+import { DEFAULT_TIMEOUTS, type RoomTimeouts } from './timeouts';
 import { reportError } from './errors';
 import { LIMITS, RateLimiter, browserIdOf, clientIp, originAllowed } from './security';
 import { anonId, countryOf, deviceOf, type AnalyticsEvent, type LobbyAction } from './analytics/events';
@@ -67,17 +68,28 @@ export interface GameServerOptions {
   /** Admin dashboard login (`pnpm admin:setup`). Omitted: the admin API refuses everything. */
   admin?: { credentials?: AdminCredentials | null; access?: AccessConfig | null; accessVerifier?: AccessVerifier };
   monitor?: Monitor;
+  /** Idle and AFK limits (default DEFAULT_TIMEOUTS; production reads them from the environment). */
+  timeouts?: Partial<RoomTimeouts>;
 }
 
 /** Finished games (with their secrets) stay viewable by the admins this long, in memory only. */
 const FINISHED_KEEP_MS = 3 * 3600_000;
 
-const ROOM_IDLE_MS = 10 * 60_000;
+/**
+ * Events that count as a player doing something (idle rooms, AFK hosts and players). Never the
+ * ones a page sends by itself: resume, analytics, How to Play reports, watching the lobby list.
+ */
+const INPUT_EVENTS = new Set([
+  'chat:send', 'chat:mute', 'chat:report', 'feedback:send', 'room:stillHere',
+  'lobby:setLook', 'lobby:settings', 'lobby:visibility', 'lobby:lock', 'lobby:autoFill', 'lobby:addBot', 'lobby:removeBot', 'lobby:fill', 'lobby:kick',
+  'game:start', 'game:inspect', 'game:vote', 'game:backToLobby', 'buy:offer', 'buy:respond', 'buy:extraInspect', 'swap:color',
+]);
 const fail = (error: string) => ({ ok: false as const, error });
 
 export function createGameServer(opts: GameServerOptions) {
   const rng = opts.rng ?? secureRng;
   const L = { ...LIMITS, ...opts.limits };
+  const T: RoomTimeouts = { ...DEFAULT_TIMEOUTS, ...opts.timeouts };
   const trustProxy = !!opts.trustProxy;
   const anyOrigin = opts.corsOrigin === true || (opts.corsOrigin === undefined && opts.devMode);
   // A function is re-read on every connection, so the list can change while rooms stay up
@@ -204,12 +216,16 @@ export function createGameServer(opts: GameServerOptions) {
     if (!check) record({ at: new Date().toISOString(), type: 'lobby', anon, action });
   };
 
-  const closeRoom = (code: string) => {
+  /** Closes a room for good: players still in it are told why (if a reason is given), every
+   *  timer stops, and it leaves the room list and Find a Lobby. */
+  const closeRoom = (code: string, reason?: string) => {
     const room = rooms.get(code);
     if (!room) return;
-    room.dispose();
+    if (reason) room.close(reason);
+    else room.dispose();
     rooms.delete(code);
     directory.set(code, null);
+    monitor.noteClosed(reason ?? 'empty lobby');
   };
 
   const newRoom = (practice = false, check = false, lobby: { visibility?: 'public' | 'private'; roomName?: string } = {}) => {
@@ -229,12 +245,14 @@ export function createGameServer(opts: GameServerOptions) {
       onFeedback: opts.onFeedback,
       send: (socketId, event, ...args) => io.to(socketId).emit(event, ...args),
       onEmpty: () => closeRoom(code),
-      kick: (socketId) => {
+      timeouts: T,
+      kick: (socketId, reason) => {
         const s = io.sockets.sockets.get(socketId);
         if (!s) return;
         s.data.code = undefined;
         s.data.playerId = undefined;
-        s.emit('kicked');
+        if (reason) s.emit('roomClosed', { reason });
+        else s.emit('kicked');
         s.disconnect(true);
       },
     });
@@ -244,11 +262,6 @@ export function createGameServer(opts: GameServerOptions) {
 
   const sweep = setInterval(() => {
     const now = Date.now();
-    for (const [code, room] of rooms) {
-      if (room.hasConnectedHuman()) room.idleSince = null;
-      else if (room.idleSince === null) room.idleSince = now;
-      else if (now - room.idleSince > ROOM_IDLE_MS) closeRoom(code);
-    }
     for (const r of Object.values(rate)) r.prune(now);
     admin?.prune?.();
     // Once a minute: rate-limit hits, and how many people are online (peak concurrent players).
@@ -262,6 +275,17 @@ export function createGameServer(opts: GameServerOptions) {
     lastSampleNonZero = sockets > 0;
   }, 60_000);
   let lastSampleNonZero = false;
+  // Idle rooms, AFK hosts and players, hard limits (timeouts.ts).
+  const roomSweep = setInterval(() => {
+    const now = Date.now();
+    for (const [code, room] of [...rooms]) {
+      const reason = room.tick(now);
+      if (reason) closeRoom(code, reason);
+    }
+  }, T.sweepMs);
+  // Leak watch for the admin Live page: rooms, players and memory once a minute.
+  const history = setInterval(() => monitor.record({ rooms: rooms.size, players: seatedPlayers() }), 60_000);
+  monitor.record({ rooms: 0, players: 0 });
   const cpuSampler = setInterval(() => monitor.sample(), 5_000);
   const seatedPlayers = () => [...rooms.values()].reduce((n, r) => n + r.humans().filter((s) => s.connected).length, 0);
 
@@ -474,6 +498,17 @@ export function createGameServer(opts: GameServerOptions) {
       ack(bind(room, seat));
     }));
 
+    // Activity: only deliberate input counts (an open or background tab sends none of these).
+    socket.use(([event], next) => {
+      if (INPUT_EVENTS.has(event)) {
+        const c = current();
+        c?.room.noteInput(c.seat.id);
+      }
+      next();
+    });
+    // "We're still here": the input itself is what keeps the room open (noted just above).
+    socket.on('room:stillHere', handle((ack) => withSeat(ack, () => ({ ok: true }))));
+
     socket.on('room:leave', handle(() => {
       const c = current();
       if (c) c.room.leave(c.seat.id);
@@ -583,6 +618,8 @@ export function createGameServer(opts: GameServerOptions) {
     },
     close: async () => {
       clearInterval(sweep);
+      clearInterval(roomSweep);
+      clearInterval(history);
       clearInterval(cpuSampler);
       for (const room of rooms.values()) room.dispose();
       await io.close();

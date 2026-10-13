@@ -22,7 +22,7 @@ function viewOf(g: engine.GameState, me: string, posterMode = DEFAULT_SETTINGS.p
     replay: null,
     practice: false,
     locked: false,
-    room: { name: 'Test', visibility: 'private', autoFill: { enabled: false, afterSec: 120 }, fillOfferAt: null },
+    room: { name: 'Test', visibility: 'private', autoFill: { enabled: false, afterSec: 120 }, fillOfferAt: null, closing: null },
   };
 }
 

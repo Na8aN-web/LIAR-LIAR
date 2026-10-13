@@ -14,7 +14,8 @@ export type Client = Socket<ServerToClientEvents, ClientToServerEvents> & {
 };
 
 export async function startServer(opts: Partial<GameServerOptions> = {}) {
-  const server = createGameServer({ port: 0, devMode: true, minPlayers: 6, ...opts });
+  // Scripted test players often sit out on purpose: idle players are only removed in tests that ask (test/idle.test.ts).
+  const server = createGameServer({ port: 0, devMode: true, minPlayers: 6, ...opts, timeouts: { awayAfterPosters: Infinity, removeAfterPosters: Infinity, ...opts.timeouts } });
   const port = await server.listen();
   const clients: Client[] = [];
   const connect = (label: string, o: { origin?: string | null; browserId?: string; purpose?: string } = {}) =>

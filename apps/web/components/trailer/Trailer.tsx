@@ -171,7 +171,7 @@ export function Trailer() {
       replay: null,
       practice: false,
       locked: false,
-      room: { name: 'Trailer', visibility: 'private', autoFill: { enabled: false, afterSec: 120 }, fillOfferAt: null },
+      room: { name: 'Trailer', visibility: 'private', autoFill: { enabled: false, afterSec: 120 }, fillOfferAt: null, closing: null },
     } as PlayerView;
     useGame.getState().setView(view);
   }, [cast, youId, phase, posterIndex, wantedId, pot, reactions, log]); // eslint-disable-line react-hooks/exhaustive-deps

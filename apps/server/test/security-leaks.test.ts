@@ -18,7 +18,7 @@ const COLOR_NAMES = PALETTE.map((c) => c.name.toLowerCase());
 // Exactly the fields a client may receive. A new field anywhere fails this test until it's
 // added here on purpose, so a secret can't slip out through a field nobody noticed.
 const VIEW_KEYS = ['code', 'serverNow', 'devMode', 'minPlayers', 'maxPlayers', 'you', 'players', 'settings', 'phase', 'phaseEndsAt', 'game', 'replay', 'practice', 'locked', 'room'];
-const ROOM_KEYS = ['name', 'visibility', 'autoFill', 'fillOfferAt'];
+const ROOM_KEYS = ['name', 'visibility', 'autoFill', 'fillOfferAt', 'closing'];
 const YOU_KEYS = ['id', 'name', 'color', 'item', 'isHost'];
 const PLAYER_KEYS = ['id', 'name', 'item', 'cosmetics', 'seat', 'isHost', 'isBot', 'connected', 'away'];
 const GAME_KEYS = [
