@@ -271,6 +271,23 @@ input:disabled, select:disabled { opacity: 0.65; }
 
 .room { position: fixed; inset: 0; overflow: hidden; }
 .scene { position: absolute !important; inset: 0; touch-action: none; }
+
+/* Loading curtain: hides the scene until it's all in, then fades away (components/SceneCurtain). */
+.scene-curtain {
+  position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 60%, #2a170c 0%, #0b0806 70%); color: var(--cream);
+  transition-property: opacity; transition-timing-function: ease; opacity: 1;
+}
+.scene-curtain.leaving { opacity: 0; pointer-events: none; }
+.curtain-inner { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 24px; }
+.curtain-line { font-size: 0.8rem; letter-spacing: 0.4em; text-transform: uppercase; color: var(--cream-soft); }
+.curtain-title { font-family: var(--font-display), serif; font-size: clamp(2.6rem, 11vw, 4.6rem); line-height: 1; color: #f0c35a; text-shadow: 0 3px 0 #2a120a; display: flex; flex-direction: column; align-items: center; }
+.curtain-title small { font-size: 0.42em; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cream); margin-top: 6px; }
+.curtain-count { font-family: var(--font-display), serif; font-size: 3.4rem; line-height: 1.1; min-height: 1.1em; color: #ffe9c2; animation: countdown-stamp 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+.curtain-count.small { font-family: var(--serif); font-size: 0.9rem; font-style: italic; color: var(--cream-soft); animation: none; display: flex; align-items: center; min-height: 3.7rem; }
+.curtain-bar { width: min(220px, 60vw); height: 3px; background: rgba(243, 230, 196, 0.15); border-radius: 2px; overflow: hidden; }
+.curtain-bar i { display: block; height: 100%; background: linear-gradient(90deg, #8c2a22, #e0b04a); transition: width 0.3s ease; }
+@media (prefers-reduced-motion: reduce) { .curtain-count { animation: none; } }
 .center-card { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--gutter); z-index: 30; pointer-events: none !important; }
 .center-card > * { pointer-events: auto; }
 .center-card > .card { width: 100%; max-width: 400px; }

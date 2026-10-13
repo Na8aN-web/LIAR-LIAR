@@ -11,6 +11,7 @@ import { useGameAudio } from '@/lib/audio/useGameAudio';
 import { reportHowtoStatus } from '@/lib/howtoStatus';
 import { trackVisit } from '@/lib/analytics';
 import { useStreamerMode } from '@/lib/streamer';
+import { SceneCurtain } from './SceneCurtain';
 import { ServerBanner } from './ServerBanner';
 import { Lobby } from './lobby/Lobby';
 import { GameHud } from './game/GameHud';
@@ -108,6 +109,7 @@ export function RoomScreen({ code }: { code: string }) {
   return (
     <div className="room">
       <Scene />
+      <SceneCurtain />
       {stage === 'in' && view ? (
         view.phase === 'lobby' ? <Lobby /> : <GameHud />
       ) : stage === 'needName' ? (

@@ -13,6 +13,7 @@ import { YOUTUBE_URL } from '@/config/brand';
 import { Modal } from '@/components/Modal';
 import { Rope } from '@/components/ui/western';
 import { AudioSettings } from '@/components/ui/AudioSettings';
+import { SceneCurtain } from '@/components/SceneCurtain';
 import { BrightnessSlider } from '@/components/ui/BrightnessSlider';
 import { GraphicsSetting } from '@/components/ui/GraphicsSetting';
 import { StreamerToggle } from '@/components/ui/StreamerToggle';
@@ -70,6 +71,7 @@ export default function MainMenu() {
   return (
     <main className="menu">
       <ServerBanner />
+      <SceneCurtain />
       <div className="menu-scene" aria-hidden>
         <HomeScene />
       </div>

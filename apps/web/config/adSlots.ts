@@ -74,8 +74,8 @@ export const AD_SLOTS: AdSlot[] = [
     position: [0, 8.2, -3.2],
     size: [4.8, 2.4],
     aspect: '2:1',
-    image: '/ads/snake-oil-tonic.svg',
-    advertiser: "Dr. Mortimer's Snake-Oil Tonic (placeholder)",
+    image: '/ads/your-ad-2x1.svg',
+    advertiser: 'Open slot: your ad here',
   },
   {
     id: 'roof-dancehall',
@@ -84,8 +84,8 @@ export const AD_SLOTS: AdSlot[] = [
     position: [0.6, 8.3, -4],
     size: [5.2, 2.6],
     aspect: '2:1',
-    image: '/ads/stagecoach-line.svg',
-    advertiser: 'Red Mesa Stagecoach Line (placeholder)',
+    image: '/ads/your-ad-2x1.svg',
+    advertiser: 'Open slot: your ad here',
   },
   // Painted wall signs
   {
@@ -95,8 +95,8 @@ export const AD_SLOTS: AdSlot[] = [
     position: [0, 5, -2.12],
     size: [3.2, 1.8],
     aspect: '16:9',
-    image: '/ads/prospectors-beans.svg',
-    advertiser: "Prospector's Pride Beans (placeholder)",
+    image: '/ads/your-ad-16x9.svg',
+    advertiser: 'Open slot: your ad here',
   },
   {
     id: 'wall-assay',
@@ -105,8 +105,8 @@ export const AD_SLOTS: AdSlot[] = [
     position: [0, 5, -2.12],
     size: [3.2, 1.8],
     aspect: '16:9',
-    image: '/ads/ironhorse-rail.svg',
-    advertiser: 'Ironhorse Rail Co. (placeholder)',
+    image: '/ads/your-ad-16x9.svg',
+    advertiser: 'Open slot: your ad here',
   },
   // Door poster boards
   {
@@ -116,8 +116,8 @@ export const AD_SLOTS: AdSlot[] = [
     position: [-2.45, 1.45, -2.1],
     size: [0.9, 1.35],
     aspect: '2:3',
-    image: '/ads/boarding-house.svg',
-    advertiser: "Ma Hattie's Boarding House (placeholder)",
+    image: '/ads/your-ad-2x3.svg',
+    advertiser: 'Open slot: your ad here',
   },
   {
     id: 'door-barber',
@@ -126,8 +126,8 @@ export const AD_SLOTS: AdSlot[] = [
     position: [2.45, 1.45, -2.1],
     size: [0.9, 1.35],
     aspect: '2:3',
-    image: '/ads/spectacles.svg',
-    advertiser: 'Sharp-Eye Spectacles (placeholder)',
+    image: '/ads/your-ad-2x3.svg',
+    advertiser: 'Open slot: your ad here',
   },
   {
     id: 'door-livery',
@@ -136,8 +136,8 @@ export const AD_SLOTS: AdSlot[] = [
     position: [-0.9, 1.5, -1.42],
     size: [1, 1.5],
     aspect: '2:3',
-    image: '/ads/horse-liniment.svg',
-    advertiser: 'Thunderhoof Horse Liniment (placeholder)',
+    image: '/ads/your-ad-2x3.svg',
+    advertiser: 'Open slot: your ad here',
   },
 ];
 
