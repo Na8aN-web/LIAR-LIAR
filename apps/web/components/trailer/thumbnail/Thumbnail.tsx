@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Vector3, type PerspectiveCamera } from 'three';
 import { colorInfo, type ColorId, type Cosmetics, type ItemType } from '@wtc/shared';
 import { useCanvasFonts } from '@/lib/canvasFonts';
-import { PAPER_URL, POSTER_H, POSTER_W, LAYOUT, INK, drawPoster } from '../../poster/posterArt';
+import { PAPER_URL, POSTER_H, POSTER_W, drawPoster } from '../../poster/posterArt';
 import { SCALE, Scarecrow } from '../../scene/Scarecrow';
 import { SEAT_BELOW_HIPS, SIT_HIPS, type SitPose } from '../../scene/scarecrowModel';
 import { Campfire } from '../../scene/town/Campfire';
@@ -72,6 +72,15 @@ const CAM_PRESETS: Record<string, Cam> = {
   Wide: { rotate: 0, distance: 12, height: 3.6, lookY: 0.7, fov: 36, shiftX: -0.08, shiftY: -0.06 },
 };
 
+// The Poster layout shows the scene in the poster's picture frame: a tight, centered view.
+const POSTER_CAM_PRESETS: Record<string, Cam> = {
+  Tight: { rotate: 0, distance: 7.6, height: 2.5, lookY: 0.75, fov: 36, shiftX: 0, shiftY: -0.02 },
+  Closer: { rotate: 0, distance: 6.6, height: 2.2, lookY: 0.8, fov: 38, shiftX: 0, shiftY: -0.02 },
+  Low: { rotate: 0, distance: 7.4, height: 1.3, lookY: 1.05, fov: 38, shiftX: 0, shiftY: -0.04 },
+  High: { rotate: 0, distance: 7.8, height: 4.6, lookY: 0.2, fov: 36, shiftX: 0, shiftY: 0 },
+};
+const activeCam = (s: Settings) => s.cams[s.layout];
+
 interface Look {
   exposure: number;
   contrast: number;
@@ -82,16 +91,22 @@ interface Look {
   embers: number;
 }
 
+type Layout = 'scene' | 'poster';
+
 interface Settings {
+  /** "Campfire scene" (the first version) or "Poster" (the whole frame is the Wanted poster). */
+  layout: Layout;
   posterColor: ColorId;
-  cam: Cam;
+  /** One camera per layout, so switching doesn't undo the other's framing. */
+  cams: Record<Layout, Cam>;
   look: Look;
   show: { title: boolean; tagline: boolean; credit: boolean; poster: boolean };
 }
 
 const DEFAULTS: Settings = {
+  layout: 'scene',
   posterColor: 'red',
-  cam: CAM_PRESETS.Hero,
+  cams: { scene: CAM_PRESETS.Hero, poster: POSTER_CAM_PRESETS.Tight },
   look: { exposure: 1.6, contrast: 1.15, saturation: 1.45, fire: 1.6, fill: 1.4, vignette: 0.55, embers: 6 },
   show: { title: true, tagline: true, credit: true, poster: true },
 };
@@ -100,7 +115,10 @@ const STORE = 'wtc:thumbnail';
 function loadSettings(): Settings {
   try {
     const s = JSON.parse(localStorage.getItem(STORE) ?? 'null');
-    if (s && typeof s === 'object') return { ...DEFAULTS, ...s, cam: { ...DEFAULTS.cam, ...s.cam }, look: { ...DEFAULTS.look, ...s.look }, show: { ...DEFAULTS.show, ...s.show } };
+    if (s && typeof s === 'object') {
+      const cams = { scene: { ...DEFAULTS.cams.scene, ...(s.cams?.scene ?? s.cam) }, poster: { ...DEFAULTS.cams.poster, ...s.cams?.poster } };
+      return { ...DEFAULTS, ...s, layout: s.layout === 'poster' ? 'poster' : 'scene', cams, look: { ...DEFAULTS.look, ...s.look }, show: { ...DEFAULTS.show, ...s.show } };
+    }
   } catch {
     /* ignore */
   }
@@ -208,12 +226,12 @@ function ThumbScene({ s, fire, onGl }: { s: Settings; fire: React.MutableRefObje
       <hemisphereLight args={['#7f94d4', '#3a2a1a', 0.9 * s.look.fill]} />
       <directionalLight position={[-12, 30, 18]} intensity={1.4} color="#9fb6ff" />
       {/* Soft fill from the camera's side, so the garments read against the night. */}
-      <directionalLight position={[Math.sin(s.cam.rotate) * 10, 6, Math.cos(s.cam.rotate) * 10]} intensity={1.1 * s.look.fill} color="#f4f1ff" />
+      <directionalLight position={[Math.sin(activeCam(s).rotate) * 10, 6, Math.cos(activeCam(s).rotate) * 10]} intensity={1.1 * s.look.fill} color="#f4f1ff" />
       <Campfire embers={s.look.embers} glow={s.look.fire} />
       <Suspense fallback={null}>
-        <Circle posterColor={s.posterColor} rotate={s.cam.rotate} />
+        <Circle posterColor={s.posterColor} rotate={activeCam(s).rotate} />
       </Suspense>
-      <Rig cam={s.cam} exposure={s.look.exposure} fire={fire} />
+      <Rig cam={activeCam(s)} exposure={s.look.exposure} fire={fire} />
     </Canvas>
   );
 }
@@ -236,29 +254,41 @@ function loadPaper(): Promise<HTMLImageElement | null> {
   });
 }
 
-/** The poster, at high resolution: the menu poster with the color name swapped for a solid swatch. */
+/**
+ * The poster, at high resolution: the menu poster, its figure in the outlaw's color (no color
+ * dab or name), and the reward in big, bold, dark red lettering that reads at phone size.
+ */
 function posterImage(color: ColorId, fonts: Fonts): HTMLCanvasElement {
+  const k = 6;
   const c = document.createElement('canvas');
-  c.width = POSTER_W * 4;
-  c.height = POSTER_H * 4;
+  c.width = POSTER_W * k;
+  c.height = POSTER_H * k;
   const ctx = c.getContext('2d')!;
-  const hex = colorInfo(color).hex;
-  drawPoster(ctx, { colorHex: hex, colorName: '', pot: 100, number: null, of: null }, fonts, paper);
+  drawPoster(ctx, { colorHex: colorInfo(color).hex, colorName: null, pot: 100, number: null, of: null }, fonts, paper, { color: false, stamp: false });
   ctx.save();
-  ctx.scale(4, 4);
-  const w = 150;
-  const h = 34;
-  const y = LAYOUT.colorName.y - 26;
-  ctx.beginPath();
-  ctx.roundRect(150 - w / 2, y, w, h, 4);
-  ctx.fillStyle = hex;
-  ctx.fill();
-  ctx.lineWidth = 2.2;
-  ctx.strokeStyle = INK;
-  ctx.stroke();
+  ctx.scale(k, k);
+  ctx.translate(150, 344);
+  ctx.rotate((-3 * Math.PI) / 180);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.lineJoin = 'round';
+  const line = (text: string, size: number, y: number) => {
+    ctx.font = `${size}px ${fonts.display}`;
+    // Fit the poster's width, whatever the font's proportions.
+    const w = ctx.measureText(text).width;
+    if (w > 250) ctx.font = `${(size * 250) / w}px ${fonts.display}`;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#3d0805';
+    ctx.strokeText(text, 0, y);
+    ctx.fillStyle = REWARD_RED;
+    ctx.fillText(text, 0, y);
+  };
+  line('REWARD', 46, -6);
+  line('$100', 62, 52);
   ctx.restore();
   return c;
 }
+const REWARD_RED = '#8e140c';
 
 /** Bold text with a thick dark outline and a soft drop shadow. */
 function outlined(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, outline: number) {
@@ -280,6 +310,7 @@ function outlined(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function compose(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement | null, s: Settings, fonts: Fonts, poster: HTMLCanvasElement | null, fire: { x: number; y: number }) {
+  if (s.layout === 'poster') return composePoster(ctx, scene, s, fonts, fire);
   const W = ctx.canvas.width;
   const H = ctx.canvas.height;
   const u = H / 720; // one pixel of the 1280x720 layout
@@ -310,13 +341,55 @@ function compose(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement | null,
   ctx.fillStyle = v;
   ctx.fillRect(0, 0, W, H);
 
-  // The Wanted poster on its post, right side.
+  // Text metrics first: the poster is fitted around the title and the tagline.
+  ctx.textBaseline = 'alphabetic';
+  const ta = 92 * u;
+  const tb = 112 * u;
+  const titleY1 = 30 * u + ta;
+  const titleY2 = titleY1 + tb * 0.98;
+  ctx.font = `${tb}px ${fonts.display}`;
+  const line2 = ctx.measureText('True Colors');
+  ctx.font = `${ta}px ${fonts.display}`;
+  // Optical centering: "Wanted:" is centered on "Wanted", the colon hangs off the right.
+  const wantedW = ctx.measureText('Wanted').width;
+  const titleRight = W / 2 + Math.max(line2.width, ctx.measureText('Wanted:').width) / 2 + tb * 0.08;
+  const titleBottom = titleY2 + line2.actualBoundingBoxDescent + tb * 0.08;
+  const tg = 44 * u;
+  ctx.font = `${tg}px ${fonts.telegram}`;
+  const tag = ctx.measureText('Everyone lies. Find the outlaw.');
+  const tagY = H - 30 * u;
+  const tagTop = tagY - tag.actualBoundingBoxAscent - tg * 0.1;
+  const tagRight = W / 2 + tag.width / 2 + tg * 0.1;
+
+  // The Wanted poster on its post, right side, level with the circle: as big as it fits (up to
+  // 1.5x the first version), below the title and above the tagline, inside the frame.
   if (s.show.poster && poster) {
-    const pw = 226 * u;
+    const margin = 14 * u;
+    const gap = 10 * u;
+    const tilt = (-3 * Math.PI) / 180;
+    // A rotated w x h box needs this much room.
+    const extent = (w: number) => {
+      const h = (w * POSTER_H) / POSTER_W;
+      return { w: w * Math.cos(-tilt) + h * Math.sin(-tilt), h: h * Math.cos(-tilt) + w * Math.sin(-tilt) };
+    };
+    const fit = (w: number) => {
+      const e = extent(w);
+      const left = W - margin - e.w;
+      const top = s.show.title && left < titleRight ? titleBottom + gap : margin;
+      const floor = s.show.tagline && left < tagRight ? tagTop - gap : H - margin;
+      return { e, left, top, ok: top + e.h <= floor, floor };
+    };
+    let pw = 339 * u;
+    while (pw > 150 * u && !fit(pw).ok) pw -= 2 * u;
+    const f = fit(pw);
     const ph = (pw * POSTER_H) / POSTER_W;
-    const cx = W - 160 * u;
-    const top = 232 * u;
-    const post = ctx.createLinearGradient(cx - 22 * u, 0, cx + 22 * u, 0);
+    const cx = f.left + f.e.w / 2;
+    // Centered in the room it has (so it sits level with the scarecrows and the fire).
+    const cy = (f.top + Math.min(f.floor, H - margin)) / 2;
+    // For checking the layout from the console: the poster's size against the first version.
+    (window as unknown as { __thumbPoster?: object }).__thumbPoster = { scale: pw / (226 * u), top: f.top / u, bottom: (cy + f.e.h / 2) / u, left: f.left / u };
+    const postW = 33 * u;
+    const post = ctx.createLinearGradient(cx - postW, 0, cx + postW, 0);
     post.addColorStop(0, '#1d120a');
     post.addColorStop(0.3, '#4a311d');
     post.addColorStop(0.5, '#5a3c23');
@@ -326,13 +399,13 @@ function compose(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement | null,
     ctx.shadowColor = 'rgba(0,0,0,0.7)';
     ctx.shadowBlur = 30 * u;
     ctx.fillStyle = post;
-    ctx.translate(cx, top - 50 * u);
+    ctx.translate(cx, cy - ph / 2 - 60 * u);
     ctx.rotate((1 * Math.PI) / 180);
-    ctx.fillRect(-22 * u, 0, 44 * u, H);
+    ctx.fillRect(-postW, 0, 2 * postW, H);
     ctx.restore();
     ctx.save();
-    ctx.translate(cx, top + ph / 2);
-    ctx.rotate((-3 * Math.PI) / 180);
+    ctx.translate(cx, cy);
+    ctx.rotate(tilt);
     ctx.shadowColor = 'rgba(0,0,0,0.65)';
     ctx.shadowBlur = 26 * u;
     ctx.shadowOffsetY = 8 * u;
@@ -340,22 +413,20 @@ function compose(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement | null,
     ctx.restore();
   }
 
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
   // Title, top center: the menu title's font and colors, a lot bigger.
   if (s.show.title) {
-    const a = 92 * u;
-    const b = 112 * u;
-    ctx.font = `${a}px ${fonts.display}`;
-    outlined(ctx, 'Wanted:', W / 2, 30 * u + a, a, '#f1d78f', 0.16);
-    ctx.font = `${b}px ${fonts.display}`;
-    outlined(ctx, 'True Colors', W / 2, 30 * u + a + b * 0.98, b, '#f3e6c4', 0.15);
+    ctx.font = `${ta}px ${fonts.display}`;
+    ctx.textAlign = 'left';
+    outlined(ctx, 'Wanted:', W / 2 - wantedW / 2, titleY1, ta, '#f1d78f', 0.16);
+    ctx.font = `${tb}px ${fonts.display}`;
+    ctx.textAlign = 'center';
+    outlined(ctx, 'True Colors', W / 2, titleY2, tb, '#f3e6c4', 0.15);
   }
   // Tagline, bottom center, in the menu tagline's typewriter font.
   if (s.show.tagline) {
-    const t = 44 * u;
-    ctx.font = `${t}px ${fonts.telegram}`;
-    outlined(ctx, 'Everyone lies. Find the outlaw.', W / 2 - 40 * u, H - 48 * u, t, '#f3e6c4', 0.2);
+    ctx.font = `${tg}px ${fonts.telegram}`;
+    ctx.textAlign = 'center';
+    outlined(ctx, 'Everyone lies. Find the outlaw.', W / 2, tagY, tg, '#f3e6c4', 0.2);
   }
   // Credit, bottom left: small, clear of the tagline and the poster.
   if (s.show.credit) {
@@ -365,6 +436,247 @@ function compose(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement | null,
     ctx.globalAlpha = 0.85;
     outlined(ctx, 'Made by 3042Official', 22 * u, H - 20 * u, c, '#e6d6b0', 0.22);
     ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- the Poster layout
+
+/** Same numbers every time (so the paper's tears and stains don't change between frames). */
+function seeded(seed: number) {
+  let x = seed >>> 0;
+  return () => {
+    x = (x * 1664525 + 1013904223) >>> 0;
+    return x / 4294967296;
+  };
+}
+
+/** A torn-paper outline just inside the rectangle: small ragged steps with a few deeper bites. */
+function tornPath(x0: number, y0: number, x1: number, y1: number, u: number): Path2D {
+  const rnd = seeded(3042);
+  const path = new Path2D();
+  const step = 7 * u;
+  const depth = () => (rnd() * 4.5 + (rnd() < 0.06 ? 5 + rnd() * 5 : 0)) * u;
+  const edge = (ax: number, ay: number, bx: number, by: number, nx: number, ny: number, first: boolean) => {
+    const len = Math.hypot(bx - ax, by - ay);
+    const n = Math.max(2, Math.round(len / step));
+    for (let i = 0; i < n; i++) {
+      const t = i / n;
+      const d = depth();
+      const px = ax + (bx - ax) * t + nx * d;
+      const py = ay + (by - ay) * t + ny * d;
+      if (first && i === 0) path.moveTo(px, py);
+      else path.lineTo(px, py);
+    }
+  };
+  edge(x0, y0, x1, y0, 0, 1, true);
+  edge(x1, y0, x1, y1, -1, 0, false);
+  edge(x1, y1, x0, y1, 0, -1, false);
+  edge(x0, y1, x0, y0, 1, 0, false);
+  path.closePath();
+  return path;
+}
+
+const POSTER_INK = '#24160a';
+
+/**
+ * The whole frame is the Wanted poster: torn paper on a thin strip of night, nails in the
+ * corners, the title in the poster's ink, a live campfire photo in the picture frame, the
+ * reward in big red lettering and the tagline at the bottom.
+ */
+function composePoster(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement | null, s: Settings, fonts: Fonts, fire: { x: number; y: number }) {
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
+  const u = H / 720;
+  ctx.save();
+
+  // The night behind the paper.
+  const night = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, W * 0.7);
+  night.addColorStop(0, '#1a1726');
+  night.addColorStop(1, '#07080f');
+  ctx.fillStyle = night;
+  ctx.fillRect(0, 0, W, H);
+
+  // Paper: base, texture, warm tint, stains, darker edges, all clipped to the torn outline.
+  const px0 = 16 * u;
+  const py0 = 12 * u;
+  const px1 = W - 16 * u;
+  const py1 = H - 12 * u;
+  const torn = tornPath(px0, py0, px1, py1, u);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 18 * u;
+  ctx.fillStyle = '#dcc596';
+  ctx.fill(torn);
+  ctx.restore();
+  ctx.save();
+  ctx.clip(torn);
+  if (paper) {
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(paper, 0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = 'rgba(214,180,120,0.35)';
+  ctx.fillRect(0, 0, W, H);
+  const rnd = seeded(77);
+  for (let i = 0; i < 9; i++) {
+    const x = px0 + rnd() * (px1 - px0);
+    const y = py0 + rnd() * (py1 - py0);
+    const rad = (40 + rnd() * 110) * u;
+    const g = ctx.createRadialGradient(x, y, rad * 0.1, x, y, rad);
+    g.addColorStop(0, `rgba(120,78,30,${0.05 + rnd() * 0.07})`);
+    g.addColorStop(0.7, `rgba(120,78,30,${0.02 + rnd() * 0.03})`);
+    g.addColorStop(1, 'rgba(120,78,30,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  const edgeDark = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, W * 0.62);
+  edgeDark.addColorStop(0, 'rgba(0,0,0,0)');
+  edgeDark.addColorStop(1, 'rgba(90,50,15,0.5)');
+  ctx.fillStyle = edgeDark;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(70,40,15,0.55)';
+  ctx.lineWidth = 1.5 * u;
+  ctx.stroke(torn);
+
+  // Text layout (1280x720 units).
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  const titleSize = 84 * u;
+  const titleY = 108 * u;
+  const subY = 140 * u;
+  const frame = { x: 250 * u, y: 156 * u, w: 780 * u, h: 368 * u };
+  const rewardY = 598 * u;
+  const tagY = 664 * u;
+
+  // Title in the poster's ink, on one line (the colon sits mid-line, so the ends set the center).
+  if (s.show.title) {
+    ctx.font = `${titleSize}px ${fonts.display}`;
+    ctx.fillStyle = POSTER_INK;
+    ctx.fillText('Wanted: True Colors', W / 2, titleY);
+    ctx.font = `italic ${20 * u}px ${fonts.body}`;
+    ctx.fillText('— Dead or alive —', W / 2, subY);
+  }
+
+  // The picture: a live, tight crop of the campfire, printed on the poster (warm, aged, still colorful).
+  ctx.save();
+  ctx.fillStyle = '#120c08';
+  ctx.fillRect(frame.x, frame.y, frame.w, frame.h);
+  if (scene && scene.width) {
+    const aspect = frame.w / frame.h;
+    const sw = scene.width;
+    const sh = Math.min(scene.height, sw / aspect);
+    const sx = 0;
+    const sy = (scene.height - sh) / 2;
+    ctx.beginPath();
+    ctx.rect(frame.x, frame.y, frame.w, frame.h);
+    ctx.clip();
+    ctx.filter = `sepia(0.16) saturate(${1.25 * s.look.saturation}) contrast(${s.look.contrast})`;
+    ctx.drawImage(scene, sx, sy, sw, sh, frame.x, frame.y, frame.w, frame.h);
+    ctx.filter = 'none';
+    // A warm bloom over the fire.
+    const fx = frame.x + fire.x * frame.w;
+    const fy = frame.y + ((fire.y * scene.height - sy) / sh) * frame.h;
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, 220 * u);
+    g.addColorStop(0, `rgba(255,150,60,${Math.min(0.5, 0.16 * s.look.fire)})`);
+    g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(frame.x, frame.y, frame.w, frame.h);
+    ctx.globalCompositeOperation = 'source-over';
+    // Aged print: a warm wash and darker corners.
+    ctx.fillStyle = 'rgba(255,214,160,0.08)';
+    ctx.fillRect(frame.x, frame.y, frame.w, frame.h);
+    const pv = ctx.createRadialGradient(frame.x + frame.w / 2, frame.y + frame.h / 2, frame.h * 0.35, frame.x + frame.w / 2, frame.y + frame.h / 2, frame.w * 0.62);
+    pv.addColorStop(0, 'rgba(0,0,0,0)');
+    pv.addColorStop(1, `rgba(40,20,5,${0.25 + s.look.vignette * 0.4})`);
+    ctx.fillStyle = pv;
+    ctx.fillRect(frame.x, frame.y, frame.w, frame.h);
+  }
+  ctx.restore();
+  // Thin dark border, and a fine outer rule like the poster's own frame.
+  ctx.strokeStyle = POSTER_INK;
+  ctx.lineWidth = 4 * u;
+  ctx.strokeRect(frame.x, frame.y, frame.w, frame.h);
+  ctx.strokeStyle = 'rgba(36,22,10,0.55)';
+  ctx.lineWidth = 1.5 * u;
+  ctx.strokeRect(frame.x - 8 * u, frame.y - 8 * u, frame.w + 16 * u, frame.h + 16 * u);
+
+  // Creases: faint folds across the paper (a highlight beside a shadow).
+  const crease = (ax: number, ay: number, bx: number, by: number) => {
+    ctx.lineWidth = 2 * u;
+    ctx.strokeStyle = 'rgba(255,246,222,0.22)';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    ctx.lineWidth = 1.2 * u;
+    ctx.strokeStyle = 'rgba(80,50,20,0.16)';
+    ctx.beginPath();
+    ctx.moveTo(ax + 2 * u, ay + 1 * u);
+    ctx.lineTo(bx + 2 * u, by + 1 * u);
+    ctx.stroke();
+  };
+  ctx.save();
+  ctx.clip(torn);
+  crease(W * 0.335, py0, W * 0.345, py1);
+  crease(px0, H * 0.47, px1, H * 0.455);
+  ctx.restore();
+
+  // Nails in the corners.
+  for (const [x, y] of [
+    [44, 38],
+    [W / u - 44, 38],
+    [44, 720 - 38],
+    [W / u - 44, 720 - 38],
+  ]) {
+    const nx = x * u;
+    const ny = y * u;
+    const h = ctx.createRadialGradient(nx, ny, 2 * u, nx, ny, 14 * u);
+    h.addColorStop(0, 'rgba(110,55,20,0.6)');
+    h.addColorStop(1, 'rgba(110,55,20,0)');
+    ctx.fillStyle = h;
+    ctx.beginPath();
+    ctx.arc(nx, ny, 14 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1a120b';
+    ctx.beginPath();
+    ctx.arc(nx, ny, 5 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,240,210,0.4)';
+    ctx.beginPath();
+    ctx.arc(nx - 1.5 * u, ny - 1.5 * u, 1.6 * u, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // REWARD $100: big, bold, dark red, a touch of tilt.
+  ctx.save();
+  ctx.translate(W / 2, rewardY);
+  ctx.rotate((-1.5 * Math.PI) / 180);
+  ctx.font = `${68 * u}px ${fonts.display}`;
+  ctx.textAlign = 'center';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 3.5 * u;
+  ctx.strokeStyle = '#3d0805';
+  ctx.strokeText('REWARD $100', 0, 0);
+  ctx.fillStyle = REWARD_RED;
+  ctx.fillText('REWARD $100', 0, 0);
+  ctx.restore();
+
+  // Tagline in dark ink.
+  if (s.show.tagline) {
+    ctx.font = `${38 * u}px ${fonts.telegram}`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = POSTER_INK;
+    ctx.fillText('Everyone lies. Find the outlaw.', W / 2, tagY);
+  }
+  // Credit, small, on the paper in the bottom right corner.
+  if (s.show.credit) {
+    ctx.font = `700 ${14 * u}px ${fonts.body}`;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(36,22,10,0.75)';
+    ctx.fillText('Made by 3042Official', W - 76 * u, H - 30 * u);
   }
   ctx.restore();
 }
@@ -458,7 +770,9 @@ export function Thumbnail() {
     [s, fonts, poster],
   );
 
-  const cam = (k: keyof Cam, v: number) => setS((x) => ({ ...x, cam: { ...x.cam, [k]: v } }));
+  const cam = (k: keyof Cam, v: number) => setS((x) => ({ ...x, cams: { ...x.cams, [x.layout]: { ...x.cams[x.layout], [k]: v } } }));
+  const c = activeCam(s);
+  const presets = s.layout === 'poster' ? POSTER_CAM_PRESETS : CAM_PRESETS;
   const look = (k: keyof Look, v: number) => setS((x) => ({ ...x, look: { ...x.look, [k]: v } }));
   const slider = (label: string, value: number, min: number, max: number, step: number, set: (v: number) => void, fmt = (v: number) => v.toFixed(2)) => (
     <label className="thumb-slider">
@@ -506,6 +820,27 @@ export function Thumbnail() {
         </section>
 
         <section>
+          <h4>Layout</h4>
+          <div className="row">
+            {(
+              [
+                ['scene', 'Campfire scene'],
+                ['poster', 'Poster'],
+              ] as const
+            ).map(([id, label]) => (
+              <button key={id} className={s.layout === id ? 'on' : ''} onClick={() => setS((x) => ({ ...x, layout: id }))}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="hint">
+            {s.layout === 'poster'
+              ? 'The whole thumbnail is the Wanted poster, with the campfire in its picture frame.'
+              : 'The campfire scene with the title, the poster on its post and the tagline.'}
+          </div>
+        </section>
+
+        <section>
           <h4>Poster color</h4>
           <div className="row">
             {SITTERS.map((p) => (
@@ -525,19 +860,19 @@ export function Thumbnail() {
         <section>
           <h4>Camera</h4>
           <div className="row">
-            {Object.entries(CAM_PRESETS).map(([name, c]) => (
-              <button key={name} onClick={() => setS((x) => ({ ...x, cam: c }))}>
+            {Object.entries(presets).map(([name, preset]) => (
+              <button key={name} onClick={() => setS((x) => ({ ...x, cams: { ...x.cams, [x.layout]: preset } }))}>
                 {name}
               </button>
             ))}
           </div>
-          {slider('Rotate', s.cam.rotate, -Math.PI, Math.PI, 0.01, (v) => cam('rotate', v), (v) => `${Math.round((v * 180) / Math.PI)}°`)}
-          {slider('Distance', s.cam.distance, 5, 14, 0.05, (v) => cam('distance', v))}
-          {slider('Height', s.cam.height, 0.6, 7, 0.05, (v) => cam('height', v))}
-          {slider('Look at height', s.cam.lookY, -0.5, 2.5, 0.05, (v) => cam('lookY', v))}
-          {slider('Zoom (fov)', s.cam.fov, 22, 60, 0.5, (v) => cam('fov', v), (v) => `${v.toFixed(0)}°`)}
-          {slider('Shift left/right', s.cam.shiftX, -0.3, 0.3, 0.005, (v) => cam('shiftX', v))}
-          {slider('Shift up/down', s.cam.shiftY, -0.3, 0.3, 0.005, (v) => cam('shiftY', v))}
+          {slider('Rotate', c.rotate, -Math.PI, Math.PI, 0.01, (v) => cam('rotate', v), (v) => `${Math.round((v * 180) / Math.PI)}°`)}
+          {slider('Distance', c.distance, 5, 14, 0.05, (v) => cam('distance', v))}
+          {slider('Height', c.height, 0.6, 7, 0.05, (v) => cam('height', v))}
+          {slider('Look at height', c.lookY, -0.5, 2.5, 0.05, (v) => cam('lookY', v))}
+          {slider('Zoom (fov)', c.fov, 22, 60, 0.5, (v) => cam('fov', v), (v) => `${v.toFixed(0)}°`)}
+          {slider('Shift left/right', c.shiftX, -0.3, 0.3, 0.005, (v) => cam('shiftX', v))}
+          {slider('Shift up/down', c.shiftY, -0.3, 0.3, 0.005, (v) => cam('shiftY', v))}
         </section>
 
         <section>
@@ -560,7 +895,9 @@ export function Thumbnail() {
               ['credit', 'Credit'],
               ['poster', 'Wanted poster'],
             ] as const
-          ).map(([k, label]) => (
+          )
+            .filter(([k]) => !(s.layout === 'poster' && k === 'poster'))
+            .map(([k, label]) => (
             <label key={k}>
               <input type="checkbox" checked={s.show[k]} onChange={(e) => setS((x) => ({ ...x, show: { ...x.show, [k]: e.target.checked } }))} /> {label}
             </label>

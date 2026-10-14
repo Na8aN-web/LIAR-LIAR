@@ -104,13 +104,19 @@ export interface CanvasFontNames {
   body: string;
 }
 
-/** Draw the poster onto a canvas. `paper` must be a loaded image (or null for flat parchment). */
+/**
+ * Draw the poster onto a canvas. `paper` must be a loaded image (or null for flat parchment).
+ * `parts` can leave out the color dab + name or the REWARD stamp (the thumbnail studio draws
+ * its own); the game and the menu draw everything.
+ */
 export function drawPoster(
   ctx: CanvasRenderingContext2D,
   content: PosterContent,
   fonts: CanvasFontNames,
   paper: CanvasImageSource | null,
+  parts: { color?: boolean; stamp?: boolean } = {},
 ) {
+  const { color = true, stamp = true } = parts;
   const { width, height } = ctx.canvas;
   ctx.save();
   ctx.clearRect(0, 0, width, height);
@@ -172,34 +178,38 @@ export function drawPoster(
   ctx.fill(new Path2D(SCARECROW.tie));
   ctx.restore();
 
-  // Color: ink dab + name
-  ctx.beginPath();
-  ctx.arc(150, LAYOUT.swatch.y, LAYOUT.swatch.r, 0, Math.PI * 2);
-  ctx.fillStyle = content.colorHex ?? INK;
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = INK;
-  ctx.stroke();
-  ctx.fillStyle = INK;
-  ctx.font = `${LAYOUT.colorName.size}px ${fonts.display}`;
-  ctx.fillText(content.colorName ?? '???', 150, LAYOUT.colorName.y);
+  if (color) {
+    // Color: ink dab + name
+    ctx.beginPath();
+    ctx.arc(150, LAYOUT.swatch.y, LAYOUT.swatch.r, 0, Math.PI * 2);
+    ctx.fillStyle = content.colorHex ?? INK;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.font = `${LAYOUT.colorName.size}px ${fonts.display}`;
+    ctx.fillText(content.colorName ?? '???', 150, LAYOUT.colorName.y);
+  }
 
-  // REWARD stamp
-  const st = LAYOUT.stamp;
-  ctx.save();
-  ctx.translate(st.cx, st.cy);
-  ctx.rotate((st.rotate * Math.PI) / 180);
-  ctx.globalAlpha = 0.88;
-  ctx.strokeStyle = STAMP_RED;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(-st.w / 2, -st.h / 2, st.w, st.h);
-  ctx.lineWidth = 1.2;
-  ctx.strokeRect(-st.w / 2 + 5, -st.h / 2 + 5, st.w - 10, st.h - 10);
-  ctx.fillStyle = STAMP_RED;
-  ctx.font = `${st.size}px ${fonts.display}`;
-  ctx.textBaseline = 'middle';
-  ctx.fillText(rewardText(content), 0, 2);
-  ctx.restore();
+  if (stamp) {
+    // REWARD stamp
+    const st = LAYOUT.stamp;
+    ctx.save();
+    ctx.translate(st.cx, st.cy);
+    ctx.rotate((st.rotate * Math.PI) / 180);
+    ctx.globalAlpha = 0.88;
+    ctx.strokeStyle = STAMP_RED;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(-st.w / 2, -st.h / 2, st.w, st.h);
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(-st.w / 2 + 5, -st.h / 2 + 5, st.w - 10, st.h - 10);
+    ctx.fillStyle = STAMP_RED;
+    ctx.font = `${st.size}px ${fonts.display}`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(rewardText(content), 0, 2);
+    ctx.restore();
+  }
 
   // Nail holes with rust halos
   for (const [x, y] of NAILS) {
