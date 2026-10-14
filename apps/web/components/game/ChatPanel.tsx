@@ -1,17 +1,25 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { CHAT_MAX, type ChatMessage } from '@wtc/shared';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { CHAT_MAX, maskBadWords, type ChatMessage } from '@wtc/shared';
 import { call } from '@/lib/socket';
-import { usePortalSettings } from '@/lib/portal';
+import { usePortal, usePortalSettings } from '@/lib/portal';
 import { useGame } from '@/lib/store';
 import { QuickChat } from './QuickChat';
 
-/** Messages this player sees: with typed chat off (a portal setting), only quick-chat ones. */
+/**
+ * Messages this player sees: with typed chat off (a portal setting), only quick-chat ones. On a
+ * portal every room's chat goes through the word filter (the website leaves private rooms, among
+ * friends, as typed; public rooms are filtered by the server).
+ */
 export function useVisibleChat(): ChatMessage[] {
   const chat = useGame((s) => s.chat);
   const typedOff = usePortalSettings().chatDisabled;
-  return typedOff ? chat.filter((m) => m.quick) : chat;
+  const filtered = usePortal().id !== 'web';
+  return useMemo(() => {
+    const shown = typedOff ? chat.filter((m) => m.quick) : chat;
+    return filtered ? shown.map((m) => (m.quick ? m : { ...m, text: maskBadWords(m.text) })) : shown;
+  }, [chat, typedOff, filtered]);
 }
 
 export function ChatPanel() {
