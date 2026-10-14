@@ -124,3 +124,12 @@ html.studio-render nextjs-portal { display: none !important; }
 .ts-end-url { font-family: var(--font-telegram), monospace; color: #f0c35a; letter-spacing: 0.06em; }
 .ts-end-line { color: #f6ead0; opacity: 0.9; letter-spacing: 0.08em; }
 .ts-end-credit { color: #c9b48d; letter-spacing: 0.22em; text-transform: uppercase; margin-top: 0.8em; }
+
+/* Thumbnail mode (?mode=thumbnail): no timeline, so the stage takes the full height. */
+.studio.thumb .studio-stage-area { grid-row: 1 / span 2; }
+.studio-panel a.thumb-link { color: #e0b04a; text-decoration: none; border: 1px solid #4a3826; border-radius: 3px; padding: 4px 9px; }
+.studio-panel a.thumb-link:hover { background: #241a12; }
+.studio-panel .thumb-slider { display: grid; grid-template-columns: 112px 1fr 44px; gap: 6px; align-items: center; }
+.studio-panel .thumb-slider input { padding: 0; }
+.studio-panel .thumb-slider output { font-family: ui-monospace, monospace; font-size: 12px; text-align: right; color: #a8957a; }
+.thumb-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 1px solid #000; vertical-align: -1px; }

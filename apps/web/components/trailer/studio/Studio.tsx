@@ -651,6 +651,11 @@ export function Studio() {
           <section>
             <h4>Trailer studio</h4>
             <div className="row">
+              <a href="?mode=thumbnail" className="thumb-link">
+                Thumbnail mode →
+              </a>
+            </div>
+            <div className="row">
               <select value={scriptName} onChange={(e) => setScriptName(e.target.value)} aria-label="Script">
                 {[...new Set([scriptName, ...scripts])].map((s) => (
                   <option key={s} value={s}>

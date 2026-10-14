@@ -127,15 +127,15 @@ function Hearth() {
   );
 }
 
-function Embers() {
+function Embers({ count = EMBERS }: { count?: number }) {
   const ref = useRef<Points>(null);
   const { geometry, state } = useMemo(() => {
     const g = new BufferGeometry();
-    const pos = new Float32Array(EMBERS * 3);
+    const pos = new Float32Array(count * 3);
     g.setAttribute('position', new BufferAttribute(pos, 3));
-    const st = Array.from({ length: EMBERS }, (_, i) => ({ life: (i / EMBERS) * 2.4, speed: 0.6 + ((i * 53) % 10) / 12, phase: i * 2.1 }));
+    const st = Array.from({ length: count }, (_, i) => ({ life: (i / count) * 2.4, speed: 0.6 + ((i * 53) % 10) / 12, phase: i * 2.1 }));
     return { geometry: g, state: st };
-  }, []);
+  }, [count]);
   useFrame((_, dt) => {
     const pos = geometry.getAttribute('position') as BufferAttribute;
     state.forEach((s, i) => {
@@ -153,7 +153,11 @@ function Embers() {
   );
 }
 
-export function Campfire() {
+/**
+ * `embers` (how many rise) and `glow` (light and halo strength) are for stills like the
+ * thumbnail studio; the game and the menu use the defaults.
+ */
+export function Campfire({ embers = EMBERS, glow = 1 }: { embers?: number; glow?: number } = {}) {
   const light = useRef<PointLight>(null);
   const flames = useRef<Group>(null);
   const halo = useRef<Group>(null);
@@ -168,7 +172,7 @@ export function Campfire() {
     // Flicker: a slow breath plus quick, uneven crackle.
     const f = 0.82 + 0.1 * Math.sin(time * 1.7) + 0.06 * Math.sin(time * 11.3 + 1.2) + 0.05 * Math.sin(time * 23.1) * Math.sin(time * 3.3);
     if (light.current) {
-      light.current.intensity = FIRE_INTENSITY * f;
+      light.current.intensity = FIRE_INTENSITY * f * glow;
       light.current.position.set(Math.sin(time * 5.1) * 0.05, 1.05 + Math.sin(time * 7.3) * 0.05, Math.cos(time * 4.3) * 0.05);
     }
     if (halo.current) halo.current.scale.setScalar(0.92 + f * 0.12);
@@ -178,7 +182,7 @@ export function Campfire() {
 
   return (
     <group name="campfire">
-      <pointLight ref={light} color={FIRE_COLOR} intensity={FIRE_INTENSITY} distance={42} decay={1} position={[0, 1.05, 0]} />
+      <pointLight ref={light} color={FIRE_COLOR} intensity={FIRE_INTENSITY * glow} distance={42} decay={1} position={[0, 1.05, 0]} />
       <Hearth />
       <group ref={flames} position-y={0.12}>
         <mesh material={mats[0]} position={[0, 0.62, 0]}>
@@ -191,15 +195,15 @@ export function Campfire() {
           <planeGeometry args={[1, 1.35]} />
         </mesh>
       </group>
-      <Embers />
+      {embers > 0 && <Embers count={embers} />}
       {/* Halo around the flames and a warm pool on the ground. */}
       <group ref={halo}>
         <sprite position-y={0.7} scale={[3.2, 3.2, 1]}>
-          <spriteMaterial map={tex} color={FIRE_COLOR} blending={AdditiveBlending} transparent depthWrite={false} opacity={0.55} />
+          <spriteMaterial map={tex} color={FIRE_COLOR} blending={AdditiveBlending} transparent depthWrite={false} opacity={Math.min(1, 0.55 * glow)} />
         </sprite>
         <mesh rotation-x={-Math.PI / 2} position-y={0.02}>
           <planeGeometry args={[9, 9]} />
-          <meshBasicMaterial map={tex} color={FIRE_COLOR} blending={AdditiveBlending} transparent depthWrite={false} opacity={0.28} />
+          <meshBasicMaterial map={tex} color={FIRE_COLOR} blending={AdditiveBlending} transparent depthWrite={false} opacity={Math.min(0.8, 0.28 * glow)} />
         </mesh>
       </group>
     </group>
