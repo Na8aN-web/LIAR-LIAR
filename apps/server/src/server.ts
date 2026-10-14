@@ -17,7 +17,7 @@ import {
   type JoinResult,
   type ServerToClientEvents,
 } from '@wtc/shared';
-import { Room, type FeedbackEntry, type FinishedGame, type Seat } from './room';
+import { Room, type FeedbackEntry, type FinishedGame, type Seat, type Spectator } from './room';
 import type { GameSummary } from './game/summary';
 import { secureRng, type Rng } from './rng';
 import { DEFAULT_TIMEOUTS, type RoomTimeouts } from './timeouts';
@@ -80,7 +80,7 @@ const FINISHED_KEEP_MS = 3 * 3600_000;
  * ones a page sends by itself: resume, analytics, How to Play reports, watching the lobby list.
  */
 const INPUT_EVENTS = new Set([
-  'chat:send', 'chat:mute', 'chat:report', 'feedback:send', 'room:stillHere',
+  'chat:send', 'chat:quick', 'chat:mute', 'chat:report', 'feedback:send', 'room:stillHere',
   'lobby:setLook', 'lobby:settings', 'lobby:visibility', 'lobby:lock', 'lobby:autoFill', 'lobby:addBot', 'lobby:removeBot', 'lobby:fill', 'lobby:kick',
   'game:start', 'game:inspect', 'game:vote', 'game:backToLobby', 'buy:offer', 'buy:respond', 'buy:extraInspect', 'buy:worth', 'swap:color', 'trick:cover',
   // Dev builds only: pressing skip is deliberate (the How to Play capture skips whole posters).
@@ -230,7 +230,7 @@ export function createGameServer(opts: GameServerOptions) {
     monitor.noteClosed(reason ?? 'empty lobby');
   };
 
-  const newRoom = (practice = false, check = false, lobby: { visibility?: 'public' | 'private'; roomName?: string } = {}) => {
+  const newRoom = (practice = false, check = false, lobby: { visibility?: 'public' | 'private'; roomName?: string; autoStart?: boolean } = {}) => {
     const code = newCode();
     const room = new Room(code, {
       ...lobby,
@@ -359,6 +359,9 @@ export function createGameServer(opts: GameServerOptions) {
     const detach = () => {
       const c = current();
       if (c) c.room.disconnect(c.seat.id, socket.id);
+      // Watching a game: the watcher's place is held for a while, like a seat.
+      const watching = !c && socket.data.code && socket.data.playerId ? rooms.get(socket.data.code) : undefined;
+      if (watching && socket.data.playerId) watching.disconnectSpectator(socket.data.playerId, socket.id);
       socket.data.code = undefined;
       socket.data.playerId = undefined;
     };
@@ -367,6 +370,12 @@ export function createGameServer(opts: GameServerOptions) {
       socket.data.code = room.code;
       socket.data.playerId = seat.id;
       return { ok: true, code: room.code, playerId: seat.id, token: seat.token };
+    };
+    /** Joined mid-game: bound as a watcher (no seat, so every game intent fails with "Not in a room"). */
+    const bindSpectator = (room: Room, sp: Spectator): Ack<JoinResult> => {
+      socket.data.code = room.code;
+      socket.data.playerId = sp.id;
+      return { ok: true, code: room.code, playerId: sp.id, token: sp.token, spectating: true };
     };
 
     /**
@@ -410,7 +419,9 @@ export function createGameServer(opts: GameServerOptions) {
       if (rooms.size >= L.maxRooms) return ack(fail('The town is full right now. Try again soon.'));
       detach();
       const visibility = !practice && obj(p).visibility === 'public' ? 'public' : 'private';
-      const room = newRoom(practice, socket.data.check, { visibility, roomName: obj(p).roomName as string });
+      // Quick-start lobbies are public ones made by a portal's one-tap Play (see Room.autoStart).
+      const autoStart = !practice && visibility === 'public' && obj(p).autoStart === true;
+      const room = newRoom(practice, socket.data.check, { visibility, roomName: obj(p).roomName as string, autoStart });
       const res = room.addPlayer(obj(p).name as string, socket.id, false, socket.data.browserId);
       if (!res.ok) {
         closeRoom(room.code);
@@ -458,7 +469,9 @@ export function createGameServer(opts: GameServerOptions) {
     socket.on('room:quickPlay', handle((p, ack) => {
       if (typeof ack !== 'function') return;
       if (!both(rate.lobbyJoin, rate.lobbyJoinIp, who, ip)) return ack(fail('Slow down'));
-      for (const row of directory.list()) {
+      // A portal's one-tap Play only joins quick-start lobbies (they start by themselves).
+      const autoStart = obj(p).autoStart === true;
+      for (const row of directory.list().filter((r) => !autoStart || r.autoStart)) {
         const res = joinListed(row.id, obj(p).name);
         if (res.ok) {
           lobbyEvent('quick_join', anon, socket.data.check);
@@ -467,7 +480,7 @@ export function createGameServer(opts: GameServerOptions) {
         // A bad name fails everywhere; don't try every room.
         if (res.error === 'Enter a name') return ack(res);
       }
-      createRoom(false, { name: obj(p).name, visibility: 'public' }, (res) => {
+      createRoom(false, { name: obj(p).name, visibility: 'public', autoStart }, (res) => {
         if (res.ok) lobbyEvent('quick_create', anon, socket.data.check);
         ack(res.ok ? { ...res, created: true } : res);
       });
@@ -480,6 +493,11 @@ export function createGameServer(opts: GameServerOptions) {
       const room = rooms.get(normCode(obj(p).code));
       if (!room) return ack(joinFailed(fail('No room with that code')));
       detach();
+      // A game is on: watch it, and take a seat when the room goes back to the lobby.
+      if (room.phase !== 'lobby') {
+        const watch = room.addSpectator(obj(p).name as string, socket.id, socket.data.browserId);
+        return ack(watch.ok ? bindSpectator(room, watch.spectator) : joinFailed(watch));
+      }
       const res = room.addPlayer(obj(p).name as string, socket.id, false, socket.data.browserId);
       if (res.ok) lobbyEvent('code_join', anon, socket.data.check);
       ack(res.ok ? bind(room, res.seat) : joinFailed(res));
@@ -491,10 +509,15 @@ export function createGameServer(opts: GameServerOptions) {
       const { code, token } = obj(p);
       const room = rooms.get(normCode(code));
       if (!room || typeof token !== 'string') return ack(joinFailed(fail('Session expired')));
-      const prev = room.seatByToken(token)?.socketId;
+      const prev = room.seatByToken(token)?.socketId ?? room.spectatorByToken(token)?.socketId;
       detach();
       const seat = room.resume(token, socket.id);
-      if (!seat) return ack(joinFailed(fail('Session expired')));
+      if (!seat) {
+        const sp = room.resumeSpectator(token, socket.id);
+        if (!sp) return ack(joinFailed(fail('Session expired')));
+        if (prev && prev !== socket.id) io.sockets.sockets.get(prev)?.disconnect(true);
+        return ack(bindSpectator(room, sp));
+      }
       // Same seat opened elsewhere: the newest connection wins.
       if (prev && prev !== socket.id) io.sockets.sockets.get(prev)?.disconnect(true);
       ack(bind(room, seat));
@@ -514,6 +537,7 @@ export function createGameServer(opts: GameServerOptions) {
     socket.on('room:leave', handle(() => {
       const c = current();
       if (c) c.room.leave(c.seat.id);
+      else if (socket.data.code && socket.data.playerId) rooms.get(socket.data.code)?.leaveSpectator(socket.data.playerId);
       socket.data.code = undefined;
       socket.data.playerId = undefined;
     }));
@@ -552,6 +576,9 @@ export function createGameServer(opts: GameServerOptions) {
     socket.on('game:backToLobby', handle((ack) => withSeat(ack, ({ room, seat }) => room.backToLobby(seat.id))));
     socket.on('chat:send', handle((p, ack) =>
       withSeat(ack, ({ room, seat }) => (rate.chat.take(socket.id) ? room.sendChat(seat.id, obj(p).text) : fail('Slow down'))),
+    ));
+    socket.on('chat:quick', handle((p, ack) =>
+      withSeat(ack, ({ room, seat }) => (rate.chat.take(socket.id) ? room.sendQuickChat(seat.id, p) : fail('Slow down'))),
     ));
     socket.on('client:tutorial', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.setTutorial(seat.id, obj(p).progress))));
     socket.on('client:howto', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.setHowto(seat.id, obj(p).status))));

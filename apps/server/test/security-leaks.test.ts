@@ -17,8 +17,8 @@ const COLOR_NAMES = PALETTE.map((c) => c.name.toLowerCase());
 
 // Exactly the fields a client may receive. A new field anywhere fails this test until it's
 // added here on purpose, so a secret can't slip out through a field nobody noticed.
-const VIEW_KEYS = ['code', 'serverNow', 'devMode', 'minPlayers', 'maxPlayers', 'you', 'players', 'settings', 'phase', 'phaseEndsAt', 'game', 'replay', 'practice', 'locked', 'room'];
-const ROOM_KEYS = ['name', 'visibility', 'autoFill', 'fillOfferAt', 'closing'];
+const VIEW_KEYS = ['code', 'serverNow', 'devMode', 'minPlayers', 'maxPlayers', 'you', 'players', 'settings', 'phase', 'phaseEndsAt', 'game', 'replay', 'practice', 'locked', 'room', 'spectating', 'spectators'];
+const ROOM_KEYS = ['name', 'visibility', 'autoFill', 'fillOfferAt', 'closing', 'autoStartAt'];
 const YOU_KEYS = ['id', 'name', 'color', 'item', 'isHost'];
 const PLAYER_KEYS = ['id', 'name', 'item', 'cosmetics', 'seat', 'isHost', 'isBot', 'connected', 'away'];
 const GAME_KEYS = [
@@ -29,7 +29,7 @@ const GAME_KEYS = [
 ];
 const LOG_KEYS = ['id', 'poster', 'inspectorId', 'targetId', 'at'];
 const ROUND_KEYS = ['poster', 'color', 'wasWanted', 'escaped', 'votedFor', 'correct', 'wantedId', 'payout'];
-const CHAT_KEYS = ['id', 'playerId', 'name', 'text', 'poster', 'at'];
+const CHAT_KEYS = ['id', 'playerId', 'name', 'text', 'poster', 'at', 'quick'];
 const sameKeys = (o: object, keys: string[]) => expect(Object.keys(o).sort()).toEqual([...keys].sort());
 
 /** Every (path, object) inside a value. */

@@ -9,3 +9,4 @@ export * from './lobby';
 export * from './wordFilter';
 export * from './tutorial';
 export * from './badges';
+export * from './quickChat';

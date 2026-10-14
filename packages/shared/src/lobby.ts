@@ -34,8 +34,10 @@ export interface LobbyListing {
   players: number;
   bots: number;
   maxPlayers: number;
-  /** Posters this game will have (one per player). */
+  /** Posters this game will have (a host setting). */
   posters: number;
+  /** A quick-start lobby: it fills with bots and starts by itself (see RoomInfo.autoStartAt). */
+  autoStart: boolean;
   /** Searches per round. */
   searches: number;
 }
@@ -58,4 +60,12 @@ export interface RoomInfo {
    * happened for a while (any action keeps it open); 'maxAge': open too long without a game.
    */
   closing: { at: number; why: 'idle' | 'maxAge' } | null;
+  /**
+   * Quick-start lobby (one tap from a game portal): server time (ms) when it fills the empty
+   * seats with bots and starts by itself; null for ordinary rooms, and once the game is on.
+   */
+  autoStartAt: number | null;
 }
+
+/** Quick-start lobbies start this long after they open (or go back to the lobby). */
+export const AUTO_START_SEC = 30;

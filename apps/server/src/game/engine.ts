@@ -577,6 +577,14 @@ export function gameViewFor(s: GameState, me: PlayerId): GameView {
   };
 }
 
+/**
+ * A watcher's game view (joined mid-game): what every player sees, nothing of any one player's.
+ * Same shape as a player's, with every private part empty.
+ */
+export function spectatorGameView(s: GameState): GameView {
+  return { ...gameViewFor(s, ''), myScore: 0, myCorrectVotes: 0, myHeldEscapeBonus: 0, myRounds: [], myColorHistory: [], youAreWanted: false };
+}
+
 /** Everyone gets the shown reactions; only the owner of `own` gets their true one. */
 function reactionsFor(s: GameState, me: PlayerId): ReactionsView | null {
   const r = s.reactions;

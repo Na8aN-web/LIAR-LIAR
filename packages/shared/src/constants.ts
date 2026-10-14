@@ -27,7 +27,8 @@ export const ROOM_CODE_LENGTH = 5;
 // No look-alikes: drops O/0, I/1/L.
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
-export const NAME_MAX = 16;
+/** Display names: 20 fits every CrazyGames username (6-20 characters). */
+export const NAME_MAX = 20;
 export const CHAT_MAX = 200;
 
 export const ITEM_TYPES: ItemType[] = ['poncho', 'cloak', 'bandana'];

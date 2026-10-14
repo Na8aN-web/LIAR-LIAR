@@ -22,7 +22,9 @@ function viewOf(g: engine.GameState, me: string): PlayerView {
     replay: null,
     practice: false,
     locked: false,
-    room: { name: 'Test', visibility: 'private', autoFill: { enabled: false, afterSec: 120 }, fillOfferAt: null, closing: null },
+    room: { name: 'Test', visibility: 'private', autoFill: { enabled: false, afterSec: 120 }, fillOfferAt: null, closing: null, autoStartAt: null },
+    spectating: false,
+    spectators: [],
   };
 }
 
@@ -115,7 +117,7 @@ describe('bot knowledge', () => {
     const v = viewOf(g, me);
     const color = v.game!.posterColor;
     const target = g.playerIds.find((p) => p !== me)!;
-    const msg = (from: string, text: string) => ({ id: text, playerId: from, name: from, text, poster: 0, at: 0 });
+    const msg = (from: string, text: string) => ({ id: text, playerId: from, name: from, text, poster: 0, at: 0, quick: false });
     const colorName = color[0].toUpperCase() + color.slice(1);
     const other = g.playerIds.find((p) => p !== me && p !== target)!;
     const acc = brain.accusations(v, [

@@ -75,6 +75,8 @@ export interface ChatMessage {
   /** Poster index when sent, null in lobby. */
   poster: number | null;
   at: number;
+  /** A quick-chat phrase: built by the server from a fixed list, no text typed by anyone. */
+  quick: boolean;
 }
 
 /** One entry in a player's color history. afterPoster null = starting color. */
@@ -232,4 +234,11 @@ export interface PlayerView {
   locked: boolean;
   /** Room name, public or private, and the host's auto-fill setting. */
   room: RoomInfo;
+  /**
+   * You joined while a game was on: you're watching (public information only) and get a seat
+   * when the room goes back to the lobby. `you` then describes you as a watcher (no color in play).
+   */
+  spectating: boolean;
+  /** People watching until the next game (names only). */
+  spectators: { id: PlayerId; name: string }[];
 }

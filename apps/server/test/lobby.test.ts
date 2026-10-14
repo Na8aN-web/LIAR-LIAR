@@ -52,8 +52,8 @@ describe('public and private rooms', () => {
 
     await waitFor(() => list.last!.rooms.length === 1);
     const [row] = list.last!.rooms;
-    expect(row).toMatchObject({ name: 'Dust Devils', host: 'Ada', players: 1, bots: 0, maxPlayers: 15, posters: 1 });
-    expect(Object.keys(row).sort()).toEqual(['bots', 'host', 'id', 'maxPlayers', 'name', 'players', 'posters', 'searches']);
+    expect(row).toMatchObject({ name: 'Dust Devils', host: 'Ada', players: 1, bots: 0, maxPlayers: 15, posters: 10, autoStart: false });
+    expect(Object.keys(row).sort()).toEqual(['autoStart', 'bots', 'host', 'id', 'maxPlayers', 'name', 'players', 'posters', 'searches']);
 
     // Nothing private anywhere in what a browser received: no room codes, no colors, no tokens.
     const raw = JSON.stringify(browser.inbox);

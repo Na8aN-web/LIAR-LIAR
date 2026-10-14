@@ -16,7 +16,10 @@ import {
   REPORT_REASON_MAX,
   RULE_LIMITS,
   AUTO_FILL,
+  AUTO_START_SEC,
   ROOM_NAME_MAX,
+  parseQuickChat,
+  quickChatText,
   defaultRoomName,
   hasBadWords,
   maskBadWords,
@@ -96,6 +99,20 @@ export interface Seat {
   removed: boolean;
 }
 
+/**
+ * Someone who joined while a game was on: they watch (public information only, the same as
+ * any player who isn't told a secret) and take a seat when the room goes back to the lobby.
+ */
+export interface Spectator {
+  id: PlayerId;
+  token: string;
+  name: string;
+  browserId: string | null;
+  socketId: string | null;
+  connected: boolean;
+  holdTimer: NodeJS.Timeout | null;
+}
+
 export type Send = <E extends keyof ServerToClientEvents>(
   socketId: string,
   event: E,
@@ -130,6 +147,11 @@ export interface RoomDeps {
   visibility?: Visibility;
   /** The host's chosen room name (filtered); empty = "<host>'s Campfire". */
   roomName?: string;
+  /**
+   * A quick-start lobby (a game portal's one-tap Play): it fills the empty seats with bots and
+   * starts by itself AUTO_START_SEC after opening, and humans who join take bots' seats.
+   */
+  autoStart?: boolean;
   /** Something the lobby list shows may have changed (players, host, phase, lock, visibility...). */
   onListingChange?: () => void;
   /** A game ended: its replay (with the secrets), for the admins to look at afterwards. */
@@ -254,7 +276,12 @@ export function cleanRoomName(raw: unknown): string {
 
 export class Room {
   readonly seats = new Map<PlayerId, Seat>();
+  /** Watching the current game; seated when the room goes back to the lobby. */
+  readonly spectators = new Map<PlayerId, Spectator>();
   hostId: PlayerId | null = null;
+  /** Quick-start lobby: when it starts by itself (server time), or null. */
+  autoStartAt: number | null = null;
+  private autoStartTimer: NodeJS.Timeout | null = null;
   settings: RoomSettings;
   readonly createdAt = Date.now();
   phase: Phase = 'lobby';
@@ -300,6 +327,11 @@ export class Room {
     this.visibility = deps.practice ? 'private' : (deps.visibility ?? 'private');
     this.chosenName = cleanRoomName(deps.roomName);
     this.bots = new BotDriver(this, deps.rng, deps.bots);
+    if (deps.autoStart) this.scheduleAutoStart();
+  }
+
+  get autoStart(): boolean {
+    return !!this.deps.autoStart && !this.practice;
   }
 
   /** Records an analytics event, except for practice games and the playtest check script. */
@@ -335,6 +367,11 @@ export class Room {
     if (browserId && this.banned.has(browserId)) return fail('You were removed from this room');
     // One seat per browser: a second tab can't take a second seat (it can resume the first).
     if (browserId && !isBot && [...this.seats.values()].some((s) => s.browserId === browserId)) return fail("You're already in this room");
+    // Quick-start lobby: a person who joins takes a bot's seat (the newest bot goes).
+    if (!isBot && this.autoStart) {
+      const bot = [...this.seats.values()].filter((s) => s.isBot).sort((a, b) => b.seat - a.seat)[0];
+      if (bot) this.seats.delete(bot.id);
+    }
     if (this.seats.size >= MAX_PLAYERS) return fail('That room is full');
     // A name that fails the word filter becomes "Stranger N" (everywhere: plates, ledger, chat, lists).
     const typed = cleanText(rawName, NAME_MAX);
@@ -378,6 +415,136 @@ export class Room {
     this.broadcast();
     if (socketId) this.deps.send(socketId, 'chatHistory', this.chat);
     return { ok: true, seat };
+  }
+
+  // ---------------------------------------------------------------- watching (joined mid-game)
+
+  /**
+   * Someone joins while a game is on (or on the end screen): they watch until the room goes back
+   * to the lobby, then take a seat. Same checks as joining: lock, bans, one browser, names.
+   */
+  addSpectator(rawName: string, socketId: string, browserId: string | null = null): Ack<{ spectator: Spectator }> {
+    if (this.phase === 'lobby') return fail('The room is in the lobby: join it instead');
+    if (this.practice) return fail("That's someone's practice game");
+    if (this.locked) return fail('This room is locked');
+    if (browserId && this.banned.has(browserId)) return fail('You were removed from this room');
+    if (browserId && ([...this.seats.values()].some((s) => s.browserId === browserId) || [...this.spectators.values()].some((s) => s.browserId === browserId))) {
+      return fail("You're already in this room");
+    }
+    if (this.spectators.size >= MAX_PLAYERS) return fail('Too many people are watching this room');
+    const typed = cleanText(rawName, NAME_MAX);
+    const name = this.uniqueName(typed && hasBadWords(typed) ? this.strangerName() : typed);
+    if (!name) return fail('Enter a name');
+    const sp: Spectator = { id: makeId(), token: makeId(18), name, browserId, socketId, connected: true, holdTimer: null };
+    this.spectators.set(sp.id, sp);
+    this.noteActivity();
+    this.broadcast();
+    this.deps.send(socketId, 'chatHistory', this.chat);
+    return { ok: true, spectator: sp };
+  }
+
+  spectatorByToken(token: unknown): Spectator | null {
+    if (typeof token !== 'string' || token.length < 16 || token.length > 64) return null;
+    return [...this.spectators.values()].find((s) => sameToken(s.token, token)) ?? null;
+  }
+
+  resumeSpectator(token: string, socketId: string): Spectator | null {
+    const sp = this.spectatorByToken(token);
+    if (!sp) return null;
+    if (sp.holdTimer) clearTimeout(sp.holdTimer);
+    sp.holdTimer = null;
+    sp.socketId = socketId;
+    sp.connected = true;
+    this.broadcast();
+    this.deps.send(socketId, 'chatHistory', this.chat);
+    return sp;
+  }
+
+  disconnectSpectator(id: PlayerId, socketId: string) {
+    const sp = this.spectators.get(id);
+    if (!sp || sp.socketId !== socketId) return;
+    sp.socketId = null;
+    sp.connected = false;
+    sp.holdTimer = setTimeout(() => this.leaveSpectator(id), SEAT_HOLD_MS);
+  }
+
+  leaveSpectator(id: PlayerId) {
+    const sp = this.spectators.get(id);
+    if (!sp) return;
+    if (sp.holdTimer) clearTimeout(sp.holdTimer);
+    this.spectators.delete(id);
+    this.broadcast();
+  }
+
+  /** Back in the lobby: watchers take seats (same id, session and connection), while there's room. */
+  private seatSpectators() {
+    const now = Date.now();
+    for (const sp of [...this.spectators.values()]) {
+      if (!sp.connected || this.seats.size >= MAX_PLAYERS) continue;
+      if (this.autoStart) {
+        const bot = [...this.seats.values()].filter((s) => s.isBot).sort((a, b) => b.seat - a.seat)[0];
+        if (bot && this.seats.size >= this.deps.minPlayers) this.seats.delete(bot.id);
+      }
+      this.spectators.delete(sp.id);
+      const free = this.freeColors();
+      this.seats.set(sp.id, {
+        id: sp.id,
+        token: sp.token,
+        name: sp.name,
+        item: pick(ITEM_TYPES, this.rng),
+        cosmetics: randomCosmetics((n) => this.rng.int(n)),
+        color: pick(free, this.rng),
+        colorPicked: false,
+        browserId: sp.browserId,
+        anon: anonId(sp.browserId),
+        seat: this.nextSeat++,
+        isBot: false,
+        socketId: sp.socketId,
+        connected: true,
+        away: false,
+        connectedSince: now,
+        holdTimer: null,
+        lastChatAt: 0,
+        disconnects: 0,
+        reconnects: 0,
+        howto: null,
+        tutorial: null,
+        lastInputAt: now,
+        actedThisPoster: false,
+        idlePosters: 0,
+        removed: false,
+      });
+      if (!this.hostId) this.hostId = sp.id;
+      this.trackStep('lobby', [this.seats.get(sp.id)!]);
+    }
+  }
+
+  // ---------------------------------------------------------------- quick-start lobbies
+
+  private scheduleAutoStart() {
+    this.clearAutoStart();
+    if (!this.autoStart) return;
+    this.autoStartAt = Date.now() + AUTO_START_SEC * 1000;
+    this.autoStartTimer = setTimeout(() => this.autoStartNow(), AUTO_START_SEC * 1000);
+  }
+
+  private clearAutoStart() {
+    if (this.autoStartTimer) clearTimeout(this.autoStartTimer);
+    this.autoStartTimer = null;
+    this.autoStartAt = null;
+  }
+
+  /** The quick-start clock ran out: bots take the empty seats up to the minimum, and the game starts. */
+  private autoStartNow() {
+    this.autoStartTimer = null;
+    this.autoStartAt = null;
+    if (this.disposed || this.phase !== 'lobby') return;
+    const host = this.hostId;
+    // Nobody here (they'll close the room) or nobody connected: try again shortly.
+    if (!host || !this.hasConnectedHuman()) return this.scheduleAutoStart();
+    while (this.seats.size < this.deps.minPlayers) if (!this.addBot(host).ok) break;
+    const res = this.start(host);
+    if (!res.ok) this.scheduleAutoStart();
   }
 
   /** The human seat a session token belongs to (constant-time compare), or null. */
@@ -681,8 +848,9 @@ export class Room {
       players,
       bots: [...this.seats.values()].filter((s) => s.isBot).length,
       maxPlayers: MAX_PLAYERS,
-      posters: players,
+      posters: this.settings.posters ?? POSTER_RANGE.default,
       searches: this.settings.inspectsPerRound === 'auto' ? defaultInspects(players) : this.settings.inspectsPerRound,
+      autoStart: this.autoStart,
     };
   }
 
@@ -721,13 +889,13 @@ export class Room {
 
   /** "Stranger 1", "Stranger 2"...: the first number nobody here has. */
   private strangerName(): string {
-    const taken = new Set([...this.seats.values()].map((s) => s.name.toLowerCase()));
+    const taken = new Set([...this.seats.values(), ...this.spectators.values()].map((s) => s.name.toLowerCase()));
     for (let n = 1; ; n++) if (!taken.has(`stranger ${n}`)) return `Stranger ${n}`;
   }
 
   private uniqueName(name: string): string {
     if (!name) return '';
-    const taken = new Set([...this.seats.values()].map((s) => s.name.toLowerCase()));
+    const taken = new Set([...this.seats.values(), ...this.spectators.values()].map((s) => s.name.toLowerCase()));
     if (!taken.has(name.toLowerCase())) return name;
     for (let n = 2; ; n++) {
       const candidate = `${name.slice(0, NAME_MAX - 3)} ${n}`;
@@ -848,6 +1016,7 @@ export class Room {
       s.reconnects = 0;
     }
     this.trackStep('game_start', players);
+    this.clearAutoStart();
     // The first poster's phase runs a few seconds longer: clients count down over that time.
     this.enterPhase('poster', GAME_COUNTDOWN_SECONDS * 1000);
     return { ok: true };
@@ -882,6 +1051,8 @@ export class Room {
     this.lobbySince = this.lastActivityAt = Date.now();
     this.closing = null;
     for (const s of this.seats.values()) s.colorPicked = false; // back to suggestions
+    this.seatSpectators();
+    this.scheduleAutoStart();
     this.bots.onPhase('lobby');
     this.broadcast();
     return { ok: true };
@@ -1015,20 +1186,38 @@ export class Room {
     const clean = cleanText(raw, CHAT_MAX);
     const text = this.visibility === 'public' ? maskBadWords(clean) : clean;
     if (!text) return fail('Empty message');
+    return this.postChat(seat, text, false);
+  }
+
+  /**
+   * A quick-chat phrase (see quickChat.ts): the player picks a phrase, and a player and/or a
+   * color; the server writes the text, so it never contains anything anyone typed.
+   */
+  sendQuickChat(id: PlayerId, raw: unknown): Ack {
+    this.noteInput(id);
+    const seat = this.seats.get(id);
+    if (!seat) return fail('Not in room');
+    const q = parseQuickChat(raw, [...this.seats.keys()]);
+    if (!q) return fail('Unknown phrase');
+    return this.postChat(seat, quickChatText(q, id, (pid) => this.seats.get(pid)?.name ?? 'someone'), true);
+  }
+
+  private postChat(seat: Seat, text: string, quick: boolean): Ack {
     const now = Date.now();
     if (now - seat.lastChatAt < CHAT_COOLDOWN_MS) return fail('Slow down');
     seat.lastChatAt = now;
     const msg: ChatMessage = {
       id: makeId(6),
-      playerId: id,
+      playerId: seat.id,
       name: seat.name,
       text,
       poster: this.game && this.phase !== 'lobby' ? this.game.posterIndex : null,
       at: now,
+      quick,
     };
     this.chat.push(msg);
     if (this.chat.length > CHAT_HISTORY) this.chat.splice(0, this.chat.length - CHAT_HISTORY);
-    for (const s of this.seats.values()) if (s.socketId) this.deps.send(s.socketId, 'chat', msg);
+    for (const id of this.socketIds()) this.deps.send(id, 'chat', msg);
     this.bots.onChat(msg);
     return { ok: true };
   }
@@ -1183,6 +1372,32 @@ export class Room {
   // ---------------------------------------------------------------- views
 
   viewFor(seat: Seat): PlayerView {
+    return {
+      ...this.baseView(),
+      you: {
+        id: seat.id,
+        name: seat.name,
+        color: this.game?.colors[seat.id] ?? seat.color,
+        item: seat.item,
+        isHost: seat.id === this.hostId,
+      },
+      game: this.game && this.phase !== 'lobby' ? engine.gameViewFor(this.game, seat.id) : null,
+      spectating: false,
+    };
+  }
+
+  /** A watcher's view: the room and the game as anyone sees them, nothing of any one player's. */
+  spectatorView(sp: Spectator): PlayerView {
+    return {
+      ...this.baseView(),
+      // Not in the game: no color in play (the client shows "Watching" instead).
+      you: { id: sp.id, name: sp.name, color: 'gray', item: ITEM_TYPES[0], isHost: false },
+      game: this.game && this.phase !== 'lobby' ? engine.spectatorGameView(this.game) : null,
+      spectating: true,
+    };
+  }
+
+  private baseView(): Omit<PlayerView, 'you' | 'game' | 'spectating'> {
     const players: PublicPlayer[] = [...this.seats.values()]
       .sort((a, b) => a.seat - b.seat)
       .map((s) => ({
@@ -1202,22 +1417,22 @@ export class Room {
       devMode: this.deps.devMode,
       minPlayers: this.deps.minPlayers,
       maxPlayers: MAX_PLAYERS,
-      you: {
-        id: seat.id,
-        name: seat.name,
-        color: this.game?.colors[seat.id] ?? seat.color,
-        item: seat.item,
-        isHost: seat.id === this.hostId,
-      },
       players,
       settings: this.settings,
       phase: this.phase,
       phaseEndsAt: this.phaseEndsAt,
-      game: this.game && this.phase !== 'lobby' ? engine.gameViewFor(this.game, seat.id) : null,
       replay: this.phase === 'ended' ? this.replay : null,
       practice: this.practice,
       locked: this.locked,
-      room: { name: this.roomName, visibility: this.visibility, autoFill: { ...this.autoFill }, fillOfferAt: this.fillOfferAt(), closing: this.closing ? { ...this.closing } : null },
+      room: {
+        name: this.roomName,
+        visibility: this.visibility,
+        autoFill: { ...this.autoFill },
+        fillOfferAt: this.fillOfferAt(),
+        closing: this.closing ? { ...this.closing } : null,
+        autoStartAt: this.phase === 'lobby' ? this.autoStartAt : null,
+      },
+      spectators: [...this.spectators.values()].map((s) => ({ id: s.id, name: s.name })),
     };
   }
 
@@ -1232,6 +1447,7 @@ export class Room {
     queueMicrotask(() => {
       this.flushQueued = false;
       for (const seat of this.seats.values()) this.sendTo(seat);
+      for (const sp of this.spectators.values()) if (sp.socketId) this.deps.send(sp.socketId, 'view', this.spectatorView(sp));
       // Every broadcast can change the list row (players, host, phase, lock...); the list throttles.
       this.deps.onListingChange?.();
     });
@@ -1245,7 +1461,7 @@ export class Room {
 
   /** Admins close the room: everyone in it is told, and any game in progress ends (abandoned). */
   close(reason: string) {
-    for (const s of this.seats.values()) if (s.socketId) this.deps.send(s.socketId, 'roomClosed', { reason });
+    for (const id of this.socketIds()) this.deps.send(id, 'roomClosed', { reason });
     this.dispose();
   }
 
@@ -1280,7 +1496,7 @@ export class Room {
 
   /** Socket ids of everyone connected here. */
   socketIds(): string[] {
-    return [...this.seats.values()].flatMap((s) => (s.socketId ? [s.socketId] : []));
+    return [...this.seats.values(), ...this.spectators.values()].flatMap((s) => (s.socketId ? [s.socketId] : []));
   }
 
   private disposed = false;
@@ -1290,7 +1506,8 @@ export class Room {
     this.trackAbandoned();
     this.clearPhaseTimer();
     this.clearHostTimer();
+    this.clearAutoStart();
     this.bots.clear();
-    for (const s of this.seats.values()) if (s.holdTimer) clearTimeout(s.holdTimer);
+    for (const s of [...this.seats.values(), ...this.spectators.values()]) if (s.holdTimer) clearTimeout(s.holdTimer);
   }
 }

@@ -3,6 +3,7 @@ import type { ColorId } from './palette';
 import type { FeedbackAnswers, HowtoStatus } from './playtest';
 import type { Announcement, ClientStep, ServerStatus, VisitPage } from './analytics';
 import type { AutoFill, LobbyListUpdate, Visibility } from './lobby';
+import type { QuickChat } from './quickChat';
 import type { ChatMessage, ItemType, PlayerId, PlayerView, RoomSettings, TutorialProgress } from './types';
 
 export type Ack<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
@@ -12,6 +13,8 @@ export interface JoinResult {
   code: string;
   playerId: PlayerId;
   token: string;
+  /** Joined while a game was on: watching until the next game (see PlayerView.spectating). */
+  spectating?: boolean;
 }
 
 /** Intents. The server validates every one. */
@@ -20,8 +23,12 @@ export interface ClientToServerEvents {
   'room:create': (p: { name: string; visibility?: Visibility; roomName?: string }, ack: AckFn<JoinResult>) => void;
   /** Join a public room from the Find a Lobby list (by its list id, never the code). */
   'room:joinListed': (p: { id: string; name: string }, ack: AckFn<JoinResult>) => void;
-  /** Quick Play: the fullest public room still waiting, or a new public room if there are none. */
-  'room:quickPlay': (p: { name: string }, ack: AckFn<JoinResult & { created: boolean }>) => void;
+  /**
+   * Quick Play: the fullest public room still waiting, or a new public room if there are none.
+   * `autoStart` (game portals' one-tap Play): only quick-start lobbies, which fill with bots and
+   * start by themselves (see RoomInfo.autoStartAt); a new room is one too.
+   */
+  'room:quickPlay': (p: { name: string; autoStart?: boolean }, ack: AckFn<JoinResult & { created: boolean }>) => void;
   /** Find a Lobby: start receiving the live list ("lobby:list"). The reply has the list now. */
   'lobby:watch': (ack: AckFn<LobbyListUpdate>) => void;
   'lobby:unwatch': () => void;
@@ -64,6 +71,8 @@ export interface ClientToServerEvents {
   'game:backToLobby': (ack: AckFn) => void;
 
   'chat:send': (p: { text: string }, ack: AckFn) => void;
+  /** A quick-chat phrase (see quickChat.ts): the server writes the text. */
+  'chat:quick': (p: QuickChat, ack: AckFn) => void;
 
   /** Playtest stats: what this player did with How to Play. */
   'client:howto': (p: { status: HowtoStatus }, ack: AckFn) => void;
