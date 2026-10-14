@@ -23,7 +23,7 @@ import { ringRadius } from '../../scene/town/Town';
 import type { CamPath, V3 } from '../paths';
 import { sampleShot, shotPath, type CamWorld, type SeatInfo } from './cameras';
 import { Overlays, SafeZones, desatAt, makeFrame, shakeAt, type OverlayCtx } from './Overlays';
-import { SEARCH, compile, parseScript, sceneTimeAt, smooth, type Format, type Plan, type TrailerScript } from './script';
+import { SEARCH, compile, isTall, parseScript, sceneTimeAt, smooth, type Format, type Plan, type TrailerScript } from './script';
 import { analyseMusic, musicUrl, playCue, renderSoundtrack, type MusicInfo } from './sound';
 import { StudioRig, type FrameCam, type StudioRigApi } from './StudioRig';
 import { Timeline } from './Timeline';
@@ -43,6 +43,8 @@ export function outputSize(format: Format, res: Res | string): { W: number; H: n
   if (m) return { W: Number(m[1]), H: Number(m[2]) };
   const long = res === '4K' ? 3840 : 1920;
   const short = res === '4K' ? 2160 : 1080;
+  // 2:3 portrait at "1080p" is 1080x1620 (portals' preview videos).
+  if (format === '2:3') return { W: short, H: Math.round((short * 3) / 2) };
   return format === '9:16' ? { W: short, H: long } : { W: long, H: short };
 }
 
@@ -61,7 +63,7 @@ function readParams(): Params {
   return {
     script: q.get('script') ?? 'main',
     render: q.get('render') === '1',
-    format: f === '9x16' || f === '9:16' ? '9:16' : f === '16x9' || f === '16:9' ? '16:9' : null,
+    format: f === '9x16' || f === '9:16' ? '9:16' : f === '2x3' || f === '2:3' ? '2:3' : f === '16x9' || f === '16:9' ? '16:9' : null,
     res: q.get('res') ?? '1080p',
     layer: layer === 'scene' || layer === 'overlay' ? layer : 'full',
   };
@@ -307,8 +309,8 @@ export function Studio() {
     if (!plan) return [] as CamPath[];
     return plan.shots.map((s) => {
       const dur = sceneTimeAt(plan, s.end) - sceneTimeAt(plan, s.t);
-      const spec = format === '9:16' && s.vertical ? s.vertical : s.camera;
-      return shotPath(spec, world, dur, format, seatOf, format === '9:16' && !!s.vertical && 'keys' in s.vertical);
+      const spec = isTall(format) && s.vertical ? s.vertical : s.camera;
+      return shotPath(spec, world, dur, format, seatOf, isTall(format) && !!s.vertical && 'keys' in s.vertical);
     });
   }, [plan, world, format, seatOf]);
   const revealPaths = useMemo(() => {
@@ -694,7 +696,7 @@ export function Studio() {
           <section>
             <h4>Frame</h4>
             <div className="row">
-              {(['16:9', '9:16'] as Format[]).map((f) => (
+              {(['16:9', '9:16', '2:3'] as Format[]).map((f) => (
                 <button key={f} className={format === f ? 'on' : ''} onClick={() => setFormatPick(f)}>
                   {f}
                 </button>

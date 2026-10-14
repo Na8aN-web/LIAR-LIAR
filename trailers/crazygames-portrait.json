@@ -1,0 +1,180 @@
+{
+  "title": "Wanted: True Colors — CrazyGames preview (portrait)",
+  "format": "2:3",
+  "duration": 18,
+  "fps": 60,
+  "music": {
+    "file": "/audio/music-westernmusic.mp3",
+    "volume": 0.75,
+    "bpm": 80.25,
+    "offset": 0.046,
+    "fadeOut": 1.5
+  },
+  "ambience": 0.25,
+  "cast": {
+    "players": 8,
+    "names": [
+      "June",
+      "Hank",
+      "Dolly",
+      "Silas",
+      "Boone",
+      "Pearl",
+      "Clem",
+      "Etta"
+    ],
+    "colors": [
+      "green",
+      "red",
+      "blue",
+      "yellow",
+      "pink",
+      "orange",
+      "teal",
+      "tan"
+    ],
+    "wanted": "Hank"
+  },
+  "look": {
+    "grain": 0.05,
+    "vignette": 0.45
+  },
+  "shots": [
+    {
+      "at": 0,
+      "camera": {
+        "preset": "poster"
+      },
+      "label": "Hook"
+    },
+    {
+      "at": 2,
+      "camera": {
+        "preset": "orbit"
+      },
+      "label": "The circle"
+    },
+    {
+      "at": 4.4,
+      "camera": {
+        "preset": "closeUp",
+        "target": "Hank"
+      },
+      "label": "Search"
+    },
+    {
+      "at": 10.5,
+      "camera": {
+        "preset": "circleSlow"
+      },
+      "label": "Lies"
+    },
+    {
+      "at": 13.2,
+      "camera": {
+        "preset": "pushIn",
+        "target": "Hank"
+      },
+      "label": "Vote"
+    },
+    {
+      "at": 16,
+      "camera": {
+        "preset": "lowAngle"
+      },
+      "label": "Bounty"
+    }
+  ],
+  "events": [
+    {
+      "at": "beat:1",
+      "type": "posterSlam",
+      "dur": 2.2
+    },
+    {
+      "at": "beat:3",
+      "type": "title",
+      "text": "ONE OF YOU IS THE OUTLAW",
+      "in": "slam",
+      "out": "fade",
+      "pos": "upper",
+      "dur": 2.4
+    },
+    {
+      "at": 4.4,
+      "type": "title",
+      "text": "SEARCH PLAYERS",
+      "in": "slide",
+      "out": "fade",
+      "pos": "top",
+      "dur": 1.8
+    },
+    {
+      "at": 4.6,
+      "type": "searchReveal",
+      "target": "Hank",
+      "searcher": "June",
+      "dur": 5.9
+    },
+    {
+      "at": 10.5,
+      "type": "title",
+      "text": "EVERYONE LIES",
+      "in": "stamp",
+      "out": "fade",
+      "pos": "top",
+      "dur": 1.8
+    },
+    {
+      "at": 11,
+      "type": "bubble",
+      "who": "Hank",
+      "text": "Not me. I'm Tan.",
+      "dur": 2
+    },
+    {
+      "at": "beat:16",
+      "type": "bubble",
+      "who": "Dolly",
+      "text": "It's Hank!",
+      "dur": 1.8
+    },
+    {
+      "at": 13.2,
+      "type": "title",
+      "text": "FIND THE OUTLAW",
+      "in": "slam",
+      "out": "fade",
+      "pos": "upper",
+      "dur": 1.6
+    },
+    {
+      "at": 13.6,
+      "type": "vote",
+      "target": "Hank",
+      "dur": 2.4
+    },
+    {
+      "at": 16,
+      "type": "title",
+      "text": "CLAIM THE BOUNTY",
+      "in": "slide",
+      "out": "fade",
+      "pos": "top",
+      "dur": 1.9,
+      "color": "brass"
+    },
+    {
+      "at": 16.2,
+      "type": "payout",
+      "amount": 150,
+      "dur": 1.7
+    },
+    {
+      "at": 16.2,
+      "type": "slowmo",
+      "speed": 0.35,
+      "dur": 1.2
+    }
+  ]
+}

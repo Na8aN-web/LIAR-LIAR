@@ -1172,3 +1172,36 @@ body:has(.trailer) nextjs-portal { display: none !important; }
 .btn.quick-toggle { padding-left: 10px; padding-right: 10px; }
 .btn.quick-toggle.on { background: var(--oxblood); color: var(--cream); }
 .chat-note { margin: 6px 0 0; }
+
+/* ---------------------------------------------------------------- short landscape screens
+   Phones turned sideways and portals' small frames (CrazyGames tests 800x450 and 821x462): the
+   same layouts, compacted so the scene, the cards and the vote all fit the height. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .topbar { margin-top: calc(4px + var(--safe-top)); padding: 3px 6px; gap: 6px; }
+  .mini-poster { min-width: 40px; }
+  .poster-svg.thumb { width: 30px; }
+  .mini-color { font-size: 0.64rem; }
+  .phase-name { font-size: 0.82rem; -webkit-line-clamp: 1; }
+  .phase-tracker { margin: 0; }
+  .topbar .brass { padding: 1px 5px 2px; }
+  .topbar .brass-value { font-size: 1rem; }
+  .poster-svg.big { width: min(76vw, 330px, 46dvh); }
+
+  .vote-panel { margin: 4px var(--gutter); }
+  .vote-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; column-gap: 14px; row-gap: 0; padding: 4px 12px 3px; }
+  .vote-head h2 { font-size: 1.25rem; }
+  .vote-clock { font-size: 1.25rem; }
+  .vote-sub { display: none; }
+  .vote-cut { flex-basis: 100%; margin: 0; font-size: 0.8rem; }
+  .vote-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 6px; }
+  .vote-card { min-height: 46px; padding: 4px 8px; }
+  .vote-card.on { padding: 3px 7px; }
+  .vote-foot { padding: 6px; }
+  .vote-accuse { min-height: 40px; }
+
+  .side-panel { height: 56dvh; min-height: 0; }
+  .lobby .panel { padding: 10px 12px; }
+  .room-code { font-size: 1.5rem; }
+  .lobby-actions { margin-top: 8px; }
+  .center-card .card.payout { padding-top: 10px; padding-bottom: 10px; }
+}

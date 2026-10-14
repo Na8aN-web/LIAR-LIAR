@@ -21,11 +21,23 @@ import '../studio/studio.css';
 // The whole picture is composed on one 2D canvas at 3840x2160, so the preview is exactly the
 // export; the 1280x720 PNG is a downscale of it. Nothing here touches the menu or the game.
 
-const OUT_W = 3840;
-const OUT_H = 2160;
-/** The 3D view is laid out at this CSS size and rendered at 2x (= OUT_W x OUT_H). */
-const VIEW_W = 1920;
-const VIEW_H = 1080;
+/**
+ * Picture shapes. The 3D view is laid out at view size (CSS px) and rendered at 2x, and the
+ * picture is composed at that 2x size; each download is that picture, scaled to its size.
+ * Covers are CrazyGames' game covers (docs: Requirements > Game covers).
+ */
+type CoverShape = 'landscape' | 'portrait' | 'square';
+interface Shape {
+  view: [number, number];
+  downloads: [number, number][];
+}
+const THUMB_SHAPE: Shape = { view: [1920, 1080], downloads: [[1280, 720], [3840, 2160]] };
+const COVER_SHAPES: Record<CoverShape, Shape> = {
+  landscape: { view: [1920, 1080], downloads: [[1920, 1080], [3840, 2160]] },
+  portrait: { view: [1080, 1620], downloads: [[800, 1200], [2160, 3240]] },
+  square: { view: [1440, 1440], downloads: [[800, 800], [2880, 2880]] },
+};
+const shapeOf = (s: Settings): Shape => (s.layout === 'cover' ? COVER_SHAPES[s.coverShape] : THUMB_SHAPE);
 
 interface Sitter {
   color: ColorId;
@@ -79,7 +91,16 @@ const POSTER_CAM_PRESETS: Record<string, Cam> = {
   Low: { rotate: 0, distance: 7.4, height: 1.3, lookY: 1.05, fov: 38, shiftX: 0, shiftY: -0.04 },
   High: { rotate: 0, distance: 7.8, height: 4.6, lookY: 0.2, fov: 36, shiftX: 0, shiftY: 0 },
 };
-const activeCam = (s: Settings) => s.cams[s.layout];
+// Covers: a clean, centered view with room for the title on top.
+const COVER_CAM_PRESETS: Record<CoverShape, Cam> = {
+  landscape: { rotate: 0, distance: 8.8, height: 2.9, lookY: 0.7, fov: 38, shiftX: 0, shiftY: -0.1 },
+  // Tall and square frames: from higher up, the circle reads rounder and fits the width.
+  portrait: { rotate: 0, distance: 11.8, height: 9.5, lookY: 0, fov: 46, shiftX: 0, shiftY: -0.15 },
+  square: { rotate: 0, distance: 11, height: 6.2, lookY: 0.2, fov: 42, shiftX: 0, shiftY: -0.12 },
+};
+type CamSlot = 'scene' | 'poster' | `cover-${CoverShape}`;
+const camSlot = (s: Settings): CamSlot => (s.layout === 'cover' ? `cover-${s.coverShape}` : s.layout);
+const activeCam = (s: Settings) => s.cams[camSlot(s)];
 
 interface Look {
   exposure: number;
@@ -91,14 +112,16 @@ interface Look {
   embers: number;
 }
 
-type Layout = 'scene' | 'poster';
+type Layout = 'scene' | 'poster' | 'cover';
 
 interface Settings {
   /** "Campfire scene" (the first version) or "Poster" (the whole frame is the Wanted poster). */
   layout: Layout;
   posterColor: ColorId;
-  /** One camera per layout, so switching doesn't undo the other's framing. */
-  cams: Record<Layout, Cam>;
+  /** Cover layout: which of CrazyGames' three cover shapes. */
+  coverShape: CoverShape;
+  /** One camera per layout (and cover shape), so switching doesn't undo another's framing. */
+  cams: Record<CamSlot, Cam>;
   look: Look;
   show: { title: boolean; tagline: boolean; credit: boolean; poster: boolean };
 }
@@ -106,7 +129,14 @@ interface Settings {
 const DEFAULTS: Settings = {
   layout: 'scene',
   posterColor: 'red',
-  cams: { scene: CAM_PRESETS.Hero, poster: POSTER_CAM_PRESETS.Tight },
+  coverShape: 'landscape',
+  cams: {
+    scene: CAM_PRESETS.Hero,
+    poster: POSTER_CAM_PRESETS.Tight,
+    'cover-landscape': COVER_CAM_PRESETS.landscape,
+    'cover-portrait': COVER_CAM_PRESETS.portrait,
+    'cover-square': COVER_CAM_PRESETS.square,
+  },
   look: { exposure: 1.6, contrast: 1.15, saturation: 1.45, fire: 1.6, fill: 1.4, vignette: 0.55, embers: 6 },
   show: { title: true, tagline: true, credit: true, poster: true },
 };
@@ -116,8 +146,12 @@ function loadSettings(): Settings {
   try {
     const s = JSON.parse(localStorage.getItem(STORE) ?? 'null');
     if (s && typeof s === 'object') {
-      const cams = { scene: { ...DEFAULTS.cams.scene, ...(s.cams?.scene ?? s.cam) }, poster: { ...DEFAULTS.cams.poster, ...s.cams?.poster } };
-      return { ...DEFAULTS, ...s, layout: s.layout === 'poster' ? 'poster' : 'scene', cams, look: { ...DEFAULTS.look, ...s.look }, show: { ...DEFAULTS.show, ...s.show } };
+      const cams = Object.fromEntries(
+        (Object.keys(DEFAULTS.cams) as CamSlot[]).map((k) => [k, { ...DEFAULTS.cams[k], ...(s.cams?.[k] ?? (k === 'scene' ? s.cam : undefined)) }]),
+      ) as Settings['cams'];
+      const layout: Layout = s.layout === 'poster' || s.layout === 'cover' ? s.layout : 'scene';
+      const coverShape: CoverShape = s.coverShape in COVER_SHAPES ? s.coverShape : 'landscape';
+      return { ...DEFAULTS, ...s, layout, coverShape, cams, look: { ...DEFAULTS.look, ...s.look }, show: { ...DEFAULTS.show, ...s.show } };
     }
   } catch {
     /* ignore */
@@ -215,7 +249,7 @@ function Rig({ cam, exposure, fire }: { cam: Cam; exposure: number; fire: React.
 function ThumbScene({ s, fire, onGl }: { s: Settings; fire: React.MutableRefObject<{ x: number; y: number }>; onGl: (c: HTMLCanvasElement) => void }) {
   return (
     <Canvas
-      dpr={OUT_W / VIEW_W}
+      dpr={2}
       resize={{ offsetSize: true }}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
       camera={{ position: [0, 2.7, 8.4], fov: 38 }}
@@ -311,6 +345,7 @@ function outlined(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 
 function compose(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement | null, s: Settings, fonts: Fonts, poster: HTMLCanvasElement | null, fire: { x: number; y: number }) {
   if (s.layout === 'poster') return composePoster(ctx, scene, s, fonts, fire);
+  if (s.layout === 'cover') return composeCover(ctx, scene, s, fonts, fire);
   const W = ctx.canvas.width;
   const H = ctx.canvas.height;
   const u = H / 720; // one pixel of the 1280x720 layout
@@ -681,6 +716,61 @@ function composePoster(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement |
   ctx.restore();
 }
 
+// ---------------------------------------------------------------- the Cover layout
+
+/**
+ * CrazyGames' game covers (landscape 1920x1080, portrait 800x1200, square 800x800): the
+ * campfire with everyone's true colors, and the title as the only text (their rule).
+ */
+function composeCover(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement | null, s: Settings, fonts: Fonts, fire: { x: number; y: number }) {
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
+  const m = Math.min(W, H);
+  ctx.save();
+  ctx.fillStyle = '#0b0d19';
+  ctx.fillRect(0, 0, W, H);
+  if (scene && scene.width) {
+    ctx.filter = `contrast(${s.look.contrast}) saturate(${s.look.saturation})`;
+    ctx.drawImage(scene, 0, 0, W, H);
+    ctx.filter = 'none';
+  }
+  const fx = fire.x * W;
+  const fy = fire.y * H;
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, m * 0.36);
+  g.addColorStop(0, `rgba(255,150,60,${Math.min(0.5, 0.16 * s.look.fire)})`);
+  g.addColorStop(1, 'rgba(255,120,40,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over';
+  const v = ctx.createRadialGradient(W / 2, H * 0.58, m * 0.35, W / 2, H * 0.58, Math.hypot(W, H) * 0.55);
+  v.addColorStop(0, 'rgba(0,0,0,0)');
+  v.addColorStop(1, `rgba(0,0,0,${s.look.vignette})`);
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, W, H);
+
+  // The title: two lines, as big as fits (about 88% of the width), "Wanted:" centered on its letters.
+  if (s.show.title) {
+    const maxW = W * 0.88;
+    const fit = (text: string, size: number) => {
+      ctx.font = `${size}px ${fonts.display}`;
+      return Math.min(size, (size * maxW) / ctx.measureText(text).width);
+    };
+    const b = fit('True Colors', m * (W < H ? 0.17 : 0.16));
+    const a = Math.min(b * 0.82, fit('Wanted:', b));
+    const top = H * (W < H ? 0.05 : 0.045);
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = `${a}px ${fonts.display}`;
+    const wantedW = ctx.measureText('Wanted').width;
+    ctx.textAlign = 'left';
+    outlined(ctx, 'Wanted:', W / 2 - wantedW / 2, top + a, a, '#f1d78f', 0.16);
+    ctx.font = `${b}px ${fonts.display}`;
+    ctx.textAlign = 'center';
+    outlined(ctx, 'True Colors', W / 2, top + a + b * 0.98, b, '#f3e6c4', 0.15);
+  }
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------- the page
 
 function cssFamily(name: string, fallback: string) {
@@ -733,16 +823,20 @@ export function Thumbnail() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Fit the 16:9 stage into the free area.
+  // Fit the stage (its shape depends on the layout) into the free area.
+  const shape = shapeOf(s);
+  const [VIEW_W, VIEW_H] = shape.view;
   const area = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
   useEffect(() => {
     const el = area.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setScale(Math.min((el.clientWidth - 24) / VIEW_W, (el.clientHeight - 24) / VIEW_H)));
+    const fit = () => setScale(Math.min((el.clientWidth - 24) / VIEW_W, (el.clientHeight - 24) / VIEW_H));
+    fit();
+    const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [VIEW_W, VIEW_H]);
 
   const download = useCallback(
     (w: number, h: number) => {
@@ -762,7 +856,7 @@ export function Thumbnail() {
         if (!blob) return;
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `wanted-true-colors-thumbnail-${w}x${h}.png`;
+        a.download = `wanted-true-colors-${s.layout === 'cover' ? `cover-${s.coverShape}` : 'thumbnail'}-${w}x${h}.png`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 2000);
       }, 'image/png');
@@ -770,9 +864,9 @@ export function Thumbnail() {
     [s, fonts, poster],
   );
 
-  const cam = (k: keyof Cam, v: number) => setS((x) => ({ ...x, cams: { ...x.cams, [x.layout]: { ...x.cams[x.layout], [k]: v } } }));
+  const cam = (k: keyof Cam, v: number) => setS((x) => ({ ...x, cams: { ...x.cams, [camSlot(x)]: { ...activeCam(x), [k]: v } } }));
   const c = activeCam(s);
-  const presets = s.layout === 'poster' ? POSTER_CAM_PRESETS : CAM_PRESETS;
+  const presets: Record<string, Cam> = s.layout === 'poster' ? POSTER_CAM_PRESETS : s.layout === 'cover' ? { Default: COVER_CAM_PRESETS[s.coverShape] } : CAM_PRESETS;
   const look = (k: keyof Look, v: number) => setS((x) => ({ ...x, look: { ...x.look, [k]: v } }));
   const slider = (label: string, value: number, min: number, max: number, step: number, set: (v: number) => void, fmt = (v: number) => v.toFixed(2)) => (
     <label className="thumb-slider">
@@ -791,7 +885,8 @@ export function Thumbnail() {
             <div style={{ position: 'absolute', inset: 0 }}>
               <ThumbScene s={s} fire={fire} onGl={(c) => (gl.current = c)} />
             </div>
-            <canvas ref={out} width={OUT_W} height={OUT_H} style={{ position: 'absolute', inset: 0, width: VIEW_W, height: VIEW_H }} />
+            {/* Keyed by shape: a new size means a fresh canvas. */}
+            <canvas key={`${VIEW_W}x${VIEW_H}`} ref={out} width={VIEW_W * 2} height={VIEW_H * 2} style={{ position: 'absolute', inset: 0, width: VIEW_W, height: VIEW_H }} />
           </div>
         </div>
       </div>
@@ -810,12 +905,11 @@ export function Thumbnail() {
         <section>
           <h4>Export</h4>
           <div className="row">
-            <button className="rec" disabled={!fonts} onClick={() => download(1280, 720)}>
-              Download PNG 1280×720
-            </button>
-            <button className="rec" disabled={!fonts} onClick={() => download(OUT_W, OUT_H)}>
-              Download PNG 3840×2160
-            </button>
+            {shape.downloads.map(([w, h]) => (
+              <button key={`${w}x${h}`} className="rec" disabled={!fonts} onClick={() => download(w, h)}>
+                Download PNG {w}×{h}
+              </button>
+            ))}
           </div>
         </section>
 
@@ -826,6 +920,7 @@ export function Thumbnail() {
               [
                 ['scene', 'Campfire scene'],
                 ['poster', 'Poster'],
+                ['cover', 'Cover'],
               ] as const
             ).map(([id, label]) => (
               <button key={id} className={s.layout === id ? 'on' : ''} onClick={() => setS((x) => ({ ...x, layout: id }))}>
@@ -836,8 +931,25 @@ export function Thumbnail() {
           <div className="hint">
             {s.layout === 'poster'
               ? 'The whole thumbnail is the Wanted poster, with the campfire in its picture frame.'
-              : 'The campfire scene with the title, the poster on its post and the tagline.'}
+              : s.layout === 'cover'
+                ? 'CrazyGames game covers: the campfire and the title, no other text (their rule).'
+                : 'The campfire scene with the title, the poster on its post and the tagline.'}
           </div>
+          {s.layout === 'cover' && (
+            <div className="row">
+              {(
+                [
+                  ['landscape', 'Landscape 1920×1080'],
+                  ['portrait', 'Portrait 800×1200'],
+                  ['square', 'Square 800×800'],
+                ] as const
+              ).map(([id, label]) => (
+                <button key={id} className={s.coverShape === id ? 'on' : ''} onClick={() => setS((x) => ({ ...x, coverShape: id }))}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         <section>
@@ -896,7 +1008,7 @@ export function Thumbnail() {
               ['poster', 'Wanted poster'],
             ] as const
           )
-            .filter(([k]) => !(s.layout === 'poster' && k === 'poster'))
+            .filter(([k]) => !(s.layout === 'poster' && k === 'poster') && !(s.layout === 'cover' && k !== 'title'))
             .map(([k, label]) => (
             <label key={k}>
               <input type="checkbox" checked={s.show[k]} onChange={(e) => setS((x) => ({ ...x, show: { ...x.show, [k]: e.target.checked } }))} /> {label}

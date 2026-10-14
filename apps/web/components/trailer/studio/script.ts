@@ -9,7 +9,10 @@ import type { CamKey, V3 } from '../paths';
 /** Seconds, or a musical position: "beat:16", "bar:4", "beat:16+0.25" (needs music.bpm). */
 export type TimeRef = number | string;
 
-export type Format = '16:9' | '9:16';
+export type Format = '16:9' | '9:16' | '2:3';
+
+/** Portrait frames (9:16 for TikTok/Reels/Shorts, 2:3 for game portals' preview videos). */
+export const isTall = (f: Format) => f !== '16:9';
 export type TitleIn = 'slam' | 'slide' | 'stamp' | 'type';
 export type TitleOut = 'fade' | 'slide' | 'burn' | 'none';
 export type Ink = 'cream' | 'brass' | 'oxblood';

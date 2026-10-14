@@ -6,7 +6,7 @@
 //   pnpm trailer:render main --layers --alpha --png
 //
 // Options:
-//   --format 16:9 | 9:16       frame shape (default: the script's "format", else 16:9)
+//   --format 16:9 | 9:16 | 2:3 frame shape (default: the script's "format", else 16:9)
 //   --res 1080p | 4k | WxH     output size (default 1080p)
 //   --from S --to S            render only part of the trailer (seconds)
 //   --layers                   also render the scene alone, and the overlays alone on transparent
@@ -47,7 +47,7 @@ const opt = (name, def) => {
 const VALUED = new Set(['--format', '--res', '--from', '--to', '--crf', '--url', '--out', '--workers', '--stills']);
 const name = argv.find((a, i) => !a.startsWith('--') && !VALUED.has(argv[i - 1]));
 if (!name) {
-  console.error('Usage: pnpm trailer:render <script> [--format 16:9|9:16] [--res 1080p|4k|WxH] [--from s] [--to s] [--layers] [--alpha] [--png] [--workers n]');
+  console.error('Usage: pnpm trailer:render <script> [--format 16:9|9:16|2:3] [--res 1080p|4k|WxH] [--from s] [--to s] [--layers] [--alpha] [--png] [--workers n]');
   process.exit(1);
 }
 const progressMode = flag('progress');
@@ -66,6 +66,8 @@ const size = (() => {
   const m = /^(\d+)x(\d+)$/.exec(resArg);
   if (m) return { W: +m[1], H: +m[2] };
   const [long, short] = resArg === '4k' ? [3840, 2160] : [1920, 1080];
+  // 2:3 portrait (portals' preview videos): 1080x1620 at 1080p.
+  if (format === '2:3') return { W: short, H: Math.round((short * 3) / 2) };
   return format === '9:16' ? { W: short, H: long } : { W: long, H: short };
 })();
 const res = `${size.W}x${size.H}`;

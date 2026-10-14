@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import { SEATED_HEIGHT } from '../../scene/Scarecrow';
 import { presetPaths, samplePath, type CamKey, type CamPath, type V3 } from '../paths';
-import type { CameraSpec, Format } from './script';
+import { isTall, type CameraSpec, type Format } from './script';
 
 // Camera moves for trailer shots, built from where everyone sits. Each preset is stretched to
 // the shot's length; 9:16 pulls wide shots back so the circle still fits the tall frame.
@@ -128,7 +128,7 @@ function vertical(keys: CamKey[], wide: boolean): CamKey[] {
 export function shotPath(spec: CameraSpec, w: CamWorld, dur: number, format: Format, seatOf: (ref?: string) => SeatInfo | null, custom9x16 = false): CamPath {
   let keys = stretch(build(spec, w, dur, seatOf), Math.max(0.01, dur));
   // Hand-made 9:16 keys are used as they are.
-  if (format === '9:16' && !custom9x16) keys = vertical(keys, 'preset' in spec ? WIDE.has(spec.preset) : true);
+  if (isTall(format) && !custom9x16) keys = vertical(keys, 'preset' in spec ? WIDE.has(spec.preset) : true);
   return { name: 'shot', keys };
 }
 

@@ -7,6 +7,7 @@ import { EyeIcon } from '../../ui/EyeIcon';
 import { POSTER_H, POSTER_W } from '../../poster/posterArt';
 import type { V3 } from '../paths';
 import {
+  isTall,
   SEARCH,
   TITLE_LAND,
   clamp01,
@@ -56,7 +57,8 @@ export function makeFrame(W: number, H: number, format: Format): Frame {
   const safe =
     format === '9:16'
       ? { left: W * 0.06, right: W * 0.15, top: H * 0.1, bottom: H * 0.22 }
-      : { left: W * 0.06, right: W * 0.06, top: H * 0.07, bottom: H * 0.08 };
+      : // 16:9, and 2:3 (portals' portrait previews: no app chrome over them).
+        { left: W * 0.06, right: W * 0.06, top: H * 0.07, bottom: H * 0.08 };
   return { W, H, format, u, safe };
 }
 
@@ -328,7 +330,7 @@ function SearchReveal({ e, c }: { e: Extract<Resolved, { type: 'searchReveal' }>
   const { l, total } = local(e, c.t);
   const { W, H, safe } = c.frame;
   // Bigger on tall frames: they're watched on phones.
-  const u = c.frame.u * (c.frame.format === '9:16' ? 1.35 : 1);
+  const u = c.frame.u * (isTall(c.frame.format) ? 1.35 : 1);
   const target = c.plan.byRef(e.target);
   const rows = useMemo(() => (target ? searchChips(c.plan, e, c.colorOf) : []), [target, e, c.plan, c.colorOf]);
   if (!target) return null;
@@ -677,7 +679,7 @@ function EndCard({ e, c }: { e: Extract<Resolved, { type: 'endCard' }>; c: Overl
   const { l } = local(e, c.t);
   const { u, W, H, safe, format } = c.frame;
   const card = c.plan.endCard;
-  const tall = format === '9:16';
+  const tall = isTall(format);
   const titleSize = fitSize(card.title.toUpperCase(), (tall ? 19 : 17) * u, (W - safe.left - safe.right) * 0.95, 0.85);
   const k = clamp01(l / 0.18);
   const scale = l < 0.18 ? 2.6 - 1.6 * easeInCubic(k) : 1 + 0.04 * Math.exp(-8 * (l - 0.18)) * Math.cos(26 * (l - 0.18));
