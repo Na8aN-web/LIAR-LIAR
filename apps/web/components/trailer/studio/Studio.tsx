@@ -16,6 +16,7 @@ import {
   type PlayerView,
   type Reaction,
 } from '@wtc/shared';
+import { previewPortalLook } from '@/lib/portal';
 import { useGame } from '@/lib/store';
 import { SEATED_HEIGHT } from '../../scene/Scarecrow';
 import type { SceneTrailer } from '../../scene/Scene';
@@ -214,6 +215,12 @@ export function Studio() {
   const [scriptName, setScriptName] = useState(params.script);
   const [scripts, setScripts] = useState<string[]>([]);
   const [script, setScript] = useState<TrailerScript | null>(null);
+  // A portal's preview video: the town as it looks there (town signs, no handle).
+  const scriptPortal = script?.portal ?? null;
+  useEffect(() => {
+    previewPortalLook(scriptPortal);
+    return () => previewPortalLook(null);
+  }, [scriptPortal]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const mtime = useRef<string | null>(null);
   const [formatPick, setFormatPick] = useState<Format | null>(params.format);

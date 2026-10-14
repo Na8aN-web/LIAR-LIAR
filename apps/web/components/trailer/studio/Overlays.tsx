@@ -368,8 +368,9 @@ function SearchReveal({ e, c }: { e: Extract<Resolved, { type: 'searchReveal' }>
     <div style={{ opacity: out }}>
       <div className="ts-card" style={{ left: cardX, top: cardY, width: cardW, height: cardH, fontSize: 3 * u }}>
         <span className="ts-card-name">{c.nameOf(target)}</span>
-        <span className="ts-eye" style={{ fontSize: 2.2 * u }}>
-          <EyeIcon /> {l < SEARCH.press ? 0 : l < second + pressDur ? 1 : 2}
+        {/* As in the game: a plain eye once they've been searched, never a count. */}
+        <span className="ts-eye" style={{ fontSize: 2.2 * u, visibility: l < SEARCH.press ? 'hidden' : 'visible' }}>
+          <EyeIcon />
         </span>
         <span className={`ts-search-btn${pressed ? ' pressed' : ''}`} style={{ left: btnX - cardX, width: 29 * u, height: cardH - 4 * u, fontSize: 2.3 * u }}>
           SEARCH · {left} LEFT

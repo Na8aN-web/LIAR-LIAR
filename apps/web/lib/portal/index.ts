@@ -14,6 +14,8 @@ import { webPortal } from './web';
 const ADAPTERS: Record<PortalId, PortalAdapter> = { web: webPortal, crazygames: crazyGamesPortal };
 
 let current: PortalAdapter = webPortal;
+/** Trailer studio: the current page, with another portal's look (see previewPortalLook). */
+let preview: PortalAdapter | null = null;
 let ready = true;
 let version = 0;
 const listeners = new Set<() => void>();
@@ -23,7 +25,16 @@ const notify = () => {
 };
 
 export function portal(): PortalAdapter {
-  return current;
+  return preview ?? current;
+}
+
+/**
+ * Trailer studio only: render the game as it looks on a portal (its features: town signs, no
+ * handle...), without loading that portal's SDK. null goes back to normal.
+ */
+export function previewPortalLook(id: PortalId | null) {
+  preview = id && id !== current.id ? { ...current, features: ADAPTERS[id].features } : null;
+  notify();
 }
 
 /** Starts a portal: its SDK, then its save as the storage for progress and settings. */
@@ -59,7 +70,7 @@ const subscribe = (l: () => void) => {
 /** The current portal (re-renders when it starts or its settings change). */
 export function usePortal(): PortalAdapter {
   useSyncExternalStore(subscribe, () => version, () => 0);
-  return current;
+  return preview ?? current;
 }
 
 export function usePortalReady(): boolean {

@@ -113,6 +113,11 @@ export type TrailerEvent =
 export interface TrailerScript {
   title?: string;
   format?: Format;
+  /**
+   * Show the town as it looks on a game portal (e.g. "crazygames": the town's own signs instead
+   * of sponsor boards, no social handle), for that portal's preview videos.
+   */
+  portal?: 'crazygames';
   /** Seconds. */
   duration: number;
   fps?: number;
