@@ -78,15 +78,20 @@ purpose: lying is the game.
 1. Merge the `feature/crazygames` branch to `master` and deploy (Railway).
 2. Open **https://wantedtruecolors.com/play/crazygames** in a normal browser tab. The menu should
    load within about 7 seconds (outside CrazyGames the SDK waits, then switches itself off).
-3. If CrazyGames' frame shows a blank page and the browser console mentions `frame-ancestors`,
+3. If the Preview shows a blank page and the browser console mentions `frame-ancestors` (the
+   uploaded page is served from a CrazyGames host our headers don't list yet),
    add the origin it names to `CRAZYGAMES_FRAME_ANCESTORS` (space-separated) in Railway's build
    variables, and redeploy. Their mobile app origins aren't documented, so this is the likely case.
 
 ### 3. Submit the game (Developer Portal → Submit a game)
 
-- **Engine:** HTML5. **Hosting:** external URL, if offered:
-  `https://wantedtruecolors.com/play/crazygames`. If only uploads are offered, stop here and ask
-  for the uploaded build (static export).
+- **Engine:** HTML5. **Upload the `portals/crazygames` folder** (one `index.html`). It shows
+  `https://wantedtruecolors.com/play/crazygames` full size and passes CrazyGames' launch
+  parameters (invites, instant multiplayer) through. The game and the SDK run on our server, so
+  game updates never need a new upload.
+- **Progress save:** "Yes, using the Data Module from the CrazyGames SDK".
+- **Game options:** supports mobile devices; online multiplayer; supports CrazyGames muting audio
+  through the SDK.
 - **Title:** Wanted: True Colors
 - **Descriptions:** see below.
 - **Controls:** see below.
