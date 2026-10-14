@@ -114,7 +114,7 @@ function Lineup({ rows, rot, cue, started }: { rows: Entry[][]; rot: number; cue
           rotationY={rot}
           selected={false}
           faded={false}
-          eyeCount={0}
+          searched={false}
           pose={e.pose}
           seed={(i * 0.37) % 1}
           reaction={e.react ? (started ? { key: 'grid', clip: e.react } : null) : cue}

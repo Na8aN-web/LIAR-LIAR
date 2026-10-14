@@ -37,20 +37,6 @@ export function byPosterDesc(entries: InspectLogEntry[]): [number, InspectLogEnt
     .map(([p, es]) => [p, es.slice().sort((x, y) => y.at - x.at)]);
 }
 
-/** Times each player was inspected this poster. */
-export function eyeCounts(game: GameView): Map<PlayerId, number> {
-  const counts = new Map<PlayerId, number>();
-  for (const e of game.log) if (e.poster === game.posterIndex) counts.set(e.targetId, (counts.get(e.targetId) ?? 0) + 1);
-  return counts;
-}
-
-/** Entries of one poster merged per inspector, keeping each entry (each is a separate purchase). */
-export function byInspector(entries: InspectLogEntry[]): { inspectorId: PlayerId; entries: InspectLogEntry[] }[] {
-  const groups = new Map<PlayerId, InspectLogEntry[]>();
-  for (const e of entries) groups.set(e.inspectorId, [...(groups.get(e.inspectorId) ?? []), e]);
-  return [...groups.entries()].map(([inspectorId, es]) => ({ inspectorId, entries: es }));
-}
-
 export interface Findings {
   /** Your own and bought results about this player, newest first. */
   entries: InspectLogEntry[];

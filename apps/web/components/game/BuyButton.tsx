@@ -27,6 +27,7 @@ export function BuyButton({ entry, label }: { entry: InspectLogEntry; label?: st
   const enabled = canBuyNow(game, view.phase, buyPrice, purchaseCap);
   return (
     <button
+      data-tut="buy"
       className="btn small"
       disabled={!enabled}
       title={enabled ? undefined : game.myScore < buyPrice ? 'Not enough in your purse' : 'No deals left this round'}
@@ -35,7 +36,7 @@ export function BuyButton({ entry, label }: { entry: InspectLogEntry; label?: st
         if (!res.ok) toast(res.error);
       }}
     >
-      {label ? `${label} · $${buyPrice}` : `$${buyPrice} for their findings`}
+      {label ? `${label} · $${buyPrice}` : `Buy their findings · $${buyPrice}`}
     </button>
   );
 }

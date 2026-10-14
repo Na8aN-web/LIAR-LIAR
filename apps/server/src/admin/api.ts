@@ -195,11 +195,15 @@ export function adminHandler(ctx: AdminContext) {
       const w = windowOf(q);
       return metrics.funnel((await data(q, w)).events, w);
     },
+    'GET /tutorial': async (_req, q) => {
+      const w = windowOf(q);
+      return metrics.tutorialFunnel((await data(q, w)).games, w);
+    },
     'GET /balance': async (_req, q) => {
       const w = windowOf(q);
       const d = await data(q, w);
       return metrics.balance(d.games, d.events, w, {
-        posterMode: q.get('posterMode') || undefined,
+        posters: q.get('posters') ? Number(q.get('posters')) : undefined,
         minPlayers: num(q.get('minPlayers')),
         maxPlayers: num(q.get('maxPlayers')),
         decoys: num(q.get('decoys')),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ANNOUNCEMENT_MAX, INSPECT_RANGE, POSTER_MODES, RULE_LIMITS, SWAP_RANGE, TIMER_LIMITS, type GameRules, type PhaseTimers, type RoomSettings } from '@wtc/shared';
+import { ANNOUNCEMENT_MAX, INSPECT_RANGE, POSTER_RANGE, RULE_LIMITS, estimatedGameSeconds, SWAP_RANGE, TIMER_LIMITS, type GameRules, type PhaseTimers, type RoomSettings } from '@wtc/shared';
 import { adminFetch, int, useAdmin } from '../api';
 import { Badge, Card, Grid, Status, useConfirm } from '../ui';
 
@@ -23,14 +23,16 @@ const RULE_LABEL: Record<keyof GameRules, string> = {
   extraInspectPrice: 'Price of extra searches',
   extraInspectCount: 'Searches per purchase',
   purchaseCap: 'Purchases per round',
-  swapPrice: 'Price of a color change',
+  swapPrice: 'Dirty trick: change color',
+  coverPrice: 'Dirty trick: cover your tracks',
+  worthPrice: 'Look at everyone\'s worth',
   decoys: 'Fake colors per search',
 };
 
 /** Every setting that differs, as "Label: old → new". */
 function changes(a: RoomSettings, b: RoomSettings): string[] {
   const out: string[] = [];
-  if (a.posterMode !== b.posterMode) out.push(`Posters: ${a.posterMode} → ${b.posterMode}`);
+  if (a.posters !== b.posters) out.push(`Posters: ${a.posters} → ${b.posters}`);
   if (a.inspectsPerRound !== b.inspectsPerRound) out.push(`Searches per round: ${a.inspectsPerRound} → ${b.inspectsPerRound}`);
   if (a.colorSwaps !== b.colorSwaps) out.push(`Color changes: ${a.colorSwaps} → ${b.colorSwaps}`);
   for (const k of Object.keys(TIMER_LABEL) as (keyof PhaseTimers)[]) if (a.timers[k] !== b.timers[k]) out.push(`${TIMER_LABEL[k]} timer: ${a.timers[k]}s → ${b.timers[k]}s`);
@@ -100,11 +102,11 @@ function SettingsEditor({ data, reload }: { data: ControlsData; reload: () => vo
     >
       <div className="adm-form-grid">
         <label className="adm-field">
-          <span>Posters</span>
-          <select value={s.posterMode} onChange={(e) => setS({ ...s, posterMode: e.target.value as RoomSettings['posterMode'] })}>
-            {POSTER_MODES.map((m) => (
-              <option key={m} value={m}>
-                {m === 'everyoneOnce' ? 'Everyone once' : 'Random, repeats allowed'}
+          <span>Posters per game (about {Math.round(estimatedGameSeconds(s.posters, s.timers) / 60)} min)</span>
+          <select value={s.posters} onChange={(e) => setS({ ...s, posters: Number(e.target.value) })}>
+            {Array.from({ length: POSTER_RANGE.max - POSTER_RANGE.min + 1 }, (_, i) => POSTER_RANGE.min + i).map((n) => (
+              <option key={n} value={n}>
+                {n}
               </option>
             ))}
           </select>

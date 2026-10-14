@@ -35,7 +35,7 @@ interface Props {
   selected: boolean;
   faded: boolean;
   /** Times inspected this poster (public log). */
-  eyeCount: number;
+  searched: boolean;
   onSelect?: () => void;
   /** Sitting idle, fixed for the whole game. */
   pose: SitPose;
@@ -75,7 +75,7 @@ const smooth = (t: number) => t * t * (3 - 2 * t);
  * mixer, plus their item skinned to the torso. Clicks and hover go to an invisible capsule,
  * so the pointer never raycasts the skinned mesh. Local +z faces front.
  */
-export function Scarecrow({ objectName, name, item, cosmetics = DEFAULT_COSMETICS, colorHex, position, rotationY, selected, faded, eyeCount, onSelect, pose, seed, reaction, look, label = true, glowHex = null }: Props) {
+export function Scarecrow({ objectName, name, item, cosmetics = DEFAULT_COSMETICS, colorHex, position, rotationY, selected, faded, searched, onSelect, pose, seed, reaction, look, label = true, glowHex = null }: Props) {
   const model = useScarecrowModel();
   const [hover, setHover] = useState(false);
   const inst = useMemo(
@@ -265,7 +265,7 @@ export function Scarecrow({ objectName, name, item, cosmetics = DEFAULT_COSMETIC
         position={[0, SEATED_HEIGHT + 0.35, 0]}
         expanded={selected || hover}
         highlight={selected}
-        eyeCount={eyeCount}
+        searched={searched}
         faded={faded}
         onClick={onSelect ? click : undefined}
       />

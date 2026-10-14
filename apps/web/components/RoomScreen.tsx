@@ -12,6 +12,7 @@ import { reportHowtoStatus } from '@/lib/howtoStatus';
 import { trackVisit } from '@/lib/analytics';
 import { useStreamerMode } from '@/lib/streamer';
 import { ClosingBanner } from './ClosingBanner';
+import { useTutorialCompletion } from './game/Tutorial';
 import { SceneCurtain } from './SceneCurtain';
 import { ServerBanner } from './ServerBanner';
 import { Lobby } from './lobby/Lobby';
@@ -27,6 +28,7 @@ export function RoomScreen({ code }: { code: string }) {
   const streamer = useStreamerMode();
   // Music, ambience and game sounds for whatever this player can see.
   useGameAudio();
+  useTutorialCompletion();
   useEffect(() => trackVisit('room'), []);
   // Playtest stats: tell the room what this player did with How to Play, once seated.
   useEffect(() => {

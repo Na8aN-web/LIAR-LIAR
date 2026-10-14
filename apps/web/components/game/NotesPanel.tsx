@@ -110,9 +110,9 @@ export function NotesPanel() {
                   )}
                   {f.possible.length > 1 &&
                     (f.possible.includes(game.posterColor) ? (
-                      <p className="muted">{poster.name} is still possible. Search them again to narrow it down.</p>
+                      <p className="muted">{poster.name} looks possible. Search them again to narrow it down.</p>
                     ) : (
-                      <p className="feed-clear">Not {poster.name}: {name} isn&rsquo;t the outlaw this poster.</p>
+                      <p className="feed-clear">Not {poster.name}: {name} looks clear this poster.</p>
                     ))}
                   {f.agreeing < f.entries.length && (
                     <p className="muted">Older findings about {name} don&rsquo;t match these: they probably changed color, so those are faded.</p>

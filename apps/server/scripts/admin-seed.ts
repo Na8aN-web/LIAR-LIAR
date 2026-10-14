@@ -10,7 +10,7 @@
 // Running it again replaces the previous seed. Uses the configured store (files or Postgres).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_SETTINGS, DEFAULT_TIMERS, type PosterMode } from '@wtc/shared';
+import { DEFAULT_SETTINGS, DEFAULT_TIMERS } from '@wtc/shared';
 import type { AnalyticsEvent } from '../src/analytics/events';
 import type { GameSummary } from '../src/game/summary';
 import type { FeedbackEntry } from '../src/room';
@@ -64,16 +64,16 @@ if (existsSync(archive)) {
 console.log(`Imported ${imported} records from the playtest files in ${archive}.`);
 
 // ---------------------------------------------------------------- 2. bot games
-const variants: { posterMode: PosterMode; decoys: number }[] = [
-  { posterMode: 'randomRepeats', decoys: 3 },
-  { posterMode: 'randomRepeats', decoys: 3 },
-  { posterMode: 'everyoneOnce', decoys: 3 },
-  { posterMode: 'randomRepeats', decoys: 2 },
+const variants: { posters: number; decoys: number }[] = [
+  { posters: 10, decoys: 3 },
+  { posters: 10, decoys: 3 },
+  { posters: 8, decoys: 3 },
+  { posters: 12, decoys: 2 },
 ];
 const pool = new Map<number, GameSummary[]>();
 console.log('Playing 60 bot games with the simulator, all at once (about a minute)…');
 const batches = [6, 7, 8, 9, 10].flatMap((players) =>
-  variants.map(async (v) => ({ players, games: await runMany(3, { players, posterMode: v.posterMode, inspects: 'auto', colorSwaps: 'auto', rules: { decoys: v.decoys }, bots: {} }, 3) })),
+  variants.map(async (v) => ({ players, games: await runMany(3, { players, posters: v.posters, inspects: 'auto', colorSwaps: 'auto', rules: { decoys: v.decoys }, bots: {} }, 3) })),
 );
 for (const b of await Promise.all(batches)) pool.set(b.players, [...(pool.get(b.players) ?? []), ...b.games]);
 
@@ -147,7 +147,7 @@ for (let d = DAYS - 1; d >= 0; d--) {
     const table = queue.splice(0, size);
     const sims = pool.get(Math.min(10, Math.max(6, size)))!;
     const sim = structuredClone(sims[Math.floor(rand() * sims.length)]);
-    const settings = { ...structuredClone(DEFAULT_SETTINGS), posterMode: sim.settings.posterMode, rules: sim.settings.rules };
+    const settings = { ...structuredClone(DEFAULT_SETTINGS), posters: sim.settings.posters, rules: sim.settings.rules };
     const roundSec = settings.timers.poster + settings.timers.investigation * 0.8 + settings.timers.vote + settings.timers.payout;
     const durationMs = Math.round(sim.posters.length * roundSec * 1000 * (0.85 + rand() * 0.2));
     const start = day0 + hour * 3600_000 + rand() * 1800_000;

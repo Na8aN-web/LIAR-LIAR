@@ -4,10 +4,9 @@ import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Fog, Vector3, type PerspectiveCamera } from 'three';
 import { OrbitControls } from '@react-three/drei';
-import { colorInfo, type GameView, type Phase, type PlayerView } from '@wtc/shared';
+import { colorInfo, searchedThisPoster, type GameView, type Phase, type PlayerView } from '@wtc/shared';
 import { useBrightness } from '@/lib/brightness';
 import { reportSag, useQuality } from '@/lib/quality';
-import { eyeCounts } from '@/lib/inspections';
 import { useGame, useGameCountdown } from '@/lib/store';
 import { useStreamerMode } from '@/lib/streamer';
 import { fitCircle, measureInsets, type Insets } from './framing';
@@ -140,7 +139,7 @@ export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
   const radius = Math.max(3.2, n * 0.42);
   const canSelect = !!view && SELECTABLE.includes(view.phase);
   // Eye badges: how often each player was inspected this poster (from the public log).
-  const eyes = useMemo(() => (view?.game ? eyeCounts(view.game) : new Map<string, number>()), [view?.game]);
+  const eyes = useMemo(() => (view?.game ? searchedThisPoster(view.game.log, view.game.posterIndex) : new Set<string>()), [view?.game]);
   const seats = useSeats(view, radius);
   const seatList = useMemo(() => [...seats.values()].map((s) => s.seat), [seats]);
   const onSeats = trailer?.onSeats;
@@ -209,7 +208,7 @@ export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
                 seed={s.seed}
                 selected={selectedId === p.id}
                 faded={!p.connected || p.away}
-                eyeCount={eyes.get(p.id) ?? 0}
+                searched={eyes.has(p.id)}
                 onSelect={canSelect && !isMe ? () => select(p.id) : undefined}
                 reaction={r ? ({ key: reactions!.key, clip: r } satisfies ReactionCue) : null}
                 look={looks.get(p.id) ?? null}
@@ -457,14 +456,14 @@ declare global {
     /** Screen box around the whole circle of seats. */
     __wtcCircle?: () => { x: number; y: number; w: number; h: number } | null;
     /** Name plates showing an eye badge (searched this poster), on screen. */
-    __wtcEyes?: () => { id: string; x: number; y: number; count: number }[];
+    __wtcEyes?: () => { id: string; x: number; y: number; }[];
     /** Everyone else's player id, in seat order. */
     __wtcOthers?: () => string[];
   }
 }
 
 /** Exposes on-screen positions of the seats (public information) for the screenshot script. */
-function ScreenProbe({ seats, me, eyes }: { seats: Map<string, SeatInfo>; me?: string; eyes: Map<string, number> }) {
+function ScreenProbe({ seats, me, eyes }: { seats: Map<string, SeatInfo>; me?: string; eyes: Set<string> }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   useEffect(() => {
@@ -481,8 +480,8 @@ function ScreenProbe({ seats, me, eyes }: { seats: Map<string, SeatInfo>; me?: s
     };
     window.__wtcEyes = () =>
       [...seats.entries()]
-        .filter(([id]) => (eyes.get(id) ?? 0) > 0)
-        .map(([id, s]) => ({ id, count: eyes.get(id)!, ...project([s.position[0], SEATED_HEIGHT + 0.35, s.position[2]]) }));
+        .filter(([id]) => eyes.has(id))
+        .map(([id, s]) => ({ id, ...project([s.position[0], SEATED_HEIGHT + 0.35, s.position[2]]) }));
     window.__wtcOthers = () => [...seats.keys()].filter((id) => id !== me);
     window.__wtcCircle = () => {
       const pts = [...seats.values()].flatMap((s) => [project([s.position[0], 0, s.position[2]]), project([s.position[0], SEATED_HEIGHT, s.position[2]])]);

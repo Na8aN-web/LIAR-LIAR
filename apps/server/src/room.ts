@@ -11,7 +11,7 @@ import {
   type Cosmetics,
   MAX_PLAYERS,
   NAME_MAX,
-  POSTER_MODES,
+  POSTER_RANGE,
   PRACTICE,
   REPORT_REASON_MAX,
   RULE_LIMITS,
@@ -40,6 +40,7 @@ import {
   type PlayerView,
   type PublicPlayer,
   type ReplayView,
+  type TutorialProgress,
   type RoomSettings,
   type ServerToClientEvents,
 } from '@wtc/shared';
@@ -83,6 +84,8 @@ export interface Seat {
   reconnects: number;
   /** What the player did with How to Play, as their browser reports it. */
   howto: HowtoStatus | null;
+  /** First-game tutorial progress, as the browser reports it (null: not a tutorial game). */
+  tutorial: TutorialProgress | null;
   /** Last deliberate input (see timeouts.ts: never a page load, reconnect or background report). */
   lastInputAt: number;
   /** Any input during the current poster. */
@@ -215,9 +218,10 @@ export function applySettings(current: RoomSettings, p: unknown): Ack<{ settings
     }
     next.colorSwaps = v;
   }
-  if (patch.posterMode !== undefined) {
-    if (!POSTER_MODES.includes(patch.posterMode)) return fail('Unknown poster mode');
-    next.posterMode = patch.posterMode;
+  if (patch.posters !== undefined) {
+    const v = patch.posters;
+    if (!Number.isInteger(v) || v < POSTER_RANGE.min || v > POSTER_RANGE.max) return fail(`Posters must be ${POSTER_RANGE.min}–${POSTER_RANGE.max}`);
+    next.posters = v;
   }
   if (patch.timers !== undefined) {
     if (!patch.timers || typeof patch.timers !== 'object') return fail('Bad timers');
@@ -361,6 +365,7 @@ export class Room {
       disconnects: 0,
       reconnects: 0,
       howto: null,
+      tutorial: null,
       lastInputAt: now,
       actedThisPoster: false,
       idlePosters: 0,
@@ -819,16 +824,15 @@ export class Room {
       used.add(s.color);
     }
 
-    const { inspectsPerRound, posterMode } = this.settings;
+    const { inspectsPerRound } = this.settings;
+    const posters = this.practice ? PRACTICE.posters : (this.settings.posters ?? POSTER_RANGE.default);
     this.game = engine.createGame(
       players.map((s) => ({ id: s.id, color: s.color })),
       {
         inspectLimit: inspectsPerRound === 'auto' ? defaultInspects(players.length) : inspectsPerRound,
-        posterMode,
+        posterCount: posters,
         rules: this.settings.rules,
-        // One poster per player, so 'auto' scales with lobby size.
-        swapLimit: this.settings.colorSwaps === 'auto' ? defaultSwaps(this.practice ? PRACTICE.posters : players.length) : this.settings.colorSwaps,
-        posterLimit: this.practice ? PRACTICE.posters : undefined,
+        swapLimit: this.settings.colorSwaps === 'auto' ? defaultSwaps(posters) : this.settings.colorSwaps,
       },
       this.rng,
     );
@@ -852,7 +856,7 @@ export class Room {
   /** Seats the bots and starts at once, with the practice timers. */
   startPractice(humanId: PlayerId): Ack {
     if (!this.practice) return fail('Not a practice room');
-    this.settings = { ...this.settings, timers: { ...PRACTICE.timers }, posterMode: 'randomRepeats' };
+    this.settings = { ...this.settings, timers: { ...PRACTICE.timers }, posters: PRACTICE.posters };
     for (let i = 0; i < PRACTICE.bots; i++) {
       const res = this.addBot(humanId);
       if (!res.ok) return res;
@@ -946,12 +950,36 @@ export class Room {
 
   // ---------------------------------------------------------------- color swaps (private: only the swapper gets updates)
 
+  /** Dirty tricks: during a payout, before another poster, by someone connected. */
   private swapWindow(seat: Seat | undefined): string | null {
     if (!seat) return 'Not in room';
-    if (!this.game || this.phase !== 'payout') return 'You can only change color between posters, during the payout';
-    if (!engine.hasNextPoster(this.game)) return 'No more posters, so no more color changes';
-    if (!seat.isBot && !seat.connected) return 'Reconnect to change color';
+    if (!this.game || this.phase !== 'payout') return 'Dirty tricks are only for sale during the payout';
+    if (!engine.hasNextPoster(this.game)) return 'No more posters, so no more dirty tricks';
+    if (!seat.isBot && !seat.connected) return 'Reconnect first';
     return null;
+  }
+
+  /** Dirty trick: cover your tracks for the next poster. Secret: only the buyer is told. */
+  coverTracks(id: PlayerId): Ack {
+    this.noteInput(id);
+    const seat = this.seats.get(id);
+    const err = this.swapWindow(seat);
+    if (err) return fail(err);
+    const res = engine.coverTracks(this.game!, id);
+    if (!res.ok) return res;
+    this.sendTo(seat!);
+    return { ok: true };
+  }
+
+  /** A private look at everyone's money (as of the last payout). Only the buyer gets it. */
+  buyWorth(id: PlayerId): Ack {
+    this.noteInput(id);
+    const seat = this.seats.get(id);
+    if (!seat || !this.game || this.phase === 'lobby' || this.phase === 'ended') return fail('Only during a game');
+    const res = engine.buyWorth(this.game, id);
+    if (!res.ok) return res;
+    this.sendTo(seat);
+    return { ok: true };
   }
 
   /** The server picks a random free color. Only the swapper is told. */
@@ -1037,6 +1065,17 @@ export class Room {
     return { ok: true };
   }
 
+  /** The player's browser reports first-game tutorial progress (admin funnel). Only ever moves forward. */
+  setTutorial(id: PlayerId, progress: unknown): Ack {
+    const seat = this.seats.get(id);
+    if (!seat) return fail('Not in room');
+    if (progress === 'skipped') seat.tutorial = 'skipped';
+    else if (typeof progress === 'number' && [1, 2, 3, 4].includes(progress)) {
+      if (seat.tutorial !== 'skipped' && (seat.tutorial === null || progress > seat.tutorial)) seat.tutorial = progress as TutorialProgress;
+    } else return fail('Bad progress');
+    return { ok: true };
+  }
+
   /** The player's browser reports what they did with How to Play (for playtest stats). */
   setHowto(id: PlayerId, status: unknown): Ack {
     const seat = this.seats.get(id);
@@ -1100,7 +1139,7 @@ export class Room {
         return this.enterPhase('payout');
       case 'payout':
         if (engine.hasNextPoster(game)) {
-          engine.advancePoster(game);
+          engine.advancePoster(game, this.rng);
           return this.enterPhase('poster');
         }
         this.phase = 'ended';
@@ -1125,7 +1164,7 @@ export class Room {
               posterStarts: this.posterStarts,
               seat: (id) => {
                 const s = this.seats.get(id);
-                return { disconnects: s?.disconnects ?? 0, reconnects: s?.reconnects ?? 0, howto: s?.howto ?? null, away: !!s?.away, anon: s?.anon ?? null };
+                return { disconnects: s?.disconnects ?? 0, reconnects: s?.reconnects ?? 0, howto: s?.howto ?? null, tutorial: s?.tutorial ?? null, away: !!s?.away, anon: s?.anon ?? null };
               },
             }),
           );

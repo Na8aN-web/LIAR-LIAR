@@ -10,7 +10,7 @@ import { WantedPoster } from '../WantedPoster';
 import { ActionBar } from './ActionBar';
 import { Notifications } from './Notifications';
 import { PayoutCard } from './PayoutCard';
-import { PracticeHints } from './PracticeHints';
+import { Tutorial } from './Tutorial';
 import { Replay } from './Replay';
 import { SidePanel } from './SidePanel';
 import { OutlawFlash, PhaseBanner, PhaseTracker, VoteSoon } from './PhaseCues';
@@ -71,23 +71,6 @@ function OutlawBanner({ show, poster, color }: { show: boolean; poster: number; 
   );
 }
 
-const ordinal = (n: number) => {
-  const tens = n % 100;
-  const suffix = tens >= 11 && tens <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th';
-  return `${n}${suffix}`;
-};
-
-/** Your place in the rankings (public scores, same as the Rankings tab). Ties share a place. */
-function useMyRank(): { rank: number; tied: boolean } {
-  const view = useGame((s) => s.view)!;
-  const scores = view.game!.scores;
-  const mine = scores[view.you.id] ?? 0;
-  const ids = view.players.map((p) => p.id);
-  const ahead = ids.filter((id) => (scores[id] ?? 0) > mine).length;
-  const tied = ids.filter((id) => id !== view.you.id && (scores[id] ?? 0) === mine).length > 0;
-  return { rank: ahead + 1, tied };
-}
-
 /** Start of the game only: "First poster coming up in 5, 4, 3, 2, 1" before the first poster shows. */
 function GameCountdown({ n }: { n: number }) {
   return (
@@ -110,7 +93,6 @@ export function GameHud() {
   const toast = useGame((s) => s.showToast);
   const [showPoster, setShowPoster] = useState(false);
   const streamer = useStreamerMode();
-  const { rank, tied } = useMyRank();
   const poster = colorInfo(game.posterColor);
   const countdown = useGameCountdown();
   // Marked away for idling (still connected): a nudge before the server removes them.
@@ -121,7 +103,7 @@ export function GameHud() {
   return (
     <div className="hud">
       <header className="topbar">
-        <button className="mini-poster" onClick={() => setShowPoster(true)} aria-label={`Show the Wanted poster: ${poster.name}`}>
+        <button className="mini-poster" data-tut="poster" onClick={() => setShowPoster(true)} aria-label={`Show the Wanted poster: ${poster.name}`}>
           <WantedPoster className="thumb" color={game.posterColor} pot={game.pot} number={game.posterIndex + 1} of={game.posterCount} />
           <span className="mini-color">{poster.name}</span>
         </button>
@@ -137,15 +119,9 @@ export function GameHud() {
         <BrassBadge label="Time" className="timer" tone={secs !== null && secs <= 10 && countdown <= 0 ? 'alert' : undefined}>
           {secs === null ? '–' : countdown > 0 ? view.settings.timers.poster : secs}
         </BrassBadge>
-        <div className="purse-stack">
-          <BrassBadge label="Purse" className="my-score">
-            ${game.myScore}
-          </BrassBadge>
-          <span className="my-rank" aria-label={`You're ${tied ? 'tied ' : ''}${ordinal(rank)} of ${view.players.length}`}>
-            {tied ? '=' : ''}
-            {ordinal(rank)}
-          </span>
-        </div>
+        <BrassBadge label="Purse" className="my-score">
+          ${game.myScore}
+        </BrassBadge>
       </header>
 
       {/* Streamer mode: only a brief, wordless icon flash, so viewers can't see you're the outlaw. */}
@@ -168,12 +144,14 @@ export function GameHud() {
 
       {meAway && (
         <div className="away-banner" role="alert">
-          You&rsquo;ve been quiet for a while, so you&rsquo;re marked <b>away</b>. Search, chat or vote to come back, or you&rsquo;ll be
-          removed after the next poster.
+          <span className="away-text">
+            <b>You&rsquo;re marked away.</b> Search, chat or vote to stay in the game. If you don&rsquo;t, you&rsquo;ll be removed after the
+            next poster.
+          </span>
         </div>
       )}
       <Notifications />
-      <PracticeHints />
+      <Tutorial />
 
       {view.phase === 'payout' && <PayoutCard />}
 

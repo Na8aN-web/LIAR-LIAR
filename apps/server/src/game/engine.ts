@@ -2,13 +2,13 @@ import {
   COLOR_IDS,
   DEFAULT_RULES,
   type ColorChange,
+  type DirtyTrick,
   type ColorId,
   type GameRules,
   type GameView,
   type InspectLogEntry,
   type OfferView,
   type PlayerId,
-  type PosterMode,
   type Reaction,
   type ReactionsView,
   type ReplayPoster,
@@ -17,13 +17,12 @@ import {
 } from '@wtc/shared';
 import { makeId, type Rng } from '../rng';
 import { inspectResult, narrowedResult } from './decoys';
-import { posterOrders } from './posterOrder';
+import { randomOrder } from './posterOrder';
 
 // Pure game rules. No sockets, timers or rendering in here; the Room drives phases.
 
 export interface GameState {
   rules: GameRules;
-  posterMode: PosterMode;
   playerIds: PlayerId[];
   /** Current colors. Change only through swapColor, during payouts. */
   colors: Record<PlayerId, ColorId>;
@@ -35,7 +34,17 @@ export interface GameState {
   swapLimit: number;
   swapsUsed: Record<PlayerId, number>;
   /** Players who changed color this payout (one each, final). Gives the public count. Cleared each poster. */
-  swappedThisPayout: Record<PlayerId, true>;
+  /** Dirty tricks bought this payout (one each, final, secret). Cleared each poster. */
+  trickThisPayout: Record<PlayerId, DirtyTrick>;
+  /** Players who covered their tracks for the next poster (set at the payout, used from the next poster). */
+  coverNext: Record<PlayerId, true>;
+  /** This poster's covered players: the stand-in color every searcher sees instead of their real one.
+   *  `alt` is for the stand-in color's own wearer (they'd see their own color otherwise). Server-only. */
+  cover: Record<PlayerId, { standIn: ColorId; alt: ColorId }>;
+  /** Worth snapshots bought, per player: the latest one, and the poster it was bought during. */
+  worth: Record<PlayerId, { poster: number; scores: Record<PlayerId, number> }>;
+  /** Who had covered tracks on each poster (stats only, never sent). */
+  coveredByPoster: PlayerId[][];
   /** How many players changed color before each poster. Stats only: never sent to players. */
   colorChanges: number[];
   /** Colors still possible per searcher and target ("searcher|target"), from that searcher's own
@@ -85,12 +94,11 @@ export type Result<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
 
 export interface GameOptions {
   inspectLimit: number;
-  posterMode: PosterMode;
+  /** Posters in the game (default: one per player). */
+  posterCount?: number;
   rules?: GameRules;
   /** Color swaps per player per game. Default 0. */
   swapLimit?: number;
-  /** Play only this many posters (practice games). Default: one per player. */
-  posterLimit?: number;
 }
 
 const perPlayer = <T>(ids: PlayerId[], value: () => T): Record<PlayerId, T> =>
@@ -102,12 +110,11 @@ export function createGame(
   rng: Rng,
 ): GameState {
   const ids = players.map((p) => p.id);
-  const order = posterOrders[opts.posterMode](ids, rng).slice(0, opts.posterLimit ?? ids.length);
+  const order = randomOrder(ids, Math.max(1, opts.posterCount ?? ids.length), rng);
   const rules = { ...(opts.rules ?? DEFAULT_RULES) };
   const colors = Object.fromEntries(players.map((p) => [p.id, p.color]));
   return {
     rules,
-    posterMode: opts.posterMode,
     playerIds: ids,
     colors,
     colorHistory: Object.fromEntries(players.map((p) => [p.id, [{ color: p.color, afterPoster: null }]])),
@@ -115,7 +122,11 @@ export function createGame(
     posterColors: [colors[order[0]]],
     swapLimit: opts.swapLimit ?? 0,
     swapsUsed: perPlayer(ids, () => 0),
-    swappedThisPayout: {},
+    trickThisPayout: {},
+    coverNext: {},
+    cover: {},
+    worth: {},
+    coveredByPoster: [],
     colorChanges: [0],
     narrow: {},
     realAt: {},
@@ -268,12 +279,18 @@ export function inspect(
   if (inspectsLeft(s, inspectorId) <= 0) return { ok: false, error: 'No inspects left this round' };
 
   const real = s.colors[targetId];
-  const key = `${inspectorId}|${targetId}`;
+  const mine = s.colors[inspectorId];
+  // Covered tracks: this poster, every search of them shows a stand-in color as if it were real
+  // (it repeats and narrows exactly like a real one), and never their true color.
+  const cover = s.cover[targetId];
+  const shown = cover ? (cover.standIn === mine ? cover.alt : cover.standIn) : real;
+  const exclude = cover ? [real] : [];
+  const key = cover ? `${inspectorId}|${targetId}|cover${s.posterIndex}` : `${inspectorId}|${targetId}`;
   // Earlier searches narrow this one, unless the target has since changed color (then start over).
-  const before = s.narrow[key]?.includes(real) ? s.narrow[key] : null;
+  const before = s.narrow[key]?.includes(shown) ? s.narrow[key] : null;
   const result = before
-    ? narrowedResult(Object.values(s.colors), real, s.colors[inspectorId], before, rng, s.rules.decoys)
-    : inspectResult(Object.values(s.colors), real, s.colors[inspectorId], rng, s.rules.decoys);
+    ? narrowedResult(Object.values(s.colors), shown, mine, before, rng, s.rules.decoys, exclude)
+    : inspectResult(Object.values(s.colors), shown, mine, rng, s.rules.decoys, exclude);
   s.narrow[key] = before ? before.filter((c) => result.includes(c)) : result.slice();
   const entry: InspectLogEntry = { id: makeId(6), poster: s.posterIndex, inspectorId, targetId, at: now };
   s.inspectsUsed[inspectorId] += 1;
@@ -298,28 +315,79 @@ export function swapsLeft(s: GameState, id: PlayerId): number {
   return s.swapLimit - (s.swapsUsed[id] ?? 0);
 }
 
+/** Dirty tricks are paid privately; the money goes to the next bounty. */
+function payForTrick(s: GameState, id: PlayerId, trick: DirtyTrick, price: number) {
+  s.trickThisPayout[id] = trick;
+  s.scores[id] -= price;
+  s.pots[Math.min(s.posterIndex + 1, s.pots.length - 1)] += price;
+}
+
+function trickCheck(s: GameState, id: PlayerId, price: number): string | null {
+  if (!isPlayer(s, id)) return 'Unknown player';
+  if (s.trickThisPayout[id]) return 'One dirty trick per round';
+  if (s.scores[id] < price) return `That trick costs $${price}`;
+  return null;
+}
+
 /**
- * Change a player's color to a random free one, chosen by the server. Players
- * never see the list of free colors: knowing which colors left the free pool
- * would reveal who swapped. One swap per player per payout, and it's final.
+ * Dirty trick: change a player's color to a random free one, chosen by the server. Players
+ * never see the list of free colors: knowing which colors left the free pool would reveal who
+ * changed. One trick per player per payout, and it's final.
  */
 export function swapColor(s: GameState, id: PlayerId, rng: Rng): Result<{ color: ColorId }> {
-  if (!isPlayer(s, id)) return { ok: false, error: 'Unknown player' };
-  if (s.swapLimit <= 0) return { ok: false, error: 'Color swaps are off in this game' };
-  if (s.swappedThisPayout[id]) return { ok: false, error: 'You already changed color this payout' };
-  if (swapsLeft(s, id) <= 0) return { ok: false, error: 'No color swaps left' };
   const price = s.rules.swapPrice ?? 0;
-  if (s.scores[id] < price) return { ok: false, error: `A color change costs $${price}` };
+  const err = trickCheck(s, id, price);
+  if (err) return { ok: false, error: err };
+  if (s.swapLimit <= 0) return { ok: false, error: 'Color changes are off in this game' };
+  if (swapsLeft(s, id) <= 0) return { ok: false, error: 'No color changes left this game' };
   const free = freeColors(s);
   if (!free.length) return { ok: false, error: 'No free colors right now' };
   const color = free[rng.int(free.length)];
-  s.swappedThisPayout[id] = true;
   s.swapsUsed[id] += 1;
-  // Paid privately, like an extra search: the money goes to the next bounty.
-  s.scores[id] -= price;
-  s.pots[Math.min(s.posterIndex + 1, s.pots.length - 1)] += price;
+  payForTrick(s, id, 'swap', price);
   s.colors[id] = color;
   return { ok: true, color };
+}
+
+/**
+ * Dirty trick: cover your tracks. During the next poster, every search of this player shows a
+ * stand-in color (worn by someone else) in place of their real one; see inspect().
+ */
+export function coverTracks(s: GameState, id: PlayerId): Result {
+  const price = s.rules.coverPrice ?? 0;
+  const err = trickCheck(s, id, price);
+  if (err) return { ok: false, error: err };
+  s.coverNext[id] = true;
+  payForTrick(s, id, 'cover', price);
+  return { ok: true };
+}
+
+/**
+ * The stand-in for a covered player this poster: a color someone else is wearing right now. A
+ * covered outlaw's stand-in is never the poster color (that's their own, real color). `alt` is
+ * a second color, shown only to the stand-in's own wearer, who would otherwise see their own
+ * color come up.
+ */
+export function pickStandIn(s: GameState, id: PlayerId, rng: Rng): { standIn: ColorId; alt: ColorId } {
+  const real = s.colors[id];
+  const poster = posterColor(s);
+  const ok = (c: ColorId) => c !== real && !(wantedId(s) === id && c === poster);
+  const pool = s.playerIds.filter((p) => p !== id).map((p) => s.colors[p]).filter(ok);
+  const standIn = pool[rng.int(pool.length)];
+  const altPool = pool.filter((c) => c !== standIn);
+  return { standIn, alt: altPool.length ? altPool[rng.int(altPool.length)] : standIn };
+}
+
+/** A private snapshot of everyone's money as of the last payout. Once per poster. */
+export function buyWorth(s: GameState, id: PlayerId): Result {
+  if (!isPlayer(s, id)) return { ok: false, error: 'Unknown player' };
+  const price = s.rules.worthPrice ?? 0;
+  if (s.worth[id]?.poster === s.posterIndex) return { ok: false, error: 'You already looked this poster' };
+  if (s.scores[id] < price) return { ok: false, error: `A look costs $${price}` };
+  s.scores[id] -= price;
+  s.pots[Math.min(s.posterIndex + 1, s.pots.length - 1)] += price;
+  s.worth[id] = { poster: s.posterIndex, scores: { ...s.publicScores } };
+  return { ok: true };
 }
 
 export function castVote(s: GameState, voterId: PlayerId, targetId: PlayerId): Result {
@@ -414,14 +482,19 @@ export function setEndReactions(s: GameState, rng: Rng): void {
   s.reactions = { key: 'end', shown, own: null };
 }
 
-/** Applies this payout's swaps, then starts the next poster with the Wanted player's current color. */
-export function advancePoster(s: GameState): void {
-  const swapped = Object.keys(s.swappedThisPayout);
+/** Applies this payout's tricks, then starts the next poster with the Wanted player's current color. */
+export function advancePoster(s: GameState, rng: Rng): void {
+  const swapped = Object.keys(s.trickThisPayout).filter((p) => s.trickThisPayout[p] === 'swap');
   for (const p of swapped) s.colorHistory[p].push({ color: s.colors[p], afterPoster: s.posterIndex });
-  s.swappedThisPayout = {};
+  s.trickThisPayout = {};
   s.posterIndex += 1;
   s.colorChanges[s.posterIndex] = swapped.length;
   s.posterColors[s.posterIndex] = s.colors[s.order[s.posterIndex]];
+  // Covered tracks apply to this poster only, with stand-ins drawn from today's colors.
+  s.cover = {};
+  for (const p of Object.keys(s.coverNext)) s.cover[p] = pickStandIn(s, p, rng);
+  s.coveredByPoster[s.posterIndex] = Object.keys(s.cover);
+  s.coverNext = {};
   s.shownPot = s.pots[s.posterIndex];
   s.reactions = null;
   s.inspectsUsed = perPlayer(s.playerIds, () => 0);
@@ -488,11 +561,13 @@ export function gameViewFor(s: GameState, me: PlayerId): GameView {
     offersIn: s.offers.filter((o) => o.sellerId === me),
     swapLimit: s.swapLimit,
     swapsUsed: s.swapsUsed[me] ?? 0,
-    swappedThisPayout: !!s.swappedThisPayout[me],
+    trickThisPayout: s.trickThisPayout[me] ?? null,
+    coveredThisPoster: !!s.cover[me],
+    myWorth: s.worth[me] ? structuredClone(s.worth[me]) : null,
+    worthBoughtThisPoster: s.worth[me]?.poster === s.posterIndex,
     myColorHistory: structuredClone(s.colorHistory[me] ?? []),
     myVote: s.votes[me] ?? null,
     votesCast: Object.keys(s.votes).length,
-    scores: s.publicScores,
     scoreDeltas: s.scoreDeltas,
     myScore: s.scores[me],
     myCorrectVotes: s.correctVotes[me],

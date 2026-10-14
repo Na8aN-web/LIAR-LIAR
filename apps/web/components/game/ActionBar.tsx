@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { call } from '@/lib/socket';
+import { useFeature } from '@/lib/tutorial';
 import { useGame } from '@/lib/store';
 import { HintsSheet } from './HintsSheet';
 import { TargetCard } from './TargetCard';
@@ -19,6 +20,7 @@ export function ActionBar() {
   const toast = useGame((s) => s.showToast);
   const [busy, setBusy] = useState(false);
   const [hints, setHints] = useState(false);
+  const buying = useFeature('buying');
 
   const left = game.inspectLimit + game.extraInspects - game.inspectsUsed;
   const { extraInspectPrice, extraInspectCount, purchaseCap } = view.settings.rules;
@@ -53,8 +55,8 @@ export function ActionBar() {
               <button className="btn primary" disabled={busy || left <= 0} onClick={inspect}>
                 {left > 0 ? `Search · ${left} left` : 'No searches left'}
               </button>
-              {left <= 0 && (
-                <button className="btn buy-more" disabled={busy || !!cantBuy} onClick={buyMore} title={cantBuy ?? undefined}>
+              {left <= 0 && buying && (
+                <button className="btn buy-more" data-tut="extra" disabled={busy || !!cantBuy} onClick={buyMore} title={cantBuy ?? undefined}>
                   Buy {extraInspectCount} more · ${extraInspectPrice}
                 </button>
               )}

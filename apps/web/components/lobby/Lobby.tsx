@@ -7,6 +7,8 @@ import {
   NO_COSMETIC,
   cosmeticsFor,
   INSPECT_RANGE,
+  POSTER_RANGE,
+  estimatedGameSeconds,
   SWAP_RANGE,
   ITEM_TYPES,
   PALETTE,
@@ -29,6 +31,7 @@ import { ChatPanel } from '../game/ChatPanel';
 import { AudioSettings } from '../ui/AudioSettings';
 import { BrightnessSlider } from '../ui/BrightnessSlider';
 import { GraphicsSetting } from '../ui/GraphicsSetting';
+import { ShowEverythingToggle } from '../ui/ShowEverythingToggle';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 import { Walkthrough, hasSeenWalkthrough } from '../howto/Walkthrough';
 import { AutoFillSetting, FillOffer, VisibilitySwitch } from './RoomControls';
@@ -243,6 +246,7 @@ export function Lobby() {
           <AudioSettings />
           <BrightnessSlider />
           <GraphicsSetting />
+          <ShowEverythingToggle />
         </Fold>
       </section>
 
@@ -393,22 +397,25 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
     const res = await call('lobby:settings', p);
     if (!res.ok) toast(res.error);
   };
+  // Phase lengths, in seconds.
   const timerLabels: Record<keyof PhaseTimers, string> = {
-    poster: 'Poster',
-    investigation: 'Investigation',
-    vote: 'Vote',
-    payout: 'Payout',
+    poster: 'Poster reveal',
+    investigation: 'Searching time',
+    vote: 'Accusing time',
+    payout: 'Payout time',
   };
-  const ruleLabels: Record<keyof GameRules, string> = {
-    startingPoints: 'Starting points',
-    basePot: 'Bounty per poster',
-    escapeBonus: 'Escape bonus',
-    buyPrice: 'Buy findings',
-    extraInspectPrice: 'Extra searches',
-    extraInspectCount: 'Searches per buy',
-    purchaseCap: 'Deals / round',
-    swapPrice: 'Color change',
-    decoys: 'Decoys per look',
+  // Decoys are difficulty, not money: they sit with the main settings.
+  const ruleLabels: Record<Exclude<keyof GameRules, 'decoys'>, string> = {
+    startingPoints: 'Starting money ($)',
+    basePot: 'Bounty per poster ($)',
+    escapeBonus: 'Outlaw escape reward ($)',
+    buyPrice: "Buy someone's findings ($)",
+    extraInspectPrice: 'Extra searches ($)',
+    extraInspectCount: 'Searches per extra buy',
+    purchaseCap: 'Purchases per round (max)',
+    swapPrice: 'Change color ($)',
+    coverPrice: 'Cover your tracks ($)',
+    worthPrice: "See everyone's worth ($)",
   };
   const inspectOptions = Array.from({ length: INSPECT_RANGE.max - INSPECT_RANGE.min + 1 }, (_, i) => INSPECT_RANGE.min + i);
 
@@ -437,7 +444,7 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
             value={String(settings.colorSwaps)}
             onChange={(e) => update({ colorSwaps: e.target.value === 'auto' ? 'auto' : Number(e.target.value) })}
           >
-            <option value="auto">No limit (1 per payout)</option>
+            <option value="auto">1 per payout</option>
             {Array.from({ length: SWAP_RANGE.max - SWAP_RANGE.min + 1 }, (_, i) => SWAP_RANGE.min + i).map((n) => (
               <option key={n} value={n}>
                 {n === 0 ? 'Off' : n}
@@ -446,20 +453,26 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
           </select>
         </label>
         <label>
-          <span>Poster order</span>
-          <select
-            disabled={!editable}
-            value={settings.posterMode}
-            onChange={(e) => update({ posterMode: e.target.value as RoomSettings['posterMode'] })}
-          >
-            <option value="everyoneOnce">Everyone once</option>
-            <option value="randomRepeats">Random, repeats allowed</option>
+          <span>Posters (about {Math.round(estimatedGameSeconds(settings.posters, settings.timers) / 60)} min)</span>
+          <select disabled={!editable} value={settings.posters} onChange={(e) => update({ posters: Number(e.target.value) })}>
+            {Array.from({ length: POSTER_RANGE.max - POSTER_RANGE.min + 1 }, (_, i) => POSTER_RANGE.min + i).map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
           </select>
         </label>
+        <NumberSetting
+          label="Fake colors per search"
+          limits={RULE_LIMITS.decoys}
+          value={settings.rules.decoys}
+          editable={editable}
+          onCommit={(v) => update({ rules: { ...settings.rules, decoys: v } })}
+        />
         {(Object.keys(timerLabels) as (keyof PhaseTimers)[]).map((k) => (
           <NumberSetting
             key={k}
-            label={`${timerLabels[k]} (s)`}
+            label={`${timerLabels[k]} (sec)`}
             limits={TIMER_LIMITS[k]}
             value={settings.timers[k]}
             editable={editable}
@@ -468,9 +481,9 @@ function SettingsForm({ settings, editable, playerCount }: { settings: RoomSetti
         ))}
       </div>
       <details className="tuning">
-        <summary>Playtest tuning (balance numbers)</summary>
+        <summary>Price settings</summary>
         <div className="settings-grid">
-          {(Object.keys(ruleLabels) as (keyof GameRules)[]).map((k) => (
+          {(Object.keys(ruleLabels) as (keyof typeof ruleLabels)[]).map((k) => (
             <NumberSetting
               key={k}
               label={ruleLabels[k]}

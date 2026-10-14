@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTutorial } from '@/lib/tutorial';
 import { useGame } from '@/lib/store';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 import { ChatPanel } from './ChatPanel';
@@ -24,6 +25,10 @@ const TABS: { id: Tab; label: string }[] = [
  */
 export function SidePanel() {
   const [tab, setTab] = useState<Tab>('scores');
+  // First game: Chat from the start, Searches and Notebook at stage 2, Rankings with buying.
+  const { features } = useTutorial();
+  const shown = TABS.filter((t) => t.id === 'chat' || (t.id === 'scores' ? features.buying : features.tabs));
+  const current: Tab = shown.some((t) => t.id === tab) ? tab : 'chat';
   const desktop = useIsDesktop();
   const [openOnPhone, setOpen] = useState(false);
   const open = desktop || openOnPhone;
@@ -55,13 +60,14 @@ export function SidePanel() {
   return (
     <aside className={`side-panel${open ? '' : ' collapsed'}`}>
       <nav className="tabs">
-        {TABS.map((t) => (
+        {shown.map((t) => (
           <button
             key={t.id}
-            className={tab === t.id && open ? 'on' : ''}
+            className={current === t.id && open ? 'on' : ''}
+            data-tut={`tab-${t.id}`}
             onClick={() => {
               // The open tab again: fold the panel away (phones; desktop stays open).
-              if (open && tab === t.id) return setOpen(false);
+              if (open && current === t.id) return setOpen(false);
               setTab(t.id);
               setOpen(true);
             }}
@@ -73,10 +79,10 @@ export function SidePanel() {
       </nav>
       {open && (
         <div className="tab-body">
-          {tab === 'chat' && <ChatPanel />}
-          {tab === 'log' && <LogPanel />}
-          {tab === 'notes' && <NotesPanel />}
-          {tab === 'scores' && <ScoreList />}
+          {current === 'chat' && <ChatPanel />}
+          {current === 'log' && <LogPanel />}
+          {current === 'notes' && <NotesPanel />}
+          {current === 'scores' && <ScoreList />}
         </div>
       )}
     </aside>

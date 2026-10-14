@@ -68,6 +68,8 @@ async function gameInProgress(x: Awaited<ReturnType<typeof setup>>) {
   const a = await x.connect('A');
   const created = await x.call(a, 'room:create', { name: 'Ada' });
   for (let i = 0; i < 5; i++) await x.call(a, 'lobby:addBot');
+  // A short game keeps the admin calls below the API's rate limit.
+  expect((await x.call(a, 'lobby:settings', { posters: 6 })).ok).toBe(true);
   expect((await x.call(a, 'game:start')).ok).toBe(true);
   await until(a, (v) => v.phase === 'poster');
   await x.call(a, 'dev:skipPhase');

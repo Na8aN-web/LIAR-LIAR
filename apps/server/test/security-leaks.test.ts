@@ -23,8 +23,9 @@ const YOU_KEYS = ['id', 'name', 'color', 'item', 'isHost'];
 const PLAYER_KEYS = ['id', 'name', 'item', 'cosmetics', 'seat', 'isHost', 'isBot', 'connected', 'away'];
 const GAME_KEYS = [
   'posterIndex', 'posterCount', 'posterColor', 'pot', 'youAreWanted', 'inspectLimit', 'extraInspects', 'inspectsUsed', 'purchasesUsed',
-  'log', 'myResults', 'boughtEntryIds', 'offersOut', 'offersIn', 'swapLimit', 'swapsUsed', 'swappedThisPayout',
-  'myColorHistory', 'myVote', 'votesCast', 'scores', 'scoreDeltas', 'myScore', 'myCorrectVotes', 'myHeldEscapeBonus', 'myRounds', 'reactions',
+  'log', 'myResults', 'boughtEntryIds', 'offersOut', 'offersIn', 'swapLimit', 'swapsUsed', 'trickThisPayout', 'coveredThisPoster',
+  'myWorth', 'worthBoughtThisPoster',
+  'myColorHistory', 'myVote', 'votesCast', 'scoreDeltas', 'myScore', 'myCorrectVotes', 'myHeldEscapeBonus', 'myRounds', 'reactions',
 ];
 const LOG_KEYS = ['id', 'poster', 'inspectorId', 'targetId', 'at'];
 const ROUND_KEYS = ['poster', 'color', 'wasWanted', 'escaped', 'votedFor', 'correct', 'wantedId', 'payout'];
@@ -57,7 +58,7 @@ async function playGame(env: Awaited<ReturnType<typeof startServer>>) {
   }
   await call(host, 'lobby:addBot');
   await call(host, 'lobby:addBot');
-  await call(host, 'lobby:settings', { colorSwaps: 3, posterMode: 'everyoneOnce' });
+  await call(host, 'lobby:settings', { colorSwaps: 3 });
   expect((await call(host, 'game:start')).ok).toBe(true);
   const room = env.server.rooms.get(created.code)!;
   const g = () => room.game as GameState;

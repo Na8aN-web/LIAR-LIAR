@@ -6,7 +6,7 @@ import { secureRng, type Rng } from '../src/rng';
 
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, color: COLOR_IDS[i] }));
 
-function viewOf(g: engine.GameState, me: string, posterMode = DEFAULT_SETTINGS.posterMode): PlayerView {
+function viewOf(g: engine.GameState, me: string): PlayerView {
   return {
     code: 'TEST1',
     serverNow: Date.now(),
@@ -15,7 +15,7 @@ function viewOf(g: engine.GameState, me: string, posterMode = DEFAULT_SETTINGS.p
     maxPlayers: 15,
     you: { id: me, name: me, color: g.colors[me], item: 'poncho', isHost: false },
     players: g.playerIds.map((id, seat) => ({ id, name: `Name${id}`, item: 'poncho', cosmetics: DEFAULT_COSMETICS, seat, isHost: false, isBot: true, connected: true, away: false })),
-    settings: { ...DEFAULT_SETTINGS, posterMode },
+    settings: { ...DEFAULT_SETTINGS },
     phase: 'investigation',
     phaseEndsAt: null,
     game: engine.gameViewFor(g, me),
@@ -31,14 +31,14 @@ const firstRng: Rng = { int: () => 0 };
 
 describe('bot knowledge', () => {
   it('only uses the bot’s own and bought results', () => {
-    const g = engine.createGame(players(6), { inspectLimit: 3, posterMode: 'everyoneOnce' }, secureRng);
+    const g = engine.createGame(players(6), { inspectLimit: 3 }, secureRng);
     engine.inspect(g, 'p1', 'p2', secureRng); // someone else's inspect
     const k = brain.know(viewOf(g, 'p0'));
     expect(k.possible.size).toBe(0);
   });
 
   it('intersects repeated inspects and propagates resolved colors', () => {
-    const g = engine.createGame(players(8), { inspectLimit: 20, posterMode: 'everyoneOnce' }, secureRng);
+    const g = engine.createGame(players(8), { inspectLimit: 20 }, secureRng);
     // Inspect p1 until resolved (random decoys, so this takes a few looks).
     let k = brain.know(viewOf(g, 'p0'));
     for (let i = 0; i < 20 && k.possible.get('p1')?.length !== 1; i++) {
@@ -48,8 +48,8 @@ describe('bot knowledge', () => {
     expect(k.possible.get('p1')).toEqual([g.colors.p1]);
   });
 
-  it('votes for a resolved Wanted player and rules out past Wanted in everyoneOnce mode', () => {
-    const g = engine.createGame(players(6), { inspectLimit: 40, posterMode: 'everyoneOnce' }, secureRng);
+  it('votes for a resolved Wanted player', () => {
+    const g = engine.createGame(players(6), { inspectLimit: 40 }, secureRng);
     const wanted = engine.wantedId(g);
     const voter = g.playerIds.find((p) => p !== wanted)!;
     // Inspect until the color resolves (decoys are random, so the number of looks varies).
@@ -59,23 +59,16 @@ describe('bot knowledge', () => {
       v = viewOf(g, voter);
     }
     expect(brain.chooseVote(v, brain.know(v), [], secureRng)).toBe(wanted);
-
-    engine.castVote(g, voter, wanted);
-    engine.resolvePoster(g);
-    engine.advancePoster(g);
-    const k = brain.know(viewOf(g, voter));
-    expect(k.pastWanted.has(wanted)).toBe(true);
-    expect(brain.suspects(k)).not.toContain(wanted);
   });
 
   it('reads findings newest first and keeps a contradicting older one as stale', () => {
     for (let k = 0; k < 40; k++) {
-      const g = engine.createGame(players(6), { inspectLimit: 3, posterMode: 'everyoneOnce', swapLimit: 2 }, secureRng);
+      const g = engine.createGame(players(6), { inspectLimit: 3, swapLimit: 2 }, secureRng);
       const first = engine.inspect(g, 'p0', 'p1', secureRng);
       if (!first.ok) throw new Error(first.error);
       engine.resolvePoster(g);
       expect(engine.swapColor(g, 'p1', secureRng).ok).toBe(true);
-      engine.advancePoster(g);
+      engine.advancePoster(g, secureRng);
       const second = engine.inspect(g, 'p0', 'p1', secureRng);
       if (!second.ok) throw new Error(second.error);
       const kn = brain.know(viewOf(g, 'p0'));
@@ -91,7 +84,7 @@ describe('bot knowledge', () => {
   });
 
   it('swap policy fires once exposure reaches the threshold', () => {
-    const g = engine.createGame(players(6), { inspectLimit: 3, posterMode: 'everyoneOnce', swapLimit: 1 }, secureRng);
+    const g = engine.createGame(players(6), { inspectLimit: 3, swapLimit: 1 }, secureRng);
     for (const p of ['p1', 'p2', 'p3']) engine.inspect(g, p, 'p0', secureRng);
     const v = viewOf(g, 'p0');
     expect(brain.exposure(v, [])).toBe(3);
@@ -100,7 +93,7 @@ describe('bot knowledge', () => {
   });
 
   it('spreads first-poster inspects evenly instead of favouring seat 0 (the host)', () => {
-    const g = engine.createGame(players(10), { inspectLimit: 3, posterMode: 'randomRepeats' }, secureRng);
+    const g = engine.createGame(players(10), { inspectLimit: 3 }, secureRng);
     const hits = new Map<string, number>();
     const tries = 4000;
     for (let i = 0; i < tries; i++) {
@@ -117,7 +110,7 @@ describe('bot knowledge', () => {
   });
 
   it('counts accusations from chat, ignoring denials and the bot itself', () => {
-    const g = engine.createGame(players(6), { inspectLimit: 3, posterMode: 'everyoneOnce' }, secureRng);
+    const g = engine.createGame(players(6), { inspectLimit: 3 }, secureRng);
     const me = g.playerIds.find((p) => p !== engine.wantedId(g))!;
     const v = viewOf(g, me);
     const color = v.game!.posterColor;
@@ -135,7 +128,7 @@ describe('bot knowledge', () => {
   });
 
   it('Wanted bots never accuse themselves or tell the truth about their color', () => {
-    const g = engine.createGame(players(6), { inspectLimit: 3, posterMode: 'everyoneOnce' }, secureRng);
+    const g = engine.createGame(players(6), { inspectLimit: 3 }, secureRng);
     const wanted = engine.wantedId(g);
     const v = viewOf(g, wanted);
     const mind = brain.newMind(firstRng);

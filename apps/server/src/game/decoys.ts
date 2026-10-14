@@ -12,8 +12,10 @@ export function inspectResult(
   inspectorColor: ColorId,
   rng: Rng,
   count = 2,
+  /** Colors that must never appear (a covered player's true color). */
+  exclude: readonly ColorId[] = [],
 ): ColorId[] {
-  const excluded = (c: ColorId) => c === real || c === inspectorColor;
+  const excluded = (c: ColorId) => c === real || c === inspectorColor || exclude.includes(c);
   let pool = gameColors.filter((c) => !excluded(c));
   // Only in tiny games: top up from unused palette colors.
   if (pool.length < count) {
@@ -37,13 +39,14 @@ export function narrowedResult(
   possible: readonly ColorId[],
   rng: Rng,
   count = 2,
+  exclude: readonly ColorId[] = [],
 ): ColorId[] {
   const keep = Math.max(1, possible.length - 1);
   const survivors = shuffle(
-    possible.filter((c) => c !== real && c !== inspectorColor),
+    possible.filter((c) => c !== real && c !== inspectorColor && !exclude.includes(c)),
     rng,
   ).slice(0, keep - 1);
-  const outside = (c: ColorId) => c !== real && c !== inspectorColor && !possible.includes(c);
+  const outside = (c: ColorId) => c !== real && c !== inspectorColor && !possible.includes(c) && !exclude.includes(c);
   let pool = gameColors.filter(outside);
   if (pool.length < count + 1 - keep) pool = pool.concat(COLOR_IDS.filter((c) => outside(c) && !gameColors.includes(c)));
   const fresh = shuffle(pool, rng).slice(0, count + 1 - keep);

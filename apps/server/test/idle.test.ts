@@ -215,7 +215,7 @@ describe('idle rooms over real connections', () => {
     const c = await x.connect('Ada');
     await x.call(c, 'room:create', { name: 'Ada' });
     for (let i = 0; i < 12; i++) {
-      await x.call(c, i % 2 ? 'room:stillHere' : 'lobby:settings', ...(i % 2 ? [] : [{ posterMode: 'randomRepeats' }]));
+      await x.call(c, i % 2 ? 'room:stillHere' : 'lobby:settings', ...(i % 2 ? [] : [{ posters: 10 }]));
       await sleep(80);
     }
     expect(x.server.rooms.size).toBe(1);

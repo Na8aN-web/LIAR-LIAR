@@ -35,9 +35,6 @@ export interface Knowledge {
   possible: Map<PlayerId, ColorId[]>;
   /** Older results (before the last swap round), discounted by how many players swapped since. */
   stale: Map<PlayerId, StaleEvidence>;
-  /** Players this bot knows were already Wanted (it voted right, or was Wanted itself). */
-  pastWanted: Set<PlayerId>;
-  everyoneOnce: boolean;
 }
 
 /**
@@ -86,22 +83,18 @@ export function know(view: PlayerView): Knowledge {
       if (next.length) possible.set(p, next);
     }
   }
-  const pastWanted = new Set<PlayerId>();
-  for (const r of game.myRounds) if (r.wantedId && r.wantedId !== me) pastWanted.add(r.wantedId);
   return {
     me,
     poster: game.posterColor,
     others: view.players.filter((p) => p.id !== me).map((p) => p.id),
     possible,
     stale,
-    pastWanted,
-    everyoneOnce: view.settings.posterMode === 'everyoneOnce',
   };
 }
 
 const ruledOut = (k: Knowledge, p: PlayerId) => {
   const cs = k.possible.get(p);
-  return (cs && !cs.includes(k.poster)) || (k.everyoneOnce && k.pastWanted.has(p));
+  return !!cs && !cs.includes(k.poster);
 };
 const isKnownWanted = (k: Knowledge, p: PlayerId) => {
   const cs = k.possible.get(p);
@@ -197,11 +190,24 @@ export function exposure(view: PlayerView, chat: ChatMessage[]): number {
   return inspectors.size + mentions;
 }
 
-/** Swap once exposure passes the threshold, if swaps are left and this payout's swap is unused. */
+/** Swap once exposure passes the threshold, if swaps are left and no trick is used this payout. */
 export function shouldSwap(view: PlayerView, chat: ChatMessage[], threshold: number): boolean {
   const game = view.game!;
-  if (game.swappedThisPayout || game.swapsUsed >= game.swapLimit) return false;
+  if (game.trickThisPayout || game.swapsUsed >= game.swapLimit) return false;
+  if (game.myScore < view.settings.rules.swapPrice) return false;
   return exposure(view, chat) >= threshold;
+}
+
+/**
+ * Cover tracks now and then: when a few people have been looking at me, with money to spare.
+ * (Innocents gain little from it; outlaws can't know in advance they'll be next, so bots treat
+ * it as an occasional gamble.)
+ */
+export function shouldCover(view: PlayerView, chat: ChatMessage[], chance: number, roll: number): boolean {
+  const game = view.game!;
+  if (game.trickThisPayout) return false;
+  if (game.myScore < view.settings.rules.coverPrice + 40) return false;
+  return exposure(view, chat) >= 2 && roll < chance;
 }
 
 /** One chat line for the investigation phase, shaped by persona. Null = stay quiet. */

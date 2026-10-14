@@ -39,7 +39,7 @@ async function playGame(players: number, voteFor: (poster: number, wanted: strin
     ids.push(res.seat.id);
   }
   const host = ids[0];
-  expect(room.updateSettings(host, { posterMode: 'everyoneOnce' }).ok).toBe(true);
+  expect(room.updateSettings(host, { posters: players }).ok).toBe(true);
   expect(room.start(host).ok).toBe(true);
   const wantedByPoster: string[] = [];
   const skipTo = async (phase: string) => {

@@ -2,17 +2,17 @@
 
 import { useState } from 'react';
 import { call } from '@/lib/socket';
-import { eyeCounts, suspicion } from '@/lib/inspections';
+import { suspicion } from '@/lib/inspections';
 import { useGame, useSecondsLeft } from '@/lib/store';
 import { CosmeticIcon } from '../ui/CosmeticIcon';
-import { EyeIcon } from '../ui/EyeIcon';
 
 /** Seconds left at which an unvoted player gets the "vote now" warning. */
 const URGENT_AT = 5;
 
 /**
  * The vote: slides up over the scene when the search ends. Everyone but you as cards (name,
- * hat, times searched this poster, and what YOUR notebook says), pick one, then ACCUSE. Your
+ * hat, and what YOUR notebook says; no search counts, so nobody just follows the crowd), pick
+ * one, then ACCUSE. Your
  * accusation is stamped; then a count of how many have voted (never who). Closes at the payout.
  */
 export function VotePanel() {
@@ -25,7 +25,6 @@ export function VotePanel() {
   const [busy, setBusy] = useState(false);
 
   const others = view.players.filter((p) => p.id !== view.you.id);
-  const eyes = eyeCounts(game);
   const voted = game.myVote;
   const urgent = !voted && left !== null && left <= URGENT_AT && left > 0;
   // Who can still vote: everyone at the fire (bots included), not players who left.
@@ -42,7 +41,7 @@ export function VotePanel() {
 
   const clock = left === null ? '–' : `0:${String(left).padStart(2, '0')}`;
   return (
-    <section className={`vote-panel${urgent ? ' urgent' : ''}`} aria-label="Name the outlaw">
+    <section className={`vote-panel${urgent ? ' urgent' : ''}`} data-tut="vote" aria-label="Name the outlaw">
       <header className="vote-head">
         <h2>Name the outlaw</h2>
         <div className={`vote-clock${left !== null && left <= 10 ? ' low' : ''}`} aria-label={`${left ?? 0} seconds left`}>
@@ -54,6 +53,9 @@ export function VotePanel() {
           </p>
         ) : (
           <p className="vote-sub">{voted ? 'Your accusation is sealed.' : 'Pick who you think wears the poster’s color. Nobody sees your vote.'}</p>
+        )}
+        {!urgent && !voted && (
+          <p className="vote-cut">Fewer correct guesses = bigger cut.</p>
         )}
       </header>
 
@@ -74,14 +76,8 @@ export function VotePanel() {
                 <span className="vote-card-body">
                   <b className="vote-name">{p.name}</b>
                   <span className="vote-meta">
-                    {(eyes.get(p.id) ?? 0) > 0 && (
-                      <span className="eye-plate small" title="Times searched this poster">
-                        <EyeIcon />
-                        {eyes.get(p.id)}
-                      </span>
-                    )}
-                    {tag === 'ruledOut' && <span className="vote-tag out">Ruled out</span>}
-                    {tag === 'possible' && <span className="vote-tag maybe">Possible</span>}
+                    {tag === 'ruledOut' && <span className="vote-tag out">Looks clear</span>}
+                    {tag === 'possible' && <span className="vote-tag maybe">Looks possible</span>}
                   </span>
                 </span>
                 {isVote && <span className="accused-stamp">Accused</span>}

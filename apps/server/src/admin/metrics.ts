@@ -249,7 +249,8 @@ export function funnel(events: AnalyticsEvent[], w: Window) {
 // ---------------------------------------------------------------- balance
 
 export interface BalanceFilter {
-  posterMode?: string;
+  /** Posters per game. */
+  posters?: number;
   minPlayers?: number;
   maxPlayers?: number;
   decoys?: number;
@@ -266,13 +267,13 @@ export const hadBots = (g: GameSummary) => !!g.withBots || g.bots > 0;
 export const settingsKey = (g: GameSummary) => {
   const r = g.settings.rules;
   const t = g.settings.timers;
-  return `${g.settings.posterMode === 'everyoneOnce' ? 'Everyone once' : 'Random repeats'} · ${g.inspectLimit} searches · ${r.decoys} fakes · ${g.swapLimit} color changes · timers ${t.poster}/${t.investigation}/${t.vote}/${t.payout}s`;
+  return `${g.posters.length} posters · ${g.inspectLimit} searches · ${r.decoys} fakes · ${g.swapLimit} color changes · timers ${t.poster}/${t.investigation}/${t.vote}/${t.payout}s`;
 };
 
 export function balance(games: GameSummary[], events: AnalyticsEvent[], w: Window, f: BalanceFilter = {}) {
   const all = realGames(games, f.botOnly).filter((g) => inWin(g.endedAt, w));
   const options = {
-    posterModes: [...new Set(all.map((g) => g.settings.posterMode))].sort(),
+    posters: [...new Set(all.map((g) => g.posters.length))].sort((a, b) => a - b),
     players: [...new Set(all.map((g) => g.players))].sort((a, b) => a - b),
     decoys: [...new Set(all.map((g) => g.settings.rules.decoys))].sort((a, b) => a - b),
     inspects: [...new Set(all.map((g) => g.inspectLimit))].sort((a, b) => a - b),
@@ -280,7 +281,7 @@ export function balance(games: GameSummary[], events: AnalyticsEvent[], w: Windo
   };
   const gs = all.filter(
     (g) =>
-      (!f.posterMode || g.settings.posterMode === f.posterMode) &&
+      (f.posters === undefined || g.posters.length === f.posters) &&
       (f.minPlayers === undefined || g.players >= f.minPlayers) &&
       (f.maxPlayers === undefined || g.players <= f.maxPlayers) &&
       (f.decoys === undefined || g.settings.rules.decoys === f.decoys) &&
@@ -320,6 +321,28 @@ export function balance(games: GameSummary[], events: AnalyticsEvent[], w: Windo
       colorChanges: perPlayer((g) => g.totalSwaps ?? 0),
       searches: perPlayer((g) => g.inspects),
     },
+    // Herding: of posters with one clear most-searched player, how often that player also got
+    // the most votes, and how often they really were the outlaw (games since herding was tracked).
+    herding: (() => {
+      const hs = gs.flatMap((g) => g.posters.map((p) => p.herd)).filter((h): h is NonNullable<typeof h> => !!h && h.topSearchedMostVoted !== null);
+      return {
+        posters: hs.length,
+        mostVoted: hs.length ? mean(hs.map((h) => (h.topSearchedMostVoted ? 1 : 0))) : null,
+        wasOutlaw: hs.length ? mean(hs.map((h) => (h.topSearchedWasWanted ? 1 : 0))) : null,
+      };
+    })(),
+    // Covered tracks: how often a covered outlaw escaped, against outlaws who didn't cover.
+    covers: (() => {
+      const ps = gs.flatMap((g) => g.posters).filter((p) => p.covered !== undefined);
+      const cov = ps.filter((p) => p.coveredWanted);
+      const not = ps.filter((p) => !p.coveredWanted);
+      return {
+        perPoster: ps.length ? mean(ps.map((p) => p.covered ?? 0)) : null,
+        coveredOutlawPosters: cov.length,
+        coveredOutlawEscape: cov.length ? mean(cov.map((p) => (p.escaped ? 1 : 0))) : null,
+        otherEscape: not.length ? mean(not.map((p) => (p.escaped ? 1 : 0))) : null,
+      };
+    })(),
     avgMinutes: gs.length ? mean(gs.map((g) => g.durationMs)) / 60000 : null,
     avgPlayers: gs.length ? mean(gs.map((g) => g.players)) : null,
     popularSettings: [...popular].map(([key, n]) => ({ key, n })).sort((a, b) => b.n - a.n).slice(0, 6),
@@ -403,4 +426,28 @@ export function billboards(events: AnalyticsEvent[], w: Window) {
       daily: days.map((day) => ({ day, players: new Set(mine.filter((e) => dayOf(e.at) === day && e.anon).map((e) => e.anon)).size })),
     };
   }).sort((a, b) => b.players - a.players);
+}
+
+// ---------------------------------------------------------------- first-game tutorial
+
+/**
+ * First-time players (their browser ran the tutorial): how far they got through it, and how
+ * fast they first searched on poster 1, against everyone else.
+ */
+export function tutorialFunnel(games: GameSummary[], w: Window) {
+  const gs = games.filter((g) => !g.seed && !g.check && inWin(g.endedAt, w));
+  const people = gs.flatMap((g) => g.perPlayer ?? []).filter((p) => !p.bot);
+  const tut = people.filter((p) => p.tutorial !== null && p.tutorial !== undefined);
+  const reached = (n: number) => tut.filter((p) => typeof p.tutorial === 'number' && p.tutorial >= n).length;
+  const firstSearch = (ps: typeof people) => {
+    const xs = ps.map((p) => p.firstSearchSec?.[0]).filter((x): x is number => typeof x === 'number').sort((a, b) => a - b);
+    return { n: xs.length, median: xs.length ? xs[Math.floor(xs.length / 2)] : null, never: ps.filter((p) => p.firstSearchSec?.[0] === null).length };
+  };
+  return {
+    players: tut.length,
+    stages: [1, 2, 3, 4].map((n) => ({ stage: n, n: reached(n) })),
+    skipped: tut.filter((p) => p.tutorial === 'skipped').length,
+    finished: tut.filter((p) => p.finished).length,
+    firstSearch: { tutorial: firstSearch(tut), others: firstSearch(people.filter((p) => !tut.includes(p))) },
+  };
 }

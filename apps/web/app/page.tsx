@@ -16,6 +16,7 @@ import { AudioSettings } from '@/components/ui/AudioSettings';
 import { SceneCurtain } from '@/components/SceneCurtain';
 import { BrightnessSlider } from '@/components/ui/BrightnessSlider';
 import { GraphicsSetting } from '@/components/ui/GraphicsSetting';
+import { ShowEverythingToggle } from '@/components/ui/ShowEverythingToggle';
 import { StreamerToggle } from '@/components/ui/StreamerToggle';
 import { call } from '@/lib/socket';
 import { session } from '@/lib/session';
@@ -113,6 +114,7 @@ export default function MainMenu() {
           <AudioSettings />
           <BrightnessSlider />
           <GraphicsSetting />
+          <ShowEverythingToggle />
           <StreamerToggle />
           <p className="hint settings-privacy">
             <Link href="/privacy">Privacy: what we collect and why</Link>

@@ -68,11 +68,13 @@ async function main() {
   assert(after.ok && after.available.length === 19 && !after.available.includes(aPick), 'a picked color is taken');
   assert(((await call(b, 'lobby:setLook', { color: aPick })) as any).ok === false, 'cannot take a picked color');
 
+  // Posters are a host setting, independent of the number of players.
+  assert(((await call(a, 'lobby:settings', { posters: 4 })) as any).ok, 'set posters');
   assert(((await call(a, 'game:start')) as any).ok, 'start');
   await sleep(100);
   assert(views.B.you.name === 'ada 2', `dedupe name: ${views.B.you.name}`);
   const total = views.A.game!.posterCount;
-  assert(total === 6, 'poster count');
+  assert(total === 4, `poster count ${total}`);
 
   let reconnected = false;
   let bought = false;

@@ -3,7 +3,7 @@ import type { ColorId } from './palette';
 import type { FeedbackAnswers, HowtoStatus } from './playtest';
 import type { Announcement, ClientStep, ServerStatus, VisitPage } from './analytics';
 import type { AutoFill, LobbyListUpdate, Visibility } from './lobby';
-import type { ChatMessage, ItemType, PlayerId, PlayerView, RoomSettings } from './types';
+import type { ChatMessage, ItemType, PlayerId, PlayerView, RoomSettings, TutorialProgress } from './types';
 
 export type Ack<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
 export type AckFn<T = {}> = (res: Ack<T>) => void;
@@ -57,12 +57,18 @@ export interface ClientToServerEvents {
   'buy:extraInspect': (ack: AckFn) => void;
   /** Payout phase only. The server assigns a random free color (no free-color list is ever sent). One per payout, final. */
   'swap:color': (ack: AckFn<{ color: ColorId }>) => void;
+  /** Dirty trick: searches of you next poster show false results. */
+  'trick:cover': (ack: AckFn) => void;
+  /** A private look at everyone's money. */
+  'buy:worth': (ack: AckFn) => void;
   'game:backToLobby': (ack: AckFn) => void;
 
   'chat:send': (p: { text: string }, ack: AckFn) => void;
 
   /** Playtest stats: what this player did with How to Play. */
   'client:howto': (p: { status: HowtoStatus }, ack: AckFn) => void;
+  /** First-game tutorial: how far this player got (for the admin funnel). */
+  'client:tutorial': (p: { progress: TutorialProgress }, ack: AckFn) => void;
   /** End-of-game feedback form (optional, once per game). */
   'feedback:send': (p: Partial<FeedbackAnswers>, ack: AckFn) => void;
 

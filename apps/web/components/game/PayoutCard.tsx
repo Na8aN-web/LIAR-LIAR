@@ -1,12 +1,14 @@
 'use client';
 
 import { useGame, usePlayerName } from '@/lib/store';
-import { ScoreList } from './ScoresPanel';
-import { SwapPicker } from './SwapPicker';
+import { useFeature } from '@/lib/tutorial';
+import { DirtyTricks } from './DirtyTricks';
+import { BountyEarnings } from './ScoresPanel';
 
 export function PayoutCard() {
   const game = useGame((s) => s.view!.game!);
   const nameOf = usePlayerName();
+  const tricks = useFeature('tricks');
   const r = game.myRounds[game.myRounds.length - 1];
   if (!r || r.poster !== game.posterIndex) return null;
 
@@ -32,8 +34,8 @@ export function PayoutCard() {
     <div className="center-card">
       <div className={`card payout ${tone}`}>
         <h2>{headline}</h2>
-        <SwapPicker />
-        <ScoreList compact />
+        <BountyEarnings />
+        {tricks && <DirtyTricks />}
       </div>
     </div>
   );

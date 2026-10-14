@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { colorInfo } from '@wtc/shared';
-import { byInspector, byPosterDesc, eyeCounts, findingsAbout } from '@/lib/inspections';
+import { colorInfo, searchedThisPoster } from '@wtc/shared';
+import { byPosterDesc, findingsAbout } from '@/lib/inspections';
+import { useFeature } from '@/lib/tutorial';
 import { useGame, usePlayerName } from '@/lib/store';
 import { ColorChip } from '../Chip';
 import { EyeIcon } from '../ui/EyeIcon';
@@ -26,6 +27,8 @@ export function TargetCard({
   onClose: () => void;
 }) {
   const [othersOpen, setOthersOpen] = useState(isDesktopNow);
+  // First game: buying other players' findings unlocks at stage 3.
+  const buying = useFeature('buying');
   const view = useGame((s) => s.view)!;
   const game = view.game!;
   const nameOf = usePlayerName();
@@ -33,7 +36,7 @@ export function TargetCard({
 
   const aboutTarget = game.log.filter((e) => e.targetId === targetId);
   const others = aboutTarget.filter((e) => e.inspectorId !== me);
-  const eyes = eyeCounts(game).get(targetId) ?? 0;
+  const searched = searchedThisPoster(game.log, game.posterIndex).has(targetId);
 
   const f = findingsAbout(game, targetId);
   const cleared = f.possible !== null && !f.possible.includes(game.posterColor);
@@ -45,9 +48,9 @@ export function TargetCard({
       <div className="target-head">
         <span className="target-name">
           {nameOf(targetId)}
-          {eyes > 0 && (
-            <span className="eye-plate" title={`Searched ${eyes} times this poster`}>
-              <EyeIcon /> {eyes}
+          {searched && (
+            <span className="eye-plate" title="Searched this poster (see the Searches tab for who)">
+              <EyeIcon />
             </span>
           )}
         </span>
@@ -73,7 +76,7 @@ export function TargetCard({
             )}
             {f.entries.map((e, i) => (
               <div key={e.id} className={`result-row${i >= f.agreeing ? ' stale' : ''}`}>
-                <span className="log-poster-tag">P{e.poster + 1}</span>
+                <span className="log-poster-tag">{e.poster === game.posterIndex ? 'This poster' : `Poster ${e.poster + 1}`}</span>
                 {e.inspectorId !== me && <span className="tag">bought</span>}
                 <span className="chip-row tight">
                   {game.myResults[e.id].map((c) => (
@@ -86,7 +89,7 @@ export function TargetCard({
           </div>
         )}
 
-        {othersCount === 0 ? (
+        {!buying ? null : othersCount === 0 ? (
           <p className="target-summary">Nobody else has searched them.</p>
         ) : !othersOpen ? (
           <button className="target-summary" onClick={() => setOthersOpen(true)}>
@@ -95,23 +98,15 @@ export function TargetCard({
         ) : (
           <div className="target-section">
             <Rope />
-            <div className="label">Also searched by</div>
-            {byPosterDesc(others).map(([poster, entries]) => (
-              <div key={poster} className="inspector-group">
-                <div className="log-poster">Poster {poster + 1}</div>
-                {byInspector(entries).map(({ inspectorId, entries: es }) => (
-                  <div key={inspectorId} className="inspector-row">
-                    <span className="grow">
-                      {nameOf(inspectorId)}
-                      {es.length > 1 && <span className="muted"> ×{es.length}</span>}
-                    </span>
-                    <span className="buy-group">
-                      {es.map((e, i) => (
-                        <BuyButton key={e.id} entry={e} label={es.length > 1 ? `Search ${i + 1}` : undefined} />
-                      ))}
-                    </span>
-                  </div>
-                ))}
+            <div className="label">Who else searched them</div>
+            {byPosterDesc(others).flatMap(([, entries]) => entries).map((e) => (
+              <div key={e.id} className="inspector-row">
+                <span className="grow">
+                  <b>{nameOf(e.inspectorId)}</b> searched them {e.poster === game.posterIndex ? 'this poster' : `on poster ${e.poster + 1}`}
+                </span>
+                <span className="buy-group">
+                  <BuyButton entry={e} />
+                </span>
               </div>
             ))}
           </div>

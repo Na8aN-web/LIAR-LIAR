@@ -5,12 +5,6 @@ import type { RoomInfo } from './lobby';
 export type PlayerId = string;
 export type ItemType = 'poncho' | 'cloak' | 'bandana';
 
-/**
- * everyoneOnce: shuffled order, each player Wanted exactly once (spec default).
- * randomRepeats: each poster picks a random player; repeats allowed.
- */
-export type PosterMode = 'everyoneOnce' | 'randomRepeats';
-
 export type Phase = 'lobby' | 'poster' | 'investigation' | 'vote' | 'payout' | 'ended';
 
 export interface PhaseTimers {
@@ -30,8 +24,12 @@ export interface GameRules {
   /** Searches you get for one extra-search purchase. */
   extraInspectCount: number;
   purchaseCap: number;
-  /** Price of one color change. */
+  /** Dirty trick: price of a color change. */
   swapPrice: number;
+  /** Dirty trick: price of covering your tracks for the next round. */
+  coverPrice: number;
+  /** Price of a private snapshot of everyone's worth. */
+  worthPrice: number;
   /** Decoy colors shown with the real one on each inspect (spec: 2). */
   decoys: number;
 }
@@ -41,7 +39,8 @@ export interface RoomSettings {
   inspectsPerRound: number | 'auto';
   /** Most color changes per player per game. 'auto' = one per payout (see defaultSwaps). 0 = off. Each one costs rules.swapPrice. */
   colorSwaps: number | 'auto';
-  posterMode: PosterMode;
+  /** Posters in a game (POSTER_RANGE). Each picks a random outlaw; repeats allowed. */
+  posters: number;
   timers: PhaseTimers;
   rules: GameRules;
 }
@@ -148,16 +147,20 @@ export interface GameView {
   offersIn: OfferView[];
   swapLimit: number;
   swapsUsed: number;
-  /** You already changed color this payout (one per payout, final). */
-  swappedThisPayout: boolean;
+  /** Your dirty trick this payout (one per payout, final, secret), or null. */
+  trickThisPayout: DirtyTrick | null;
+  /** You covered your tracks for this poster: searches of you show false results. */
+  coveredThisPoster: boolean;
+  /** Your latest snapshot of everyone's worth (bought, private), or null. */
+  myWorth: WorthSnapshot | null;
+  /** You already bought a worth snapshot this poster. */
+  worthBoughtThisPoster: boolean;
   /** Private: your own color history. */
   myColorHistory: ColorChange[];
   myVote: PlayerId | null;
   /** Public: how many players have voted on this poster so far (never who). */
   votesCast: number;
-  /** Public scores, updated after each payout. */
-  scores: Record<PlayerId, number>;
-  /** Score changes from the most recent payout. */
+  /** What each player earned from the most recent bounty (totals stay hidden until the end). */
   scoreDeltas: Record<PlayerId, number>;
   /** Live own score (differs from public once buying exists). */
   myScore: number;
@@ -167,6 +170,20 @@ export interface GameView {
   myRounds: RoundResult[];
   /** Set during a payout and after the game ends; null otherwise. */
   reactions: ReactionsView | null;
+}
+
+export type DirtyTrick = 'swap' | 'cover';
+
+/** First-game tutorial progress a browser reports: the stage reached (1-4, 4 = everything
+ *  unlocked), or that the player skipped it. */
+export type TutorialProgress = 1 | 2 | 3 | 4 | 'skipped';
+
+/** Everyone's money as of the last payout, bought privately. */
+export interface WorthSnapshot {
+  /** Poster (0-based) it was bought during. */
+  poster: number;
+  /** Totals as of the latest payout. */
+  scores: Record<PlayerId, number>;
 }
 
 export interface ReplayPoster {

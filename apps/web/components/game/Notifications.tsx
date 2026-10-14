@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { colorInfo, type ColorId, type OfferView } from '@wtc/shared';
 import { call } from '@/lib/socket';
 import { playSfx, type Sfx } from '@/lib/audio/sfx';
+import { useTutorial } from '@/lib/tutorial';
 import { useGame, usePlayerName } from '@/lib/store';
 import { useStreamerMode } from '@/lib/streamer';
 import { useIsDesktop } from '@/lib/useIsDesktop';
@@ -58,10 +59,29 @@ export function Notifications() {
   const desktop = useIsDesktop();
   const [expanded, setExpanded] = useState(false);
 
+  // First game (tutorial): only urgent telegrams now (an offer to answer, findings you bought);
+  // the rest wait and arrive together at the payout, so a new player isn't swamped.
+  const tutorial = useTutorial().on;
+  const held = useRef<string[]>([]);
   const push = (n: Note, sound: Sfx | null = SOUND[n.kind]) => {
+    const urgent = n.kind === 'offer' || (n.kind === 'deal' && !!n.colors);
+    if (tutorial && !urgent) {
+      // "New poster" is stale by the payout (and the poster is on screen anyway).
+      if (n.kind !== 'poster') held.current.push(n.title);
+      return;
+    }
     setNotes((all) => [...all.filter((x) => x.id !== n.id), n]);
     if (sound) playSfx(sound);
   };
+  useEffect(() => {
+    if (view.phase !== 'payout' || !held.current.length) return;
+    const lines = held.current.splice(0);
+    setNotes((all) => [
+      ...all,
+      { id: `batch-${game.posterIndex}`, kind: 'deal', title: 'While you were busy:', body: lines.slice(-4).join(' · '), until: Date.now() + SHOW_MS.bought },
+    ]);
+    playSfx('telegram');
+  }, [view.phase, game.posterIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   const dismiss = (id: string) => setNotes((all) => all.filter((n) => n.id !== id));
 
   // 3. Poster start. Fires when a poster begins; not when rejoining mid-poster.

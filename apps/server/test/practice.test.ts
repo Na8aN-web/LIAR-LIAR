@@ -71,7 +71,7 @@ describe('practice games', () => {
     expect(room.addBot(ids[0]).ok).toBe(true);
     expect(room.startPractice(ids[0]).ok).toBe(false);
     expect(room.start(ids[0]).ok).toBe(true);
-    expect(room.game!.order).toHaveLength(7);
+    expect(room.game!.order).toHaveLength(DEFAULT_SETTINGS.posters);
     expect(room.settings.timers).toEqual(DEFAULT_SETTINGS.timers);
   });
 });

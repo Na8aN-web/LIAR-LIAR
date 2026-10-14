@@ -101,7 +101,7 @@ describe('color swaps', () => {
     expect(first.ok).toBe(true);
     const again = room.swapColor(p);
     expect(again.ok).toBe(false);
-    if (!again.ok) expect(again.error).toMatch(/already changed color this payout/);
+    if (!again.ok) expect(again.error).toMatch(/One dirty trick per round/);
     expect(room.game!.swapsUsed[p]).toBe(1);
     if (first.ok) expect(room.game!.colors[p]).toBe(first.color);
     // Next payout: allowed again.
@@ -121,7 +121,7 @@ describe('color swaps', () => {
     await goTo('payout');
     const third = room.swapColor(p);
     expect(third.ok).toBe(false);
-    if (!third.ok) expect(third.error).toMatch(/No color swaps left/);
+    if (!third.ok) expect(third.error).toMatch(/No color changes left/);
   });
 
   it("'auto' allows one change per payout (each one is paid for)", async () => {
@@ -185,7 +185,7 @@ describe('color swaps', () => {
         expect(JSON.stringify(v)).not.toContain(`"${newColor}"`);
         if (v.game) {
           expect(v.game.myColorHistory).toEqual([{ color: room.game!.colorHistory[id][0].color, afterPoster: null }]);
-          expect(v.game.swappedThisPayout).toBe(false);
+          expect(v.game.trickThisPayout).toBeNull();
           expect(v.game.swapsUsed).toBe(0);
         }
       }

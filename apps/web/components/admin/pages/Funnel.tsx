@@ -14,6 +14,55 @@ interface Stage {
   detail?: { finished: number; skipped: number; notOpened: number };
 }
 
+interface TutorialData {
+  players: number;
+  stages: { stage: number; n: number }[];
+  skipped: number;
+  finished: number;
+  firstSearch: { tutorial: { n: number; median: number | null; never: number }; others: { n: number; median: number | null; never: number } };
+}
+
+const STAGE_LABEL = ['Poster 1: search and vote', 'Talk and lie (Searches, Notebook)', 'Buying (findings, extra looks, worth)', 'Dirty tricks (everything unlocked)'];
+
+/** First-time players: how far they got through the built-in tutorial, and when they first searched. */
+function TutorialCard() {
+  const { filters } = useFilters();
+  const { data } = useAdmin<TutorialData>(`/tutorial${query(filters)}`);
+  if (!data) return null;
+  if (!data.players) {
+    return (
+      <Card title="First-game tutorial" note="Players whose first game ran the tutorial.">
+        <Empty>No first-time players in this period.</Empty>
+      </Card>
+    );
+  }
+  const secs = (x: number | null) => (x === null ? '–' : `${Math.round(x)} s`);
+  return (
+    <Card title="First-game tutorial" note="Players whose first game ran the tutorial: the furthest stage they reached." wide>
+      <ol className="adm-funnel">
+        {data.stages.map((s, i) => (
+          <li key={s.stage}>
+            <div className="adm-funnel-head">
+              <span className="adm-funnel-label">{STAGE_LABEL[i]}</span>
+              <span className="adm-funnel-n">
+                {int(s.n)} <small>{pct(s.n / data.players)}</small>
+              </span>
+            </div>
+            <div className="adm-funnel-track">
+              <div className="adm-funnel-fill" style={{ width: `${Math.max(0.5, (s.n / data.players) * 100)}%` }} />
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="adm-note">
+        {int(data.skipped)} skipped it · {int(data.finished)} stayed to the end of that game. First search on poster 1: median{' '}
+        {secs(data.firstSearch.tutorial.median)} for first-timers ({int(data.firstSearch.tutorial.never)} never searched) against{' '}
+        {secs(data.firstSearch.others.median)} for everyone else.
+      </p>
+    </Card>
+  );
+}
+
 export function FunnelPage() {
   const { filters } = useFilters();
   const { data, error, loading } = useAdmin<Stage[]>(`/funnel${query(filters)}`);
@@ -50,6 +99,7 @@ export function FunnelPage() {
           ))}
         </ol>
       </Card>
+      <TutorialCard />
       {howto && (
         <Grid>
           <Card title="How to Play" note="What visitors did with the walkthrough.">

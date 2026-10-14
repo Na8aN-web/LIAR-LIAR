@@ -2,17 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { BASE_POT, DEFAULT_RULES, BUY_INSPECT_PRICE, COLOR_IDS, ESCAPE_BONUS, EXTRA_INSPECT_COUNT, EXTRA_INSPECT_PRICE, STARTING_POINTS, type ColorId } from '@wtc/shared';
 import * as engine from '../src/game/engine';
 import { inspectResult } from '../src/game/decoys';
-import { posterOrders } from '../src/game/posterOrder';
+import { randomOrder } from '../src/game/posterOrder';
 import { secureRng } from '../src/rng';
 
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, color: COLOR_IDS[i] }));
-const newGame = (n = 6, posterMode: 'everyoneOnce' | 'randomRepeats' = 'everyoneOnce') =>
-  engine.createGame(players(n), { inspectLimit: 3, posterMode }, secureRng);
+const newGame = (n = 6, posterCount = n) => engine.createGame(players(n), { inspectLimit: 3, posterCount }, secureRng);
 
 describe('repeat searches', () => {
   it('narrow the possible colors by one each time: 4, 3, 2, then the real one', () => {
     for (let k = 0; k < 200; k++) {
-      const g = engine.createGame(players(8), { inspectLimit: 6, posterMode: 'everyoneOnce', rules: { ...DEFAULT_RULES, decoys: 3 } }, secureRng);
+      const g = engine.createGame(players(8), { inspectLimit: 6, rules: { ...DEFAULT_RULES, decoys: 3 } }, secureRng);
       let possible: ColorId[] | null = null;
       for (const want of [4, 3, 2, 1, 1]) {
         const r = engine.inspect(g, 'p0', 'p3', secureRng);
@@ -29,7 +28,7 @@ describe('repeat searches', () => {
   });
 
   it('are separate per searcher', () => {
-    const g = engine.createGame(players(8), { inspectLimit: 3, posterMode: 'everyoneOnce' }, secureRng);
+    const g = engine.createGame(players(8), { inspectLimit: 3 }, secureRng);
     engine.inspect(g, 'p0', 'p3', secureRng);
     engine.inspect(g, 'p0', 'p3', secureRng);
     const other = engine.inspect(g, 'p1', 'p3', secureRng);
@@ -60,34 +59,38 @@ describe('decoys', () => {
 });
 
 describe('poster order', () => {
-  it('everyoneOnce makes everyone Wanted exactly once', () => {
-    const ids = players(10).map((p) => p.id);
-    expect(posterOrders.everyoneOnce(ids, secureRng).slice().sort()).toEqual(ids.slice().sort());
+  it('is random each poster, any length, only real players', () => {
+    const ids = players(6).map((p) => p.id);
+    for (const posters of [3, 10, 20]) {
+      const order = randomOrder(ids, posters, secureRng);
+      expect(order).toHaveLength(posters);
+      for (const id of order) expect(ids).toContain(id);
+    }
   });
 
-  it('randomRepeats keeps game length and only uses players', () => {
-    const ids = players(10).map((p) => p.id);
-    const order = posterOrders.randomRepeats(ids, secureRng);
-    expect(order).toHaveLength(10);
-    for (const id of order) expect(ids).toContain(id);
-  });
-
-  it('randomRepeats never repeats back to back or makes anyone Wanted more than twice', () => {
-    for (const n of [6, 7, 10, 15]) {
+  it('never repeats back to back, and nobody gets far more than an even share', () => {
+    for (const [n, posters] of [[6, 6], [6, 12], [6, 20], [10, 10], [15, 3]] as const) {
       const ids = players(n).map((p) => p.id);
+      const cap = Math.max(2, Math.ceil(posters / n) + 1);
       for (let k = 0; k < 300; k++) {
-        const order = posterOrders.randomRepeats(ids, secureRng);
+        const order = randomOrder(ids, posters, secureRng);
         for (let i = 1; i < order.length; i++) expect(order[i]).not.toBe(order[i - 1]);
         const counts = new Map<string, number>();
         for (const id of order) counts.set(id, (counts.get(id) ?? 0) + 1);
-        expect(Math.max(...counts.values())).toBeLessThanOrEqual(2);
+        expect(Math.max(...counts.values())).toBeLessThanOrEqual(cap);
       }
     }
   });
 
+  it('allows repeats: someone is Wanted twice in a long game', () => {
+    const ids = players(6).map((p) => p.id);
+    const order = randomOrder(ids, 12, secureRng);
+    expect(new Set(order).size).toBeLessThan(order.length);
+  });
+
   it('only the player wearing the poster color is told they are Wanted, with color swaps', () => {
     for (let k = 0; k < 50; k++) {
-      const g = engine.createGame(players(8), { inspectLimit: 3, posterMode: 'randomRepeats', swapLimit: 3 }, secureRng);
+      const g = engine.createGame(players(8), { inspectLimit: 3, swapLimit: 3 }, secureRng);
       while (true) {
         for (const p of g.playerIds) {
           const v = engine.gameViewFor(g, p);
@@ -97,7 +100,7 @@ describe('poster order', () => {
         if (!engine.hasNextPoster(g)) break;
         // Payout: a few players change color, sometimes the next Wanted player.
         for (const p of g.playerIds) if (secureRng.int(3) === 0) engine.swapColor(g, p, secureRng);
-        engine.advancePoster(g);
+        engine.advancePoster(g, secureRng);
       }
     }
   });
@@ -116,7 +119,7 @@ describe('inspect', () => {
     const g = newGame();
     for (let i = 0; i < 3; i++) engine.inspect(g, 'p0', 'p1', secureRng);
     engine.resolvePoster(g);
-    engine.advancePoster(g);
+    engine.advancePoster(g, secureRng);
     expect(engine.inspectsLeft(g, 'p0')).toBe(3);
   });
 });
@@ -144,7 +147,8 @@ describe('payout', () => {
     expect(rec.escaped).toBe(true);
     // Nothing public moves: no delta, no public score change.
     expect(g.scoreDeltas).toEqual({});
-    for (const p of g.playerIds) expect(engine.gameViewFor(g, p).scores[wanted]).toBe(STARTING_POINTS);
+    for (const p of g.playerIds) expect(engine.gameViewFor(g, p)).not.toHaveProperty('scores'); // totals are hidden anyway
+    expect(g.publicScores[wanted]).toBe(STARTING_POINTS);
     // Only the earner sees it, privately.
     expect(engine.gameViewFor(g, wanted).myHeldEscapeBonus).toBe(ESCAPE_BONUS);
     expect(engine.gameViewFor(g, g.playerIds.find((p) => p !== wanted)!).myHeldEscapeBonus).toBe(0);
@@ -280,11 +284,11 @@ describe('buying', () => {
     expect(g.pots[1]).toBe(BASE_POT + EXTRA_INSPECT_PRICE);
     expect(engine.gameViewFor(g, 'p3').pot).toBe(BASE_POT);
     engine.resolvePoster(g);
-    engine.advancePoster(g);
+    engine.advancePoster(g, secureRng);
     expect(engine.gameViewFor(g, 'p3').pot).toBe(BASE_POT + EXTRA_INSPECT_PRICE);
     expect(engine.inspectsLeft(g, 'p0')).toBe(3);
 
-    while (engine.hasNextPoster(g)) { engine.resolvePoster(g); engine.advancePoster(g); }
+    while (engine.hasNextPoster(g)) { engine.resolvePoster(g); engine.advancePoster(g, secureRng); }
     const last = g.posterIndex;
     expect(engine.buyExtraInspect(g, 'p0').ok).toBe(true);
     expect(g.pots[last]).toBe(BASE_POT + EXTRA_INSPECT_PRICE);

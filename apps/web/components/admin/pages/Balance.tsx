@@ -15,14 +15,14 @@ interface BalanceData {
   popularSettings: { key: string; n: number }[];
   abandoned: { n: number; rate: number | null };
   recent: { endedAt: string; players: number; bots: number; posters: number; minutes: number; escaped: number; settings: string; seed: boolean }[];
-  options: { posterModes: string[]; players: number[]; decoys: number[]; inspects: number[]; swaps: number[] };
+  options: { posters: number[]; players: number[]; decoys: number[]; inspects: number[]; swaps: number[] };
+  herding: { posters: number; mostVoted: number | null; wasOutlaw: number | null };
+  covers: { perPoster: number | null; coveredOutlawPosters: number; coveredOutlawEscape: number | null; otherEscape: number | null };
 }
-
-const MODE: Record<string, string> = { everyoneOnce: 'Everyone once', randomRepeats: 'Random repeats' };
 
 export function BalancePage() {
   const { filters } = useFilters();
-  const [f, setF] = useState({ posterMode: '', minPlayers: '', maxPlayers: '', decoys: '', inspects: '', swaps: '', botOnly: '', who: '' });
+  const [f, setF] = useState({ posters: '', minPlayers: '', maxPlayers: '', decoys: '', inspects: '', swaps: '', botOnly: '', who: '' });
   const { data, error, loading } = useAdmin<BalanceData>(`/balance${query(filters, f)}`);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
     setF({ ...f, [k]: e.target.type === 'checkbox' ? ((e.target as HTMLInputElement).checked ? '1' : '') : e.target.value });
@@ -43,7 +43,7 @@ export function BalancePage() {
   return (
     <>
       <div className="adm-filters">
-        {select('posterMode', 'Posters', opts?.posterModes, (v) => MODE[v] ?? String(v))}
+        {select('posters', 'Posters', opts?.posters)}
         {select('minPlayers', 'Players from', opts?.players)}
         {select('maxPlayers', 'to', opts?.players)}
         {select('inspects', 'Searches', opts?.inspects)}
@@ -74,6 +74,40 @@ export function BalancePage() {
             <Stat label="Abandoned" value={int(data.abandoned.n)} sub={`${pct(data.abandoned.rate)} of games started`} tone={(data.abandoned.rate ?? 0) > 0.2 ? 'warn' : undefined} />
           </Stats>
           <Grid>
+            <Card title="Herding" note="Posters with one clear most-searched player: how often that player also got the most votes, and how often they really were the outlaw. A big gap means the crowd is following the searches, not the evidence.">
+              {data.herding.posters ? (
+                <Bars
+                  format={(n) => pct(n)}
+                  max={1}
+                  rows={[
+                    { label: 'Most-searched got most votes', value: data.herding.mostVoted ?? 0, color: PALETTE.brass },
+                    { label: 'Most-searched was the outlaw', value: data.herding.wasOutlaw ?? 0, color: PALETTE.sage },
+                  ]}
+                />
+              ) : (
+                <Empty>No games with herding data yet.</Empty>
+              )}
+              <p className="adm-note">{int(data.herding.posters)} posters.</p>
+            </Card>
+            <Card title="Covered tracks" note="Dirty trick: searches on a covered player show a false color for one poster.">
+              {data.covers.perPoster !== null ? (
+                <>
+                  <Bars
+                    format={(n) => pct(n)}
+                    max={1}
+                    rows={[
+                      { label: 'Covered outlaws escaped', value: data.covers.coveredOutlawEscape ?? 0, color: PALETTE.red },
+                      { label: 'Other outlaws escaped', value: data.covers.otherEscape ?? 0, color: PALETTE.sand },
+                    ]}
+                  />
+                  <p className="adm-note">
+                    {dec(data.covers.perPoster)} covers per poster · {int(data.covers.coveredOutlawPosters)} posters with a covered outlaw.
+                  </p>
+                </>
+              ) : (
+                <Empty>No games with covered tracks yet.</Empty>
+              )}
+            </Card>
             <Card title="Right accusations, by stage" note="Share of accusers who named the outlaw, in the first, middle and last third of each game.">
               <Bars
                 format={(n) => pct(n)}

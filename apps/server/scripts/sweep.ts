@@ -2,7 +2,7 @@
 //   pnpm sweep                                   10 players, 30 games per cell, swaps 0-3 x decoys 2-3
 //   pnpm sweep -- --players 6 --swaps 2,3 --decoys 3 --thresholds 3,4,5
 // Prints % of voters who were right by game third, plus swaps used per player.
-import { DEFAULT_SETTINGS, type PosterMode } from '@wtc/shared';
+import { DEFAULT_SETTINGS } from '@wtc/shared';
 import { DEFAULT_BOT_CONFIG } from '../src/bots/driver';
 import { accuracy, runMany } from './simlib';
 
@@ -16,11 +16,11 @@ const games = Number(arg('games', '30'));
 const swaps = list(arg('swaps', '0,1,2,3'));
 const decoys = list(arg('decoys', '2,3'));
 const thresholds = list(arg('thresholds', String(DEFAULT_BOT_CONFIG.swapThreshold)));
-const posterMode = arg('mode', DEFAULT_SETTINGS.posterMode) as PosterMode;
+const posters = Number(arg('posters', String(DEFAULT_SETTINGS.posters)));
 
 const pct = (x: number) => `${Math.round(x * 100)}%`.padStart(6);
 const started = Date.now();
-console.log(`${players} players, ${games} games per cell, ${posterMode}, default inspects/buying\n`);
+console.log(`${players} players, ${games} games per cell, ${posters} posters, default inspects/buying\n`);
 console.log('swaps  decoys  threshold |  early    mid   late  final | swaps used/player');
 console.log('------------------------ + -------------------------- + -----------------');
 for (const d of decoys) {
@@ -29,7 +29,7 @@ for (const d of decoys) {
       const r = accuracy(
         await runMany(games, {
           players,
-          posterMode,
+          posters,
           inspects: 'auto',
           colorSwaps: s,
           rules: { decoys: d },

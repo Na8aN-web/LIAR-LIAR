@@ -11,9 +11,11 @@ import * as brain from './brain';
 export interface BotConfig {
   /** Swap color once exposure (distinct inspectors + chat mentions of my color) reaches this. */
   swapThreshold: number;
+  /** Chance per payout of covering tracks (when somewhat exposed and flush). */
+  coverChance: number;
 }
 
-export const DEFAULT_BOT_CONFIG: BotConfig = { swapThreshold: 4 };
+export const DEFAULT_BOT_CONFIG: BotConfig = { swapThreshold: 4, coverChance: 0.15 };
 
 export class BotDriver {
   private timers: NodeJS.Timeout[] = [];
@@ -158,8 +160,9 @@ export class BotDriver {
 
   private maybeSwap(bot: Seat) {
     const view = this.view(bot);
-    if (!view || !brain.shouldSwap(view, this.room.chat, this.config.swapThreshold)) return;
-    this.room.swapColor(bot.id);
+    if (!view) return;
+    if (brain.shouldSwap(view, this.room.chat, this.config.swapThreshold)) this.room.swapColor(bot.id);
+    else if (brain.shouldCover(view, this.room.chat, this.config.coverChance, chance(this.rng))) this.room.coverTracks(bot.id);
   }
 
   private vote(bot: Seat) {

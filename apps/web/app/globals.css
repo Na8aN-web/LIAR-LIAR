@@ -280,6 +280,7 @@ input:disabled, select:disabled { opacity: 0.65; }
 }
 .closing-banner { top: calc(10px + var(--safe-top)); background: #f3e6c4; color: #2b2016; border: 2px solid var(--oxblood); }
 .away-banner { bottom: calc(150px + var(--safe-bottom)); background: var(--oxblood); color: var(--cream); border: 1px solid #3d0d0d; }
+.away-text b { display: block; font-size: 1rem; }
 
 /* Loading curtain: hides the scene until it's all in, then fades away (components/SceneCurtain). */
 .scene-curtain {
@@ -558,15 +559,19 @@ html.smooth .vote-soon, html.smooth .vote-panel.urgent, html.smooth .vote-clock.
 .inspector-row > .grow { min-width: 8em; }
 .buy-group { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-left: auto; }
 .buy-group .btn.small { white-space: nowrap; }
-.name-line { margin: 2px 0 4px; font-size: 0.9rem; line-height: 1.5; }
 .log-poster { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-soft); margin: 6px 0 2px; }
 .log-poster-tag { color: var(--ink-soft); font-size: 0.75rem; font-weight: 700; margin-right: 4px; }
 .log-hint { margin: 0 0 8px; }
-.log-groups { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.log-target { padding: 6px 4px 6px 10px; border-left: 3px solid var(--ink-soft); background: rgba(255, 248, 225, 0.3); }
-.log-target.about-me { border-left-color: var(--oxblood); background: rgba(165, 53, 44, 0.08); }
-.log-target-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.log-poster-group summary { cursor: pointer; color: var(--ink-soft); font-size: 0.8rem; padding: 6px 0 2px; min-height: 34px; display: flex; align-items: center; gap: 4px; }
+/* Searches tab: one plain sentence per search, grouped by poster. */
+.log-poster-group { margin-bottom: 6px; }
+.log-poster-head { margin: 8px 0 2px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-soft); }
+details.log-poster-group > summary { cursor: pointer; min-height: 34px; display: flex; align-items: center; border-top: 1px solid var(--line); }
+.log-lines { list-style: none; margin: 0; padding: 0; }
+.log-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-height: 44px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.log-line.about-me { color: var(--oxblood); }
+.log-sentence { flex: 1 1 10em; font-size: 0.95rem; }
+.log-line > .btn.small { margin-left: auto; white-space: nowrap; }
+.log-colors { flex-basis: 100%; }
 .log-swaps { font-size: 0.75rem; color: var(--oxblood); text-align: center; padding: 6px 0; }
 
 /* =====================================================================
@@ -1076,3 +1081,62 @@ body:has(.trailer) nextjs-portal { display: none !important; }
 .lock-row { flex-wrap: wrap; }
 .lock-row > .grow { flex: 1 1 14em; min-width: 0; }
 .lock-row > select, .lock-row > .segmented { margin-left: auto; }
+
+/* =====================================================================
+   First-game tutorial, hidden wealth, dirty tricks
+   ===================================================================== */
+
+/* Tutorial prompt: a small telegram with an arrow to what it's about. Never blocks input. */
+.tut-note {
+  position: fixed; z-index: 60; pointer-events: none; display: flex; flex-direction: column; gap: 3px;
+  padding: 8px 12px 9px; color: #2b2016; font-family: var(--font-telegram), 'Courier New', monospace; font-size: 0.9rem; line-height: 1.3;
+  background: linear-gradient(180deg, #f6ebc2, var(--telegram)); border: 1px solid #b9a56c; border-radius: 3px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); animation: tut-in 0.35s ease-out both;
+}
+.tut-note.hidden { visibility: hidden; }
+.tut-tag { font-size: 0.62rem; letter-spacing: 0.22em; color: #7a5d34; }
+.tut-skip { pointer-events: auto; align-self: flex-start; margin-top: 2px; padding: 2px 0; border: 0; background: none; color: #7a5d34; font: inherit; font-size: 0.75rem; text-decoration: underline; cursor: pointer; }
+.tut-note.arrow-up::before, .tut-note.arrow-down::after {
+  content: ''; position: absolute; left: calc(var(--arrow-x) - 8px); width: 0; height: 0; border: 8px solid transparent;
+}
+.tut-note.arrow-up::before { top: -16px; border-bottom-color: #f6ebc2; }
+.tut-note.arrow-down::after { bottom: -16px; border-top-color: var(--telegram); }
+@keyframes tut-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tut-note { animation: none; } }
+
+/* Rankings during a game: hidden totals, the private snapshot. */
+.worth-note { margin: 2px 0 6px; }
+.worth-buy { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 8px; }
+.worth-stamp { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; padding: 8px 10px; border: 2px solid var(--ink-soft); border-radius: 4px; font-size: 0.85rem; }
+.worth-stamp b { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; }
+.worth-stamp.old { border-color: var(--oxblood); background: rgba(165, 53, 44, 0.12); color: var(--oxblood); }
+.worth-stamp.old b { font-size: 1rem; }
+.scores.worth-old .score, .scores.worth-old .rank { opacity: 0.6; }
+.scores .rank { min-width: 2.4em; font-variant-numeric: tabular-nums; color: var(--ink-soft); font-size: 0.85rem; }
+
+/* Payout: what each player earned from this bounty. */
+.earnings { margin: 8px 0 4px; }
+.earnings ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.earnings li { display: flex; justify-content: space-between; gap: 10px; font-size: 0.92rem; }
+.earnings li.me { font-weight: 700; }
+.earnings .delta { color: var(--sage); font-weight: 700; }
+.earnings-none { margin: 8px 0; }
+
+/* Dirty tricks: one big brass button on the payout screen, and its panel. */
+.btn.dirty-trick {
+  display: block; width: 100%; margin-top: 12px; min-height: 52px; font-size: 1.05rem; letter-spacing: 0.1em; font-weight: 700;
+  color: #2a1a06; border-color: #4d3a12; background: var(--noise), linear-gradient(180deg, #f6dc94, #c9a24a 55%, #8a6420);
+  box-shadow: 0 4px 0 #4d3a12, 0 8px 18px rgba(0, 0, 0, 0.45); pointer-events: auto;
+}
+.trick-done { margin-top: 10px; font-size: 0.92rem; }
+.trick-note { margin-top: 10px; }
+.tricks { display: grid; gap: 10px; margin: 10px 0; }
+.trick { padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px; background: rgba(255, 248, 230, 0.4); display: flex; flex-direction: column; gap: 6px; }
+.trick p { margin: 0; font-size: 0.9rem; line-height: 1.35; }
+.trick-head { display: flex; justify-content: space-between; align-items: baseline; }
+.trick-head b { font-size: 1.05rem; font-variant: small-caps; letter-spacing: 0.03em; }
+.trick-price { font-family: var(--font-display), serif; color: var(--oxblood); font-size: 1.1rem; }
+.trick .btn { align-self: flex-start; }
+
+/* Vote panel: the line that discourages piling on. */
+.vote-cut { margin: 4px 0 0; font-size: 0.8rem; font-weight: 700; color: var(--oxblood); letter-spacing: 0.02em; }

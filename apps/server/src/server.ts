@@ -82,7 +82,9 @@ const FINISHED_KEEP_MS = 3 * 3600_000;
 const INPUT_EVENTS = new Set([
   'chat:send', 'chat:mute', 'chat:report', 'feedback:send', 'room:stillHere',
   'lobby:setLook', 'lobby:settings', 'lobby:visibility', 'lobby:lock', 'lobby:autoFill', 'lobby:addBot', 'lobby:removeBot', 'lobby:fill', 'lobby:kick',
-  'game:start', 'game:inspect', 'game:vote', 'game:backToLobby', 'buy:offer', 'buy:respond', 'buy:extraInspect', 'swap:color',
+  'game:start', 'game:inspect', 'game:vote', 'game:backToLobby', 'buy:offer', 'buy:respond', 'buy:extraInspect', 'buy:worth', 'swap:color', 'trick:cover',
+  // Dev builds only: pressing skip is deliberate (the How to Play capture skips whole posters).
+  'dev:skipPhase',
 ]);
 const fail = (error: string) => ({ ok: false as const, error });
 
@@ -545,10 +547,13 @@ export function createGameServer(opts: GameServerOptions) {
     ));
     socket.on('buy:extraInspect', handle((ack) => withSeat(ack, ({ room, seat }) => room.buyExtraInspect(seat.id))));
     socket.on('swap:color', handle((ack) => withSeat(ack, ({ room, seat }) => room.swapColor(seat.id))));
+    socket.on('trick:cover', handle((ack) => withSeat(ack, ({ room, seat }) => room.coverTracks(seat.id))));
+    socket.on('buy:worth', handle((ack) => withSeat(ack, ({ room, seat }) => room.buyWorth(seat.id))));
     socket.on('game:backToLobby', handle((ack) => withSeat(ack, ({ room, seat }) => room.backToLobby(seat.id))));
     socket.on('chat:send', handle((p, ack) =>
       withSeat(ack, ({ room, seat }) => (rate.chat.take(socket.id) ? room.sendChat(seat.id, obj(p).text) : fail('Slow down'))),
     ));
+    socket.on('client:tutorial', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.setTutorial(seat.id, obj(p).progress))));
     socket.on('client:howto', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.setHowto(seat.id, obj(p).status))));
     socket.on('feedback:send', handle((p, ack) => withSeat(ack, ({ room, seat }) => room.submitFeedback(seat.id, p))));
     socket.on('chat:report', handle((p, ack) =>

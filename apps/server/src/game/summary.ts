@@ -1,4 +1,4 @@
-import type { HowtoStatus, RoomSettings } from '@wtc/shared';
+import type { HowtoStatus, RoomSettings, TutorialProgress } from '@wtc/shared';
 import type { GameState } from './engine';
 
 /** Anonymous per-game stats for balance tuning. One JSON line per finished game. */
@@ -18,6 +18,14 @@ export interface GameSummary {
     correct: number;
     escaped: boolean;
     payoutEach: number;
+    /**
+     * Herding: did the most-searched player (alone at the top) also get the most votes, and was
+     * that player actually the outlaw? null when nobody was searched most.
+     */
+    herd?: { topSearchedMostVoted: boolean | null; topSearchedWasWanted: boolean | null };
+    /** Players who had covered their tracks this poster, and whether the outlaw was one. */
+    covered?: number;
+    coveredWanted?: boolean;
   }[];
   inspects: number;
   offers: { made: number; accepted: number; declined: number; expired: number };
@@ -63,6 +71,8 @@ export interface PlayerStats {
   finished: boolean;
   /** What they did with How to Play before playing (null = unknown, e.g. bots). */
   howto: HowtoStatus | null;
+  /** First-game tutorial: stage reached (1-4) or 'skipped'; null when it wasn't their first game. */
+  tutorial?: TutorialProgress | null;
   /** Anonymous per-browser id (null for bots), linking games to visits for the dashboard. */
   anon?: string | null;
 }
@@ -77,7 +87,7 @@ export function summarize(
     check?: boolean;
     /** When each poster appeared (ms since epoch), by poster index. */
     posterStarts?: number[];
-    seat?: (id: string) => { disconnects: number; reconnects: number; howto: HowtoStatus | null; away: boolean; anon?: string | null };
+    seat?: (id: string) => { disconnects: number; reconnects: number; howto: HowtoStatus | null; tutorial?: TutorialProgress | null; away: boolean; anon?: string | null };
   },
 ): GameSummary {
   const count = (status: string) => s.offers.filter((o) => o.status === status).length;
@@ -101,6 +111,9 @@ export function summarize(
       correct: h.correctIds.length,
       escaped: h.escaped,
       payoutEach: h.payoutEach,
+      herd: herding(s, h.poster, h.votes, h.wantedId),
+      covered: (s.coveredByPoster[h.poster] ?? []).length,
+      coveredWanted: (s.coveredByPoster[h.poster] ?? []).includes(h.wantedId),
     })),
     inspects: s.log.length,
     offers: { made: s.offers.length, accepted: count('accepted'), declined: count('declined'), expired: count('expired') },
@@ -135,8 +148,32 @@ export function summarize(
         reconnects: info?.reconnects ?? 0,
         finished: info ? !info.away : true,
         howto: info?.howto ?? null,
+        tutorial: info?.tutorial ?? null,
         anon: info?.anon ?? null,
       };
     }),
   };
+}
+
+/** The single player with the most of something, or null on a tie or nothing at all. */
+function soleTop(counts: Map<string, number>): string | null {
+  let best: string | null = null;
+  let max = 0;
+  let tie = false;
+  for (const [id, n] of counts) {
+    if (n > max) [best, max, tie] = [id, n, false];
+    else if (n === max) tie = true;
+  }
+  return max > 0 && !tie ? best : null;
+}
+
+/** Herding on one poster: most-searched vs most-voted vs the actual outlaw. */
+export function herding(s: GameState, poster: number, votes: Record<string, string | null>, wantedId: string) {
+  const searched = new Map<string, number>();
+  for (const e of s.log) if (e.poster === poster) searched.set(e.targetId, (searched.get(e.targetId) ?? 0) + 1);
+  const voted = new Map<string, number>();
+  for (const v of Object.values(votes)) if (v) voted.set(v, (voted.get(v) ?? 0) + 1);
+  const top = soleTop(searched);
+  if (!top) return { topSearchedMostVoted: null, topSearchedWasWanted: null };
+  return { topSearchedMostVoted: soleTop(voted) === top, topSearchedWasWanted: top === wantedId };
 }

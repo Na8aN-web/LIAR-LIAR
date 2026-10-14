@@ -140,7 +140,9 @@ describe('the server refuses forged game actions', () => {
       { timers: { vote: 99999 } },
       { inspectsPerRound: 99 },
       { colorSwaps: -1 },
-      { posterMode: 'cheat' },
+      { posters: 2 },
+      { posters: 21 },
+      { posters: 'cheat' },
     ]) {
       expect((await call(cs[0], 'lobby:settings', bad)).ok, JSON.stringify(bad)).toBe(false);
     }

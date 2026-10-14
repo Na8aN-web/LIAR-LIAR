@@ -99,7 +99,7 @@ function Circle() {
           rotationY={rotationY}
           selected={false}
           faded={false}
-          eyeCount={0}
+          searched={false}
           pose={s.pose}
           seed={seed}
           reaction={cue?.who === i ? cue.cue : null}

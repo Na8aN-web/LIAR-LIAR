@@ -1,4 +1,5 @@
-import { DEFAULT_SETTINGS, type GameRules, type PosterMode, type RoomSettings } from '@wtc/shared';
+import { DEFAULT_SETTINGS, type GameRules, type RoomSettings } from '@wtc/shared';
+import type { GameState } from '../src/game/engine';
 import type { BotConfig } from '../src/bots/driver';
 import type { GameSummary } from '../src/game/summary';
 import { secureRng } from '../src/rng';
@@ -14,7 +15,8 @@ export const SIM_TIMERS = { poster: 0.05, investigation: 3, vote: 1, payout: 0.3
 
 export interface SimOptions {
   players: number;
-  posterMode: PosterMode;
+  /** Posters per game (default: the room default). */
+  posters?: number;
   inspects: number | 'auto';
   colorSwaps: number | 'auto';
   rules: Partial<GameRules>;
@@ -22,6 +24,11 @@ export interface SimOptions {
 }
 
 export function runGame(o: SimOptions): Promise<GameSummary> {
+  return runGameFull(o).then((r) => r.summary);
+}
+
+/** One game, with its final state (for measurements the summary doesn't carry). */
+export function runGameFull(o: SimOptions): Promise<{ summary: GameSummary; game: GameState }> {
   return new Promise((resolve) => {
     const room = new Room('SIM00', {
       send: () => {},
@@ -30,8 +37,9 @@ export function runGame(o: SimOptions): Promise<GameSummary> {
       minPlayers: 2,
       bots: o.bots,
       onGameEnd: (s) => {
+        const game = room.game!;
         room.dispose();
-        resolve(s);
+        resolve({ summary: s, game });
       },
     });
     for (let i = 0; i < o.players; i++) room.addPlayer(NAMES[i], null, true);
@@ -39,7 +47,7 @@ export function runGame(o: SimOptions): Promise<GameSummary> {
     room.hostId = host.id;
     const settings: RoomSettings = {
       ...structuredClone(DEFAULT_SETTINGS),
-      posterMode: o.posterMode,
+      posters: o.posters ?? DEFAULT_SETTINGS.posters,
       timers: SIM_TIMERS,
       rules: { ...DEFAULT_SETTINGS.rules, ...o.rules },
       inspectsPerRound: o.inspects,
@@ -53,12 +61,16 @@ export function runGame(o: SimOptions): Promise<GameSummary> {
 
 /** Run games with at most `parallel` in flight, so big sweeps don't starve the timers. */
 export async function runMany(count: number, o: SimOptions, parallel = 40): Promise<GameSummary[]> {
-  const out: GameSummary[] = [];
+  return (await runManyFull(count, o, parallel)).map((r) => r.summary);
+}
+
+export async function runManyFull(count: number, o: SimOptions, parallel = 40): Promise<{ summary: GameSummary; game: GameState }[]> {
+  const out: { summary: GameSummary; game: GameState }[] = [];
   let next = 0;
   const worker = async () => {
     while (next < count) {
       next++;
-      out.push(await runGame(o));
+      out.push(await runGameFull(o));
     }
   };
   await Promise.all(Array.from({ length: Math.min(parallel, count) }, worker));

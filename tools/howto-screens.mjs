@@ -54,9 +54,10 @@ async function launch() {
 }
 const browser = await launch();
 const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-// No first-game walkthrough, no sound, in the captured game.
+// No first-game walkthrough or tutorial prompts, no sound, in the captured game.
 await ctx.addInitScript(() => {
   localStorage.setItem('wtc:howto-seen', '1');
+  localStorage.setItem('wtc:tutorial', 'done');
   localStorage.setItem('wtc:audio', JSON.stringify({ muted: true }));
 });
 const page = await ctx.newPage();
@@ -71,11 +72,13 @@ async function waitPhase(re, ms = 15000) {
     if (re.test(await phase())) return;
     await wait(250);
   }
+  await page.screenshot({ path: join(ROOT, 'screenshots/howto/failed.png') }).catch(() => {});
   throw new Error(`phase ${re} not reached (now: ${await phase()})`);
 }
 async function quiet() {
   // Let telegrams slide away so they don't cover the shot.
-  await page.evaluate(() => document.querySelectorAll('.notes-stack .note, .notes-stack > *').forEach((n) => n.remove()));
+  // Hidden, not removed: React owns these nodes and removing them crashes the page later.
+  await page.evaluate(() => document.querySelectorAll('.notes-stack .note, .notes-stack > *').forEach((n) => (n.style.display = 'none')));
   await wait(300);
 }
 
@@ -219,9 +222,9 @@ try {
   await highlight([circle], 'none');
   await shoot(1, 'the circle around the fire');
 
-  // 4 + 5. Search one scarecrow: the first result, then searches until a single color has shown
-  // up every time. With three fakes two colors can survive three searches; then try again next
-  // poster with someone else (slide 4 is kept from the attempt that works out).
+  // 4 + 5. Search one scarecrow three times: each repeat narrows it by one, so two colors have
+  // shown up every time (the real one and one survivor). If that didn't work out (e.g. searches
+  // ran short), try again next poster with someone else (slide 4 is kept from that attempt).
   // Players are picked by tapping their scarecrow (there's no list of names any more).
   const pickPlayer = async (i) => {
     const at = await page.evaluate((n) => {
@@ -253,9 +256,8 @@ try {
         await highlight([await box('.target-section .result-row')], 'left');
         first = await capture();
       }
-      if (k >= 1 && (await common()) === 1) break;
     }
-    if ((await common()) === 1) break;
+    if ((await common()) <= 2) break;
     await clearPick();
     await nextRound();
     await hunterRound();
@@ -331,20 +333,22 @@ try {
   await clearPick();
   await skip();
   await waitPhase(/name the outlaw|accuse|vote/i);
-  await page.locator('.action-bar.vote .player-chip').nth(1).click();
+  // Let the "Name the outlaw" stamp play out first.
+  await wait(3000);
+  await page.locator('.vote-panel .vote-card').nth(1).click();
   await wait(400);
   await quiet();
-  await highlight([await box('.action-bar.vote')], 'above');
+  await highlight([await box('.vote-panel .vote-accuse')], 'above');
   await shoot(9, 'the accuse panel');
 
-  // 10. Changing colors, and winning: the color change option and the ledger.
+  // 10. Dirty tricks, and winning: the trick button and this bounty's earnings.
   await page.getByRole('button', { name: /^Accuse/ }).click().catch(() => {});
   await skip();
   await waitPhase(/bounty paid|payout/i);
   await wait(1200);
   await quiet();
-  await highlight([await box('button:has-text("Change colors")'), await box('.payout .scores')], 'none');
-  await shoot(10, 'the color change option and the ledger');
+  await highlight([await box('.btn.dirty-trick'), await box('.payout .earnings, .payout .earnings-none')], 'none');
+  await shoot(10, 'the dirty trick button and the bounty earnings');
 } finally {
   await browser.close();
   if (dev) {

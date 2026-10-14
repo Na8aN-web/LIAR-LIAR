@@ -32,13 +32,13 @@ export function HintsSheet({ onClose }: { onClose: () => void }) {
           <b>Tap a player</b> to search them. You have {left} {left === 1 ? 'search' : 'searches'} left this round.
         </li>
         <li>
-          A search shows {decoys + 1} colors: their real one and {decoys} {decoys === 1 ? 'fake' : 'fakes'}. If {poster.name} isn&rsquo;t among them, that player is cleared.
+          A search shows {decoys + 1} colors: their real one and {decoys} {decoys === 1 ? 'fake' : 'fakes'}. If {poster.name} isn&rsquo;t among them, that player looks clear (unless they covered their tracks).
         </li>
         <li>
           <span className="eye-plate inline">
-            <EyeIcon /> 2
+            <EyeIcon />
           </span>{' '}
-          The number of eyes shows how many times a player has been searched this round.
+          An eye over a player means someone searched them this round. The Searches tab shows who.
         </li>
         <li>
           Out of searches? Buy {extraInspectCount} more for ${extraInspectPrice}, or pay ${buyPrice} for someone else&rsquo;s findings.

@@ -12,8 +12,8 @@ interface Props {
   expanded?: boolean;
   /** Gold highlight for the selected scarecrow. */
   highlight?: boolean;
-  /** Times inspected this poster. 0 hides the eye badge. */
-  eyeCount?: number;
+  /** Searched this poster: shows a plain eye badge (no count). */
+  searched?: boolean;
   faded?: boolean;
   /** Tap on the plate. */
   onClick?: (e: ThreeEvent<MouseEvent>) => void;
@@ -47,7 +47,7 @@ function drawEye(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numbe
 }
 
 /** Name tag drawn to a canvas texture on a sprite: a wood plaque (brass when selected) with a brass eye plate. */
-export function NameLabel({ name, position, expanded = false, highlight = false, eyeCount = 0, faded = false, onClick }: Props) {
+export function NameLabel({ name, position, expanded = false, highlight = false, searched = false, faded = false, onClick }: Props) {
   const ref = useRef<Sprite>(null);
   const text = tagName(name);
 
@@ -63,9 +63,11 @@ export function NameLabel({ name, position, expanded = false, highlight = false,
     const ctx = canvas.getContext('2d')!;
     ctx.font = font;
     const textW = ctx.measureText(text).width;
-    const badge = eyeCount > 0 ? `${eyeCount}` : '';
+    // A plain eye when they've been searched this poster: no count (counts made everyone pile
+    // onto whoever was searched most).
+    const badge = searched;
     ctx.font = numberFont;
-    const badgeW = badge ? h * 0.95 + ctx.measureText(badge).width + pad * 0.5 : 0;
+    const badgeW = badge ? h * 1.0 : 0;
     const w = Math.ceil(textW + pad * 2 + badgeW);
     canvas.width = w;
     canvas.height = h;
@@ -90,7 +92,7 @@ export function NameLabel({ name, position, expanded = false, highlight = false,
     ctx.stroke();
 
     if (badge) {
-      // Brass plate: times searched this poster.
+      // Brass plate: searched this poster.
       const brass = ctx.createLinearGradient(0, 0, 0, h);
       brass.addColorStop(0, '#f1d78f');
       brass.addColorStop(0.5, '#c9a24a');
@@ -102,11 +104,7 @@ export function NameLabel({ name, position, expanded = false, highlight = false,
       ctx.strokeStyle = '#4d3a12';
       ctx.lineWidth = 1.5 * s;
       ctx.stroke();
-      drawEye(ctx, h * 0.5, h / 2, h * 0.22, '#2a1a06');
-      ctx.fillStyle = '#2a1a06';
-      ctx.font = numberFont;
-      ctx.textAlign = 'left';
-      ctx.fillText(badge, h * 0.82, h / 2 + 3);
+      drawEye(ctx, badgeW / 2 + 1.5 * s, h / 2, h * 0.24, '#2a1a06');
     }
 
     ctx.font = font;
@@ -119,7 +117,7 @@ export function NameLabel({ name, position, expanded = false, highlight = false,
     tex.minFilter = LinearFilter;
     tex.generateMipmaps = false;
     return { texture: tex, aspect: w / h };
-  }, [text, highlight, eyeCount, fonts.ready, fonts.body, fonts.display]);
+  }, [text, highlight, searched, fonts.ready, fonts.body, fonts.display]);
 
   useEffect(() => () => texture.dispose(), [texture]);
 

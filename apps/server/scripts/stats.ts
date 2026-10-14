@@ -90,7 +90,7 @@ if (acc.length) {
 const groups = new Map<string, GameSummary[]>();
 for (const g of shown) {
   const r = g.settings.rules;
-  const key = `${g.settings.posterMode}, ${g.players}p, ${g.inspectLimit} searches, ${r.decoys} fakes, ${g.swapLimit ?? 0} color changes, pot ${r.basePot}, escape ${r.escapeBonus}, buy ${r.buyPrice}/${r.extraInspectPrice}, cap ${r.purchaseCap}`;
+  const key = `${g.posters.length} posters, ${g.players}p, ${g.inspectLimit} searches, ${r.decoys} fakes, ${g.swapLimit ?? 0} color changes, pot ${r.basePot}, escape ${r.escapeBonus}, buy ${r.buyPrice}/${r.extraInspectPrice}, cap ${r.purchaseCap}`;
   groups.set(key, [...(groups.get(key) ?? []), g]);
 }
 for (const [key, gs] of groups) {

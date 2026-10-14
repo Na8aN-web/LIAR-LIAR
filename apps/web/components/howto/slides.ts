@@ -77,17 +77,18 @@ export function howToSlides({ settings = DEFAULT_SETTINGS, playerCount = TYPICAL
       'Search again to find the truth',
       [
         text('Search the same person again and one fewer color is left in the running each time. The real color always shows up.'),
-        example('Example: second search: Cyan, Lavender, Red, Pink. Third: Green, Lavender, Cyan, Blue. Lavender showed up every time, so Hank wears Lavender.'),
-        tip(`Quick trick: if the poster color isn’t among the ${shown}, that person is definitely not the outlaw.`),
+        example('Example: second search: Cyan, Lavender, Red, Pink. Third: Green, Lavender, Red, Blue. Only Lavender and Red showed up every time, so Hank wears one of them. One more search settles it.'),
+        tip(`Quick trick: if the poster color isn’t among the ${shown}, that person looks clear.`),
+        text('Careful: a player who covered their tracks can fool your searches.'),
         text(`You get ${searches} searches per round.`),
       ],
-      'Three searches of the same scarecrow, with the color that showed up every time circled.',
+      'Three searches of the same scarecrow, with the colors that showed up every time circled.',
     ),
     slide(
       6,
       'eyes',
       'Everyone can see who you search',
-      [text('The little 👁 number over each scarecrow shows how many times they’ve been searched. Everyone sees who searched whom, but only you see what you found.')],
+      [text('An eye over a scarecrow means someone searched them this round. Everyone can see who searched whom (in the Searches tab), but only you see what you found.')],
       'Eye badges over the scarecrows.',
     ),
     slide(
@@ -114,6 +115,7 @@ export function howToSlides({ settings = DEFAULT_SETTINGS, playerCount = TYPICAL
           ],
         },
         text(`Everyone starts with ${$(r.startingPoints)}. You can make up to ${r.purchaseCap} purchases per round, and you can’t go below $0.`),
+        text(`Everyone’s money is hidden until the end. Pay ${$(r.worthPrice)} for a private look at it.`),
       ],
       'The button to buy someone’s search, and the extra search button.',
     ),
@@ -127,20 +129,26 @@ export function howToSlides({ settings = DEFAULT_SETTINGS, playerCount = TYPICAL
           `Example: the reward is ${$(r.basePot)} and 2 people guessed right, so each gets ${$(Math.floor(r.basePot / 2))}. If only you guessed right, you get all ${$(r.basePot)}.`,
         ),
         text(`If nobody catches the outlaw, they escape with a secret ${$(r.escapeBonus)} bonus, revealed at the end.`),
+        tip('Fewer correct guesses means a bigger cut, so don’t just follow the crowd.'),
       ],
       'The accuse panel.',
     ),
     slide(
       10,
       'win',
-      'Changing colors, and winning',
+      'Dirty tricks, and winning',
       [
-        text(
-          `After each round, you can pay ${$(r.swapPrice)} to change your color. You get a random new color, and nobody is told you changed. Use it when too many people know your color.`,
-        ),
+        text('After each round you can use one secret dirty trick for the next round. Nobody is ever told:'),
+        {
+          kind: 'list',
+          items: [
+            `Change your color (${$(r.swapPrice)}): you get a random new color, so what people found out about you stops being true.`,
+            `Cover your tracks (${$(r.coverPrice)}): searches on you next round show false results.`,
+          ],
+        },
         text('The player with the most money after the last poster wins.'),
       ],
-      'The change color option and the ledger.',
+      'The dirty trick button on the payout screen.',
     ),
   ];
 }

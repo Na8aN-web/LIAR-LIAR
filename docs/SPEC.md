@@ -19,18 +19,21 @@ A free-for-all, real-time multiplayer browser social deduction game for **6–15
 | Players | 6–15 |
 | Clothing | 1 colored item per player, every color unique at all times |
 | Palette | 20 colors |
-| Color swaps | Host setting: Auto (about 1 per 4 posters, rounded up: 2 at 6–8 players, 3 at 9–12, 4 at 13–15) or 0–5 per player per game. Default Auto |
-| Posters per game | One per player |
-| Poster order | Host setting: "Random, repeats allowed" (default) or "Everyone once" |
+| Posters per game | Host setting: 3–20, default 10, independent of the number of players. The lobby shows the estimated length |
+| Poster order | A random player each poster; repeats allowed (never the same player twice in a row) |
 | Decoys per inspect | 3 (playtest default; tunable 1–4) |
 | Rounds per poster | 1 |
 | Inspects per player per round | Host setting. Default 3 for 6–11 players, 4 for 12–15. Range 2–5 |
 | Starting points | 100 |
 | Base bounty pot | 100 per poster |
-| Escape bonus | 50, only if nobody votes for the Wanted player. Held privately and paid at the end of the game |
-| Buy someone's inspect | 20 points, paid to the seller |
-| Buy an extra inspect | 50 points, added to the next poster's pot |
-| Purchase cap | 3 per round, any mix |
+| Escape bonus | $100, only if nobody votes for the Wanted player. Held privately and paid at the end of the game |
+| Buy someone's findings | $20, paid to the seller |
+| Buy extra looks | $50 for 2 more searches, added to the next poster's pot |
+| See everyone's worth | $20, a private snapshot of everyone's money. Once per poster, added to the next pot |
+| Purchase cap | 3 per round, any mix of findings and extra looks (not worth snapshots or dirty tricks) |
+| Dirty trick: Change color | $25, during a payout. Limit per game: host setting (Auto = one per payout) |
+| Dirty trick: Cover your tracks | $50, during a payout, protects you for the next poster |
+| Dirty tricks per payout | 1 per player, secret, money added to the next pot |
 | Round length | About 3 minutes |
 | Winner | Most points after the last poster |
 
@@ -43,57 +46,52 @@ A free-for-all, real-time multiplayer browser social deduction game for **6–15
 - Every color can only be held by one player at a time. The color picker greys out taken colors.
 - In game, a player sees their own color. Everyone else is a dark silhouette with a name.
 
-**Changing color (color swaps)**
-- Each player may change their own color a limited number of times per game. **Host setting: "Color swaps per player", Auto or 0–5, default Auto.** Auto scales with game length: about 1 swap per 4 posters, rounded up (3 at 10 players, 4 at 15). A number overrides it. 0 turns the feature off.
-- **When:** only between posters, during the Payout phase. Never during Investigation or Vote, so the Wanted player can't dodge the poster. There is no swap after the final poster.
-- **What to:** the server assigns a **random free color** (one in the palette that no player currently holds). Colors stay unique at all times. Requests are handled one at a time, so two swaps can never land on the same color.
-- **No free-color list is shown to anyone.** Knowing which colors left or joined the free pool would reveal who swapped (e.g. "Red is free now, so Bob changed").
-- **Who decides:** only the player themselves decides *whether* to swap. Nobody can change another player's color.
-- **One swap per payout, and it's final.** The button asks for confirmation first ("Spend 1 of your 3 swaps?"). There is no undo: a take-back would need extra rules and could reveal that someone took your old color.
-- **Announcement:** at the start of the next poster, everyone sees a public count only, e.g. "2 players changed color." Never who. If nobody swapped, nothing is shown.
-- The swapping player sees their new color immediately, with a remaining-swaps counter.
-- **Wanted selection:** the next poster is built after swaps are applied, so the poster always shows the Wanted player's current color.
-- Disconnected players can't swap.
-- The point: knowledge builds up over the game without everyone's color becoming known for certain by mid-game.
+Colors can change during the game through the **Change color** dirty trick (3.7).
 
 ### 3.2 Posters and the Wanted player
-- There is one poster per player. **Poster order is a host setting:**
-  - **Random, repeats allowed (default):** each poster picks a random player. Someone can be Wanted more than once, so the late game can't be solved by elimination.
-  - **Everyone once:** the server shuffles all players into a random order and poster *n* targets player *n*. Players who voted correctly on earlier posters can rule those players out, which makes late posters much easier.
+- **Number of posters is a host setting: 3–20, default 10**, independent of the number of players. The lobby shows the estimated game length from the posters and the phase timers.
+- Each poster picks a **random player**. Someone can be Wanted more than once (never twice in a row, and nobody far more often than the rest), so the late game can't be solved by elimination. There is no "everyone once" mode.
 - The poster shows only the Wanted player's color at the start of that poster, e.g. "Red".
 - The Wanted player is told privately that they are Wanted. Nobody else is.
-- **The Wanted player is never publicly revealed** during the game. Players who voted correctly are told they were right, so they learn who it was. This is intended: it's a reward that lets them rule that player out of later posters.
+- **The Wanted player is never publicly revealed** during the game. Players who voted correctly are told they were right, so they learn who it was. Since posters repeat, that never rules anyone out.
 
 ### 3.3 Inspecting
 - On an inspect, a player picks a target. The server returns **the target's current real color plus decoys, in random order.** The playtest default is **3 decoys (4 colors shown)**, a tunable rule (1–4). The original design used 2; the simulator showed 2 lets mid and late posters be solved too easily.
 - Decoys are drawn fresh and at random on every inspect, from the current colors of other players in the lobby, excluding:
   - the target's real color, and
   - the inspector's own color (they'd know it's a decoy).
-- Inspecting the same player again gives new decoys, so the repeated color reveals the real one (as long as they haven't changed color in between).
+- **Searching the same player again narrows it down by one:** of the colors still possible after that searcher's earlier searches, one fewer survives each time, and the rest are fresh decoys. With 3 decoys: 4 possible after the first search, 3 after the second, 2 after the third, then the real color alone. Each searcher's narrowing is their own. If the target changes color, it starts over.
+- **Covered tracks (3.7):** while a player is covered, searches of them use a **stand-in color** in place of their real one: the color another player is wearing, picked once per poster. The stand-in repeats and narrows exactly like a real color, with fresh decoys, and the result never contains the covered player's real color. If the covered player is Wanted, the stand-in is never the poster color. The stand-in's own wearer would see their own color and know it's fake, so they get a different stand-in. Nothing in the result shows it's covered.
 - A player can inspect anyone except themselves, any number of times, within their inspect limit.
 - **Inspects are public, results are private.** The public log shows "Poster 3: Ada inspected Lots". Only Ada sees the colors.
 - **Every log entry is labeled with the poster it happened on.** Old results keep showing the color the target had at that time.
 - Inspects are used one at a time. A player sees each result before choosing the next.
-- Inspect results from the server are always true at the time of the inspect. Players can only be lied to by other players.
+- Search results are always true at the time of the search, **unless the target covered their tracks** (3.7). The verdict tags read "Looks clear" and "Looks possible", never "certain", for that reason. How to Play says: "A player who covered their tracks can fool your searches."
+- **Eye icons:** a plain eye over a scarecrow shows they've been searched this poster. No numbers anywhere (the vote panel has none either), so players reason instead of following the crowd.
 
 ### 3.4 Buying
 Purchases happen during the investigation phase. **All purchases are private.** Nobody else sees them in the log.
 
-**Buy someone's inspect (20 points)**
+**Buy someone's findings ($20)**
 1. The buyer picks an entry in the public log, e.g. "Poster 2: Femi inspected Tolu", and sends Femi an offer.
 2. Femi gets a notification: "Ada wants to buy your information for 20 points." Yes or no. No response before the phase ends counts as no.
 3. If yes, 20 points move from Ada to Femi, and Ada sees the exact 3 colors Femi got for that inspect. The server sends the stored result, so Femi can't change it.
 4. If no, nothing happens and no points move.
 - Buying results from earlier posters stays allowed. The buyer sees the poster number, so they can judge how stale it might be.
+- Bought findings show exactly what the searcher saw, including a covered player's stand-in.
 
-**Buy an extra inspect (50 points)**
-- Gives one more inspect this round on top of the normal limit.
-- The 50 points are added to the **next** poster's pot. A bigger pot tells everyone extra inspects were bought, but not by whom.
-- On the final poster there's no next pot, so the 50 goes into the current pot.
+**Buy extra looks ($50)**
+- Gives 2 more searches this round on top of the normal limit (so a search costs $25, more than buying someone's findings).
+- The money is added to the **next** poster's pot. A bigger pot tells everyone something was bought, but not what or by whom.
+- On the final poster there's no next pot, so it goes into the current pot.
+
+**See everyone's worth ($20)**
+- Everyone's money is hidden during the game (3.6). This buys a private snapshot of everyone's money as of the last payout, ranked. Once per poster.
+- Nobody is told. The money goes to the next pot like other purchases. It doesn't count toward the purchase cap.
 
 **Limits**
-- Up to 3 purchases per round, in any mix of offers and extra inspects.
-- Accepted offers and extra inspects count toward the cap. A player can't have more pending offers than their remaining cap.
+- Up to 3 purchases per round, in any mix of findings and extra looks.
+- Accepted offers and extra looks count toward the cap. A player can't have more pending offers than their remaining cap.
 - **No debt.** Scores can't go below 0. If a player can't afford something, the button is disabled.
 
 ### 3.5 Voting
@@ -104,27 +102,44 @@ Purchases happen during the investigation phase. **All purchases are private.** 
 
 ### 3.6 Payout and scoring
 - The pot (100 plus any extra-inspect money from the previous poster) is split equally among correct voters. Round down; leftover points are lost.
-- If **nobody** votes for the Wanted player, they earn the 50-point escape bonus, the pot is lost, and the game moves on.
-- **Escape bonuses are held until the end of the game.** Paying them immediately would put a lone +50 next to the Wanted player on the public scoreboard and reveal them. During the game only the earner is told (privately, on their payout screen); the bonus is not in their spendable score, so it can't be used for buying. At the end, held bonuses are added to final scores before the winner is decided, and the replay lists them.
+- If **nobody** votes for the Wanted player, they earn the $100 escape bonus, the pot is lost, and the game moves on.
+- **Escape bonuses are held until the end of the game.** Paying them immediately would show up in a worth snapshot and reveal the Wanted player. During the game only the earner is told (privately, on their payout screen); the bonus is not in their spendable score, so it can't be used for buying. At the end, held bonuses are added to final scores before the winner is decided, and the replay lists them.
 - If at least one person votes for them, the Wanted player gets nothing.
 - After payout, each player is privately told whether their vote was right.
-- A big, visible scoreboard updates after every poster.
-- The payout phase is also the window for color swaps (3.1).
+- **Hidden wealth:** nobody sees anyone else's total or ranking during the game. The payout screen shows what each correct voter earned from that bounty (who was paid and how much), never totals. The vote panel says "Fewer correct guesses = bigger cut." A worth snapshot (3.4) is the only way to see totals mid-game. The end screen reveals everything.
+- The payout phase (15s) is also the window for dirty tricks (3.7).
 
-### 3.7 End of game
-- After the last poster, held escape bonuses are paid, then a replay screen shows every player's escape bonuses, color history (starting color, plus each swap and which poster it happened after), who was Wanted each round, and the full inspect log, so everyone sees who lied.
+### 3.7 Dirty tricks
+During a payout (not after the final poster), the payout screen has a big **USE A DIRTY TRICK** button. It opens a panel with two tricks. **One trick per player per payout.** Tricks are **secret** (nobody is told, no announcement or count), the money goes to the **next** poster's pot, and they don't count toward the purchase cap. Prices are host-tunable.
+
+**Change color ($25)**
+- The server assigns a **random free color** (one no player holds). Colors stay unique at all times. Requests are handled one at a time.
+- **No free-color list is shown to anyone**, since it would reveal who changed.
+- Per-game limit: host setting "Color changes per player", Auto (one per payout) or 0–5.
+- Final, no undo. The player sees their new color immediately.
+- The next poster is built after color changes, so the poster always shows the Wanted player's current color.
+
+**Cover your tracks ($50)**
+- For the next poster, searches of this player show a stand-in color instead of their real one (see 3.3). It works whether or not they turn out to be Wanted, and nobody knows who is covered.
+- If they're Wanted, the stand-in is never the poster color, so searchers are steered away from them.
+- Covering doesn't change the player's color, the poster, or anyone's votes.
+
+Disconnected players can't use tricks.
+
+### 3.8 End of game
+- After the last poster, held escape bonuses are paid, then a replay screen shows everyone's final money and ranking, escape bonuses, color history (starting color, plus each change and which poster it happened after), who was Wanted each round, and the full search log, so everyone sees who lied.
 - **Tie-breaker:** among tied players, whoever had the most correct votes wins. If still tied, they share the win.
 
-### 3.8 Round flow
-1. **Poster up** (5s): show the Wanted color, the pot size, and the public color-change count if anyone swapped.
-2. **Investigation** (default 120s): inspects, chat and buying all happen at once.
+### 3.9 Round flow
+1. **Poster up** (5s): show the Wanted color and the pot size.
+2. **Investigation** (default 120s): searches, chat and buying all happen at once.
 3. **Vote** (default 20s).
-4. **Payout** (10s): pay out, update the scoreboard, tell each player if they were right. Players may change color.
+4. **Payout** (15s): pay out, show each correct voter's earnings from this bounty, tell each player if they were right. Players may use a dirty trick.
 5. Next poster, or the end-of-game replay.
 
 Phase timers are host settings.
 
-### 3.9 Scarecrow reactions
+### 3.10 Scarecrow reactions
 Scarecrows sit around the campfire. Each gets one of three sitting idles at random at game start and keeps it all game. Reactions are animations only. They never change scores or rules.
 
 - **When someone inspects a player**, that scarecrow slowly turns its head toward the inspector, then back. The inspect log is public, so this reveals nothing new.
@@ -136,6 +151,15 @@ Scarecrows sit around the campfire. Each gets one of three sitting idles at rand
 - **End of game:** the winner (or every tied winner) plays victory; everyone else plays despair.
 - **The server decides every reaction**, including which despair variant, and builds the reaction map per viewer. The Wanted player's true result is only ever put in their own view. It is never sent to anyone else and hidden on the client.
 
+### 3.11 First-game tutorial
+A player's first game teaches the game as it goes. Features unlock in stages on that player's screen only; the game runs normally for everyone else.
+1. **Poster 1:** search, chat and vote only. Prompts: "This is the outlaw's color. Someone around the fire is wearing it." → "Tap a scarecrow to search them." → after the first search, "One of these is their real color. Search again, and the real one keeps showing up." → at the vote, "Pick who you think wears [color]." → at the payout, "Everyone who guessed right splits the bounty."
+2. **Poster 2:** the Searches and Notebook tabs. "Everyone sees who you search, but not what you found.", a chat prompt about lying for a bigger cut, "Your Notebook keeps track of everything you've found."
+3. **Poster 3:** buying findings ($20, the seller can refuse), extra looks, and the worth snapshot ("Everyone's money is hidden. Pay $20 to peek at it.").
+4. **The payout after poster 3:** dirty tricks.
+
+Shorter games squeeze the stages so everything is unlocked by the final payout (schedule in `packages/shared/src/tutorial.ts`, tested). Prompts are one line with an arrow, telegram style, never block play, close on the matching action or after a timeout, and never cover the timer, the Accuse button or an offer. In the first game only urgent telegrams pop up; the rest are batched into a "While you were busy" note at the payout. The first prompt has "Skip tutorial". Settings has "Show everything" to turn it off. Completion is stored per browser (a key hook allows a per-player key for an embedded host). Practice games always run it. The server records how far each player got and their first search time for the admin funnel.
+
 ---
 
 ## 4. Lobby and joining
@@ -144,7 +168,7 @@ Scarecrows sit around the campfire. Each gets one of three sitting idles at rand
 - Players join by code or link. Opening an invite link goes straight to the lobby.
 - No account needed: a player enters a display name and plays as a guest.
 - Min 6 players to start, max 15. The host starts the game.
-- **Host settings:** inspects per round (2–5, default based on lobby size), color swaps per player (Auto or 0–5, default Auto), poster order (default random with repeats), phase timers. Balance numbers (bounty, escape bonus, prices, purchase cap, decoys) are host-tunable under "Playtest tuning".
+- **Host settings:** posters (3–20, default 10, with the estimated length shown), searches per round (2–5, default based on lobby size), color changes per player (Auto or 0–5, default Auto), phase timers. Fake colors per search (decoys) sits with the main settings. Money numbers (starting money, bounty, escape reward, prices including tricks and the worth snapshot, purchase cap) are host-tunable under "Price settings".
 - If the host leaves, host passes to the longest-connected player.
 
 ---
@@ -160,9 +184,9 @@ Scarecrows sit around the campfire. Each gets one of three sitting idles at rand
 ### 5.2 The server holds all secrets (most important rule)
 This is a deduction game. If a secret ever reaches a client, players will find it in dev tools and the game is broken.
 
-- The server is authoritative for everything: colors, the Wanted order, inspect results, purchases, votes, swaps and scores.
+- The server is authoritative for everything: colors, the Wanted order, inspect results, purchases, votes, color changes, covered tracks and money.
 - **Never broadcast the full game state.** Build a per-player view for each client.
-- Clients send intents ("inspect player X", "vote for Y", "change my color") and the server validates every one: whose turn, enough inspects left, enough points, under the purchase cap, valid target, swap window, free color, swaps left.
+- Clients send intents ("inspect player X", "vote for Y", "change my color") and the server validates every one: whose turn, enough searches left, enough money, under the purchase cap, valid target, trick window (one per payout), free color, color changes left.
 - Decoys are generated on the server.
 - **Lobby colors:** the color a player gets on joining is only a suggestion and isn't reserved, so the lobby's free-color list can't reveal it. Picked colors are reserved; clashing suggestions are re-rolled at game start. The free-color list is lobby-only and rate limited.
 - Abuse limits, room locking, removing players, one seat per browser, connection checks and production hardening are described in [SECURITY.md](../SECURITY.md).
@@ -171,9 +195,9 @@ This is a deduction game. If a secret ever reaches a client, players will find i
 | --- | --- |
 | Own color and own color history | That player |
 | Other players' colors | Nobody, until the end-of-game replay |
-| Which colors are free during a game | Nobody (the server assigns swaps) |
-| Who changed color | Nobody, until the end-of-game replay |
-| How many players changed color | Everyone, at the start of the next poster |
+| Which colors are free during a game | Nobody (the server assigns color changes) |
+| Who changed color or covered their tracks | Nobody, until the end-of-game replay |
+| A covered player's stand-in | Only appears inside search results; never marked as such |
 | Current poster color and pot | Everyone |
 | Who the Wanted player is | Only the Wanted player |
 | Public inspect log (who inspected whom, which poster) | Everyone |
@@ -181,9 +205,12 @@ This is a deduction game. If a secret ever reaches a client, players will find i
 | Offers | Buyer and seller only |
 | Votes | Nobody, until the end-of-game replay |
 | Whether a vote was correct | That voter |
-| Scores | Everyone, after each poster |
+| Own money | That player |
+| Others' money and rankings | Nobody during the game, except a bought worth snapshot (as of the last payout) to its buyer; everyone at the end |
+| Each bounty's earnings (who was paid, how much) | Everyone, at the payout |
+| Who has been searched this poster | Everyone (a plain eye, no count) |
 | Garment type, hat and head detail | Everyone (public, purely visual) |
-| Payout reactions (3.9) | Everyone, but the Wanted player always shows despair; their true reaction goes only to them |
+| Payout reactions (3.10) | Everyone, but the Wanted player always shows despair; their true reaction goes only to them |
 | End-of-game reactions | Everyone (winners are public by then) |
 
 ### 5.3 Reconnects (plan for this from day one)
@@ -191,14 +218,14 @@ Mobile players will lose connection mid-round. Dropping them out of the game wou
 
 - On join, the server issues a **session token**. The client stores it in localStorage, wrapped in try/catch.
 - On reconnect, the client sends the token and the server restores the player to their seat.
-- The server sends a full resync of that player's view: phase, time left, poster, log, their own results, purchases, color and swaps, scores.
+- The server sends a full resync of that player's view: phase, time left, poster, log, their own results, purchases, color and color changes, own money, worth snapshot.
 - A disconnected player's seat is held for 90 seconds. After that, they're marked away but still counted in the game. If they're Wanted, the round continues as normal.
 - Disconnected players simply don't act. A missed vote counts as no vote. A pending offer to them expires as no. They can't change color.
 
 ### 5.4 Bots for testing
 Build simple bots early so a full 10-player game can be tested by one person: they join, inspect at random, sometimes post true or false claims in chat, and vote at random or for the most-accused player. Dev builds only.
 
-Bots change color based only on their own view: they estimate "exposure" (distinct players who inspected them since their last swap, plus chat mentions of their current color) and request a swap (the server assigns the color) once it passes a threshold. When the public count says players changed color, they trust older results less than newer ones.
+Bots use dirty tricks based only on their own view: they estimate "exposure" (distinct players who searched them since their last change, plus chat mentions of their current color) and, once it passes a threshold and they can afford it, change color or (with a small chance) cover their tracks. They trust older results less than newer ones.
 
 ---
 
@@ -215,7 +242,7 @@ Bots change color based only on their own view: they estimate "exposure" (distin
   - Under the title: "Everyone lies. Find the outlaw." and a room-code box to join directly.
   - Desktop: menu on the left, the Wanted poster nailed to a post on the right.
   - Mobile: the scene sits behind the menu, with the fire above it.
-- **How to Play:** an 8-slide walkthrough (the hunt, your color, the poster, searching, talking and lying, buying, voting and the bounty, colors and winning), one screenshot and a sentence or two each, with Next/Back, swipe, progress dots and Skip. Numbers come from the game rules. It's offered automatically before a player's first game. Screenshots are regenerated with `pnpm howto:screens`.
+- **How to Play:** a slide walkthrough (the hunt, your color, the poster, searching, talking and lying, buying, voting and the bounty, dirty tricks and winning), one screenshot and a sentence or two each, with Next/Back, swipe, progress dots and Skip. Numbers come from the game rules. It's offered automatically before a player's first game. Screenshots are regenerated with `pnpm howto:screens`.
 - **Sound:** UI effects are synthesized in code (wooden knock, telegraph clicks, bell for offers, a crow when you're searched, paper slap and sting for a new poster, clock ticks for the last 10 seconds, a stamp when your vote locks, coins at the payout, victory and despair stings for your own reaction, cloth rustle when you change color, a longer sting at game end). Music and ambience (fire, wind, crows) loop quietly: music plays low in the lobby, quieter while searching, with a tension layer for the last 20 seconds and the vote. Settings has a mute switch and separate music, effects and ambience volumes. Audio starts on the first tap. Sounds only ever reflect what this player's screen already shows.
 
 ### 20-color palette
@@ -236,7 +263,7 @@ Red, maroon, orange, tan, brown, yellow, olive, lime, green, mint, teal, cyan, s
 ## 8. Build order
 The game is 3D from the first playable build. The 3D scene starts with placeholder models and gets real art once the rules are proven in playtests, so art work isn't thrown away if the rules change.
 
-- **Game UI** (poster, inspect results, log, chat, voting, buying, color swaps, scoreboard) is an HTML overlay on top of the 3D canvas.
+- **Game UI** (poster, search results, log, chat, voting, buying, dirty tricks, payout earnings) is an HTML overlay on top of the 3D canvas.
 - **Keep game logic separate from rendering.** The server and client state shouldn't depend on the 3D scene, so models can be swapped without touching the rules.
 
 1. **Server and lobby:** rooms, codes, invite links, guest names, color picking, host settings, reconnect tokens.
@@ -253,7 +280,7 @@ The game is 3D from the first playable build. The 3D scene starts with placehold
 ## 9. Still open (decide after playtests)
 - Final name.
 - Whether 20 colors are distinguishable on mobile, or the item also needs a pattern (stripes, stars).
-- A 15-player game has 15 posters, about 45 minutes. Does it need a shorter mode?
-- Balance of the 100 pot, 50 escape bonus, buy prices, and swaps per player.
+- Default poster count (10, about 25 minutes with default timers).
+- Balance of the $100 pot, $100 escape bonus, buy prices, trick prices and the worth snapshot price.
 - Text chat only, or voice too.
 - Whether viewers can join games.
