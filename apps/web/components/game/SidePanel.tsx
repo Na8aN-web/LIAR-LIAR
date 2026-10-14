@@ -20,8 +20,8 @@ const TABS: { id: Tab; label: string }[] = [
 
 /**
  * Bottom sheet on phones, right column on desktop. On phones it starts collapsed to
- * just the tab strip (unread counts stay visible on the tabs); tapping the open tab again
- * folds it back down. Desktop is always open.
+ * just the tab strip (unread counts stay visible on the tabs); tapping the open tab again,
+ * or tapping the scene, folds it back down. Desktop is always open.
  */
 export function SidePanel() {
   const [tab, setTab] = useState<Tab>('scores');
@@ -40,6 +40,15 @@ export function SidePanel() {
   useEffect(() => {
     if (phase === 'vote') setOpen(false);
   }, [phase]);
+  // Phones: tapping back into the scene folds the open panel away.
+  useEffect(() => {
+    if (desktop || !openOnPhone) return;
+    const onDown = (e: PointerEvent) => {
+      if ((e.target as Element | null)?.closest?.('canvas')) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [desktop, openOnPhone]);
   useEffect(() => {
     if (!notebookEntry) return;
     setTab('notes');
