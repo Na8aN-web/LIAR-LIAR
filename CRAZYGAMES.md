@@ -40,6 +40,21 @@ docs (docs.crazygames.com: Requirements, SDK, FAQ, Payouts) as read in October 2
 | Privacy | A one-line, non-blocking notice for new players, linking the policy. Our analytics and Sentry are first-party only, with no cross-site tracking (see Privacy below). |
 | Small screens | Compact layout for short landscape screens (tested at their 800×450 and 821×462). |
 
+### Size and loading
+
+Measured on a production build of `/play/crazygames` with a fresh browser profile (like
+incognito), up to the first `gameplayStart` (in a lobby, after one tap on Play):
+
+| | Menu | Scene in | In a lobby | Downloaded |
+| --- | --- | --- | --- | --- |
+| Desktop, 20 Mbps | 1.3 s | 3.2 s | 5.3 s | 4.6 MB |
+| Phone 800×450, 20 Mbps | 1.3 s | 3.3 s | 5.4 s | 4.6 MB |
+
+Their limits: 50 MB initial download (20 MB to be eligible for the mobile homepage), gameplay
+within 20 s. Music loads later, after the first tap. Locally the SDK answers at once; outside a
+CrazyGames frame it waits up to 7 s before switching itself off, so opening `/play/crazygames`
+directly shows a dark screen for that long (inside their frame it doesn't wait).
+
 ### Quick chat (all versions)
 
 A phrase menu next to the chat box: *I'm clear · Not me! · It's [player]! · [player] is [color] ·
@@ -87,9 +102,16 @@ purpose: lying is the game.
 
 ### 4. Covers and videos
 
-Made in the trailer studio (`pnpm dev`, then `/dev/trailer/studio?mode=thumbnail` → **Cover**, and
-`pnpm trailer:render crazygames-landscape` / `crazygames-portrait`). The title is the only text,
-as their rules require.
+Made in the trailer studio. The title is the only text on the covers, as their rules require.
+The files are in `screenshots/crazygames/submission/` (not in git). To make them again:
+
+1. `pnpm dev`, open `/dev/trailer/studio?mode=thumbnail`, choose **Cover**, then each shape, and
+   download both sizes (the larger one is for the videos' opening still).
+2. `pnpm trailer:render crazygames-landscape` and `pnpm trailer:render crazygames-portrait`
+   (these scripts show the town as on CrazyGames: town signs, no handle, no end card).
+3. Cover first, sound off, limits checked:
+   `node tools/portal-preview.mjs out/trailers/crazygames-landscape-16x9-1920x1080-nomusic.mp4 <cover-landscape-3840x2160.png> preview-landscape-1920x1080.mp4`
+   (and the same with the portrait files).
 
 | Asset | Spec | File |
 | --- | --- | --- |
