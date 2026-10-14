@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useTutorial } from '@/lib/tutorial';
 import { useGame } from '@/lib/store';
 import { useIsDesktop } from '@/lib/useIsDesktop';
-import { ChatPanel } from './ChatPanel';
+import { ChatPanel, useVisibleChat } from './ChatPanel';
 import { LogPanel } from './LogPanel';
 import { NotesPanel } from './NotesPanel';
 import { ScoreList } from './ScoresPanel';
@@ -32,7 +32,7 @@ export function SidePanel() {
   const desktop = useIsDesktop();
   const [openOnPhone, setOpen] = useState(false);
   const open = desktop || openOnPhone;
-  const chatCount = useGame((s) => s.chat.length);
+  const chatCount = useVisibleChat().length;
   const logCount = useGame((s) => s.view?.game?.log.length ?? 0);
   const [seen, setSeen] = useState({ chat: chatCount, log: logCount });
   const notebookEntry = useGame((s) => s.notebookEntry);

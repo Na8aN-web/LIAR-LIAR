@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { NAME_MAX } from '@wtc/shared';
+import { NAME_MAX, roomPresence, type Ack, type JoinResult } from '@wtc/shared';
 import { call, getSocket } from '@/lib/socket';
 import { session } from '@/lib/session';
 import { useGame } from '@/lib/store';
@@ -11,6 +11,9 @@ import { useGameAudio } from '@/lib/audio/useGameAudio';
 import { reportHowtoStatus } from '@/lib/howtoStatus';
 import { trackVisit } from '@/lib/analytics';
 import { useStreamerMode } from '@/lib/streamer';
+import { homeHref, portal, usePortal } from '@/lib/portal';
+import { adBreak, useAdBreak } from '@/lib/portal/ads';
+import { useRememberedLook } from '@/lib/portal/look';
 import { ClosingBanner } from './ClosingBanner';
 import { useTutorialCompletion } from './game/Tutorial';
 import { SceneCurtain } from './SceneCurtain';
@@ -30,6 +33,10 @@ export function RoomScreen({ code }: { code: string }) {
   useGameAudio();
   useTutorialCompletion();
   useEffect(() => trackVisit('room'), []);
+  useRememberedLook();
+  // Portals give the name (no name entry) and want a few events from the game.
+  const ownMenus = usePortal().features.ownMenus;
+  const adActive = useAdBreak();
   // Playtest stats: tell the room what this player did with How to Play, once seated.
   useEffect(() => {
     if (stage === 'in') reportHowtoStatus();
@@ -40,10 +47,30 @@ export function RoomScreen({ code }: { code: string }) {
   const connected = useGame((s) => s.connected);
   const resuming = useRef(false);
 
+  /** Takes a seat (or, mid-game, a place watching). */
+  const joinAs = useCallback(
+    async (n: string): Promise<Ack<JoinResult>> => {
+      const res = await call('room:join', { code, name: n });
+      if (res.ok) session.setToken(code, res.token);
+      return res;
+    },
+    [code],
+  );
+
   const resume = useCallback(async () => {
     if (resuming.current) return;
     const token = session.getToken(code);
-    if (!token) return setStage((s) => (s === 'in' ? s : 'needName'));
+    if (!token) {
+      if (portal().features.ownMenus) return setStage((s) => (s === 'in' ? s : 'needName'));
+      // A portal: straight in with the portal's name (an invite, the join button, a link).
+      resuming.current = true;
+      const u = await portal().user();
+      const res = await joinAs(u?.name || session.getName() || 'Greenhorn');
+      resuming.current = false;
+      if (res.ok) return setStage('in');
+      setError(res.error);
+      return setStage('needName');
+    }
     resuming.current = true;
     const res = await call('room:resume', { code, token });
     resuming.current = false;
@@ -102,12 +129,34 @@ export function RoomScreen({ code }: { code: string }) {
     const trimmed = name.trim();
     if (!trimmed) return setError('Enter a name');
     session.setName(trimmed);
-    const res = await call('room:join', { code, name: trimmed });
+    const res = await joinAs(trimmed);
     if (!res.ok) return setError(res.error);
-    session.setToken(code, res.token);
     setError('');
     setStage('in');
   };
+
+  // Portals: tell their friends features where we are (joinable only in the lobby, not full or
+  // locked), and when we leave.
+  const presence = stage === 'in' && view ? JSON.stringify(roomPresence(view)) : null;
+  useEffect(() => {
+    if (presence) portal().updateRoom(JSON.parse(presence));
+  }, [presence]);
+  useEffect(() => () => portal().updateRoom(null), []);
+
+  // Portals: gameplay is on while seated or watching, except on the end screen and in ad breaks.
+  const phase = view?.phase;
+  useEffect(() => {
+    if (stage === 'in' && phase && phase !== 'ended' && !adActive) portal().gameplayStart();
+    else portal().gameplayStop();
+  }, [stage, phase, adActive]);
+  useEffect(() => () => portal().gameplayStop(), []);
+
+  // Portals: an ad break may come on the end screen, a few seconds in (never during a round).
+  useEffect(() => {
+    if (phase !== 'ended') return;
+    const t = setTimeout(() => void adBreak(), 4000);
+    return () => clearTimeout(t);
+  }, [phase]);
 
   return (
     <div className="room">
@@ -115,6 +164,17 @@ export function RoomScreen({ code }: { code: string }) {
       <SceneCurtain />
       {stage === 'in' && view ? (
         view.phase === 'lobby' ? <Lobby /> : <GameHud />
+      ) : stage === 'needName' && !ownMenus ? (
+        // A portal: no name entry. Say why we couldn't get in, and offer the way back.
+        <div className="center-card">
+          <div className="card stack">
+            <h2>{error ? 'Couldn’t ride in' : 'Riding into town…'}</h2>
+            {error && <p className="error">{error}</p>}
+            <Link href={homeHref()} className="btn primary">
+              Back to the menu
+            </Link>
+          </div>
+        </div>
       ) : stage === 'needName' ? (
         <div className="center-card">
           <form className="card stack" onSubmit={join}>
@@ -137,6 +197,11 @@ export function RoomScreen({ code }: { code: string }) {
       )}
       {stage === 'in' && !connected && <div className="conn-banner">Lost the trail. Reconnecting…</div>}
       {stage === 'in' && <ClosingBanner />}
+      {adActive && (
+        <div className="ad-break" role="status" aria-live="polite">
+          Short break…
+        </div>
+      )}
       <Toast />
       <ServerBanner />
     </div>

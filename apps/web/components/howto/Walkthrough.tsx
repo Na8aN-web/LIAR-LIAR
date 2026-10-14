@@ -1,5 +1,7 @@
 'use client';
 
+import { kv } from '@/lib/portal/storage';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { setHowtoStatus } from '@/lib/howtoStatus';
 import { trackStep } from '@/lib/analytics';
@@ -9,7 +11,7 @@ const SEEN_KEY = 'wtc:howto-seen';
 
 export function hasSeenWalkthrough(): boolean {
   try {
-    return localStorage.getItem(SEEN_KEY) === '1';
+    return kv.get(SEEN_KEY) === '1';
   } catch {
     return true;
   }
@@ -17,7 +19,7 @@ export function hasSeenWalkthrough(): boolean {
 
 export function markWalkthroughSeen() {
   try {
-    localStorage.setItem(SEEN_KEY, '1');
+    kv.set(SEEN_KEY, '1');
   } catch {
     /* ignore */
   }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AdditiveBlending, CanvasTexture, SRGBColorSpace, type Group } from 'three';
 import type { AdSlot } from '@/config/adSlots';
+import { usePortal } from '@/lib/portal';
 import { useCanvasFonts, type CanvasFonts } from '@/lib/canvasFonts';
 import { NAILS, PAPER_URL, POSTER_H, POSTER_W, TORN_OUTLINE } from '../../poster/posterArt';
 import { WARM, glowTexture } from './glow';
@@ -102,6 +103,7 @@ export function drawBrandPoster(g: CanvasRenderingContext2D, fonts: CanvasFonts,
   g.fillStyle = INK;
   g.font = `italic 44px ${fonts.body}`;
   g.fillText(copy.line, W / 2, 762);
+  if (!copy.handle) return;
   g.strokeStyle = 'rgba(43,26,13,0.6)';
   g.lineWidth = 2;
   g.beginPath();
@@ -116,6 +118,8 @@ export function drawBrandPoster(g: CanvasRenderingContext2D, fonts: CanvasFonts,
 /** A reserved house slot from config/adSlots.ts: the 3042 Gang poster on a framed board. */
 export function BrandBoard({ slot }: { slot: AdSlot }) {
   const fonts = useCanvasFonts();
+  // Portals: the gang art, without the social handle (no promoting outside platforms).
+  const showHandle = usePortal().features.brandHandle;
   const [imgs, setImgs] = useState<{ paper: HTMLImageElement | null; art: HTMLImageElement | null } | null>(null);
   useEffect(() => {
     let live = true;
@@ -132,13 +136,13 @@ export function BrandBoard({ slot }: { slot: AdSlot }) {
     drawBrandPoster(c.getContext('2d')!, fonts, imgs?.paper ?? null, imgs?.art ?? null, {
       title: slot.house?.title ?? '',
       line: slot.house?.line ?? '',
-      handle: slot.house?.handle ?? '',
+      handle: showHandle ? (slot.house?.handle ?? '') : '',
     });
     const t = new CanvasTexture(c);
     t.colorSpace = SRGBColorSpace;
     t.anisotropy = 8;
     return t;
-  }, [fonts.ready, fonts.display, fonts.body, imgs, slot]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fonts.ready, fonts.display, fonts.body, imgs, slot, showHandle]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => texture.dispose(), [texture]);
 
   const [w, h] = slot.size;

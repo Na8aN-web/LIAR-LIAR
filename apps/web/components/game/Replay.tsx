@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { call } from '@/lib/socket';
+import { homeHref, portal } from '@/lib/portal';
 import { session } from '@/lib/session';
 import { useGame } from '@/lib/store';
 import { ColorChip } from '../Chip';
@@ -144,7 +145,8 @@ export function Replay() {
             onClick={() => {
               call('room:leave');
               session.setToken(view.code, null);
-              router.push('/');
+              portal().updateRoom(null);
+              router.push(homeHref());
             }}
           >
             Leave

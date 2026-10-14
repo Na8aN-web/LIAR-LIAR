@@ -1,8 +1,10 @@
 'use client';
 
+import { kv, onStorageReset } from '@/lib/portal/storage';
+
 import { useSyncExternalStore } from 'react';
 
-// Graphics quality for the 3D scene. Per device, in localStorage.
+// Graphics quality for the 3D scene. Kept in lib/portal/storage.
 //   auto:   decide from the device, and drop to "smooth" if the frame rate sags during play.
 //   smooth: for cheap phones. Lower resolution, no antialiasing, fewer lights, 30 fps, plain panels.
 //   pretty: full quality.
@@ -22,9 +24,9 @@ function load() {
   if (loaded || typeof window === 'undefined') return;
   loaded = true;
   try {
-    const v = localStorage.getItem(KEY);
+    const v = kv.get(KEY);
     if (v === 'auto' || v === 'smooth' || v === 'pretty') setting = v;
-    sagged = localStorage.getItem(SAGGED_KEY) === '1';
+    sagged = kv.get(SAGGED_KEY) === '1';
   } catch {
     /* ignore */
   }
@@ -52,13 +54,18 @@ function notify() {
   listeners.forEach((l) => l());
 }
 
+onStorageReset(() => {
+  loaded = false;
+  notify();
+});
+
 export function setQualitySetting(v: QualitySetting) {
   load();
   setting = v;
   try {
-    localStorage.setItem(KEY, v);
+    kv.set(KEY, v);
     // Choosing again starts the automatic check afresh.
-    localStorage.removeItem(SAGGED_KEY);
+    kv.remove(SAGGED_KEY);
   } catch {
     /* ignore */
   }
@@ -72,7 +79,7 @@ export function reportSag() {
   if (setting !== 'auto' || sagged) return;
   sagged = true;
   try {
-    localStorage.setItem(SAGGED_KEY, '1');
+    kv.set(SAGGED_KEY, '1');
   } catch {
     /* ignore */
   }

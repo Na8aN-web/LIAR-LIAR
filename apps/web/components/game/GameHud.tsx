@@ -10,6 +10,7 @@ import { WantedPoster } from '../WantedPoster';
 import { ActionBar } from './ActionBar';
 import { Notifications } from './Notifications';
 import { PayoutCard } from './PayoutCard';
+import { BountyEarnings } from './ScoresPanel';
 import { Tutorial } from './Tutorial';
 import { Replay } from './Replay';
 import { SidePanel } from './SidePanel';
@@ -86,6 +87,15 @@ function GameCountdown({ n }: { n: number }) {
   );
 }
 
+/** Joined mid-game: watching until the next game in this room (see PlayerView.spectating). */
+function SpectatorBanner({ phase }: { phase: Phase }) {
+  return (
+    <div className="spectator-banner" role="status">
+      <b>You&rsquo;re watching.</b> You&rsquo;ll get a seat when this game ends{phase === 'payout' ? '' : ' and the host goes back to the lobby'}.
+    </div>
+  );
+}
+
 export function GameHud() {
   const view = useGame((s) => s.view)!;
   const game = view.game!;
@@ -97,6 +107,7 @@ export function GameHud() {
   const countdown = useGameCountdown();
   // Marked away for idling (still connected): a nudge before the server removes them.
   const meAway = !!view.players.find((p) => p.id === view.you.id && p.away && p.connected);
+  const watching = view.spectating;
 
   if (view.phase === 'ended') return <Replay />;
 
@@ -114,14 +125,16 @@ export function GameHud() {
             <span className="wide-only">Poster </span>
             {game.posterIndex + 1}/{game.posterCount} · ${game.pot}
           </div>
-          <YouBadge color={view.you.color} />
+          {watching ? <div className="you-badge watching">WATCHING</div> : <YouBadge color={view.you.color} />}
         </div>
         <BrassBadge label="Time" className="timer" tone={secs !== null && secs <= 10 && countdown <= 0 ? 'alert' : undefined}>
           {secs === null ? '–' : countdown > 0 ? view.settings.timers.poster : secs}
         </BrassBadge>
-        <BrassBadge label="Purse" className="my-score">
-          ${game.myScore}
-        </BrassBadge>
+        {!watching && (
+          <BrassBadge label="Purse" className="my-score">
+            ${game.myScore}
+          </BrassBadge>
+        )}
       </header>
 
       {/* Streamer mode: only a brief, wordless icon flash, so viewers can't see you're the outlaw. */}
@@ -150,14 +163,27 @@ export function GameHud() {
           </span>
         </div>
       )}
-      <Notifications />
-      <Tutorial />
+      {watching && <SpectatorBanner phase={view.phase} />}
+      {!watching && <Notifications />}
+      {!watching && <Tutorial />}
 
-      {view.phase === 'payout' && <PayoutCard />}
+      {view.phase === 'payout' &&
+        (watching ? (
+          <div className="center-card">
+            <div className="card payout">
+              <h2>Bounty paid</h2>
+              <BountyEarnings />
+            </div>
+          </div>
+        ) : (
+          <PayoutCard />
+        ))}
 
       <PhaseBanner phase={view.phase} poster={game.posterIndex} />
 
-      {view.phase === 'vote' ? (
+      {watching ? (
+        <div className="hud-spacer" />
+      ) : view.phase === 'vote' ? (
         <VotePanel key={game.posterIndex} />
       ) : (
         <>

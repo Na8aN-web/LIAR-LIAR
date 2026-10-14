@@ -1,5 +1,7 @@
 'use client';
 
+import { kv } from './portal/storage';
+
 // Storage can throw (private mode, blocked site data), so every access is guarded.
 // Dev uses sessionStorage for tokens so each tab can be a different player.
 
@@ -28,17 +30,10 @@ function set(store: () => Storage | null, key: string, value: string | null) {
   }
 }
 
-const local = () => {
-  try {
-    return localStorage;
-  } catch {
-    return null;
-  }
-};
-
 export const session = {
   getToken: (code: string) => get(tokenStore, `wtc:token:${code}`),
   setToken: (code: string, token: string | null) => set(tokenStore, `wtc:token:${code}`, token),
-  getName: () => get(local, 'wtc:name') ?? '',
-  setName: (name: string) => set(local, 'wtc:name', name),
+  // The name is progress (on a portal it follows the player's account): see lib/portal/storage.
+  getName: () => kv.get('wtc:name') ?? '',
+  setName: (name: string) => kv.set('wtc:name', name),
 };

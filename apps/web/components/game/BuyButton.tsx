@@ -17,7 +17,8 @@ export function BuyButton({ entry, label }: { entry: InspectLogEntry; label?: st
   const state = buyState(game, view.you.id, entry);
   const nameOf = usePlayerName();
 
-  if (state === 'mine' || state === 'aboutMe') return null;
+  // Watchers (joined mid-game) can't buy anything.
+  if (state === 'mine' || state === 'aboutMe' || view.spectating) return null;
   const prefix = label ? `${label}: ` : '';
   if (state === 'bought') return <span className="tag bought">{prefix}bought from {nameOf(entry.inspectorId)}</span>;
   if (state === 'pending') return <span className="tag">{prefix}offer wired</span>;

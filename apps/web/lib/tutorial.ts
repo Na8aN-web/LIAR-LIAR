@@ -1,5 +1,7 @@
 'use client';
 
+import { kv, onStorageReset } from '@/lib/portal/storage';
+
 import { useSyncExternalStore } from 'react';
 import { tutorialSchedule, tutorialStage, tutorialUnlocked, type GameView, type Phase, type PlayerView, type TutorialFeature, type TutorialProgress } from '@wtc/shared';
 import { useGame } from './store';
@@ -32,9 +34,9 @@ function load() {
   if (loaded || typeof window === 'undefined') return;
   loaded = true;
   try {
-    const s = localStorage.getItem(tutorialKey());
+    const s = kv.get(tutorialKey());
     status = s === 'done' || s === 'skipped' ? s : 'new';
-    showAll = localStorage.getItem(SHOW_ALL_KEY) === '1';
+    showAll = kv.get(SHOW_ALL_KEY) === '1';
   } catch {
     /* ignore */
   }
@@ -42,11 +44,16 @@ function load() {
 
 function save(key: string, value: string) {
   try {
-    localStorage.setItem(key, value);
+    kv.set(key, value);
   } catch {
     /* ignore */
   }
 }
+
+onStorageReset(() => {
+  loaded = false;
+  notify();
+});
 
 export function setTutorialStatus(s: Status) {
   load();
@@ -96,7 +103,8 @@ export const stageOf = tutorialStage;
 
 /** Whether the tutorial runs for this view: a first game (or practice), unless switched off. */
 export function tutorialOn(view: PlayerView | null, st: Status, all: boolean): boolean {
-  if (!view?.game || view.phase === 'lobby' || view.phase === 'ended' || all) return false;
+  // Watching someone else's game (joined mid-game) isn't your first game: no prompts, not counted.
+  if (!view?.game || view.phase === 'lobby' || view.phase === 'ended' || view.spectating || all) return false;
   return view.practice || st === 'new';
 }
 

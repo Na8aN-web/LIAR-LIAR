@@ -3,10 +3,22 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CHAT_MAX, type ChatMessage } from '@wtc/shared';
 import { call } from '@/lib/socket';
+import { usePortalSettings } from '@/lib/portal';
 import { useGame } from '@/lib/store';
+import { QuickChat } from './QuickChat';
+
+/** Messages this player sees: with typed chat off (a portal setting), only quick-chat ones. */
+export function useVisibleChat(): ChatMessage[] {
+  const chat = useGame((s) => s.chat);
+  const typedOff = usePortalSettings().chatDisabled;
+  return typedOff ? chat.filter((m) => m.quick) : chat;
+}
 
 export function ChatPanel() {
-  const chat = useGame((s) => s.chat);
+  const chat = useVisibleChat();
+  const typedOff = usePortalSettings().chatDisabled;
+  const watching = useGame((s) => !!s.view?.spectating);
+  const [quick, setQuick] = useState(false);
   const me = useGame((s) => s.view?.you.id);
   const toast = useGame((s) => s.showToast);
   const mute = useGame((s) => s.mute);
@@ -80,18 +92,32 @@ export function ChatPanel() {
           </Fragment>
         ))}
       </ul>
-      <form className="chat-form" onSubmit={send}>
-        <input
-          value={text}
-          maxLength={CHAT_MAX}
-          placeholder="Speak up (or lie)…"
-          enterKeyHint="send"
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button className="btn" disabled={!text.trim()}>
-          Send
-        </button>
-      </form>
+      {watching ? (
+        <p className="hint chat-note">You&rsquo;re watching: you can talk once you have a seat.</p>
+      ) : (
+        <>
+          {(quick || typedOff) && <QuickChat onSent={() => setQuick(false)} />}
+          {typedOff ? (
+            <p className="hint chat-note">Typed chat is off in your settings: quick chat only.</p>
+          ) : (
+            <form className="chat-form" onSubmit={send}>
+              <button type="button" className={`btn quick-toggle${quick ? ' on' : ''}`} aria-expanded={quick} onClick={() => setQuick(!quick)}>
+                Quick
+              </button>
+              <input
+                value={text}
+                maxLength={CHAT_MAX}
+                placeholder="Speak up (or lie)…"
+                enterKeyHint="send"
+                onChange={(e) => setText(e.target.value)}
+              />
+              <button className="btn" disabled={!text.trim()}>
+                Send
+              </button>
+            </form>
+          )}
+        </>
+      )}
     </div>
   );
 }

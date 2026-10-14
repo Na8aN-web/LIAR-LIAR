@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useProgress } from '@react-three/drei';
+import { portal } from '@/lib/portal';
 
 // Covers the 3D scene while it loads, so it appears all at once instead of in pieces (fire
 // first, a white flash, then the scarecrows). The first time in a browser session it counts
@@ -36,7 +37,8 @@ export function SceneCurtain() {
   const [countdown, setCountdown] = useState(true);
   const [n, setN] = useState(COUNT_FROM);
   useEffect(() => {
-    if (firstTimeThisSession()) return;
+    // Portals: no intro count (their time-to-gameplay clock is running).
+    if (firstTimeThisSession() && portal().features.introCountdown) return;
     setCountdown(false);
     setN(0);
   }, []);
@@ -67,6 +69,10 @@ export function SceneCurtain() {
   useEffect(() => {
     if (loaded && n <= 0) setLeaving(true);
   }, [loaded, n]);
+  // Portals measure loading: it's done when the scene shows.
+  useEffect(() => {
+    if (leaving) portal().loadingStop();
+  }, [leaving]);
   useEffect(() => {
     if (!leaving) return;
     const t = setTimeout(() => setGone(true), FADE_MS);

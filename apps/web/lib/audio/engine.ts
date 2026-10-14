@@ -1,5 +1,6 @@
 'use client';
 
+import { isForcedMute, subscribeForcedMute } from './forceMute';
 import { getAudioSettings, subscribeAudioSettings } from './settings';
 
 // One AudioContext for the whole app, with a bus per slider: music, effects, ambience.
@@ -21,7 +22,8 @@ function applySettings() {
   if (!engine) return;
   const s = getAudioSettings();
   const t = engine.ctx.currentTime;
-  engine.master.gain.setTargetAtTime(s.muted ? 0 : 1, t, 0.05);
+  // A portal's mute or an ad break wins over the player's own toggle.
+  engine.master.gain.setTargetAtTime(s.muted || isForcedMute() ? 0 : 1, t, 0.05);
   // Square the slider so the low end stays usable (hearing is roughly logarithmic).
   for (const b of ['music', 'effects', 'ambience'] as const) engine.buses[b].gain.setTargetAtTime(s[b] * s[b], t, 0.05);
 }
@@ -52,6 +54,7 @@ function unlock() {
     if (!engine) return;
     applySettings();
     subscribeAudioSettings(applySettings);
+    subscribeForcedMute(applySettings);
   }
   if (engine.ctx.state === 'suspended') void engine.ctx.resume();
   if (engine.ctx.state !== 'closed') {

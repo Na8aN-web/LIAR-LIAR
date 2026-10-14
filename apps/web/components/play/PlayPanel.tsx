@@ -1,10 +1,13 @@
 'use client';
 
+import { kv } from '@/lib/portal/storage';
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { NAME_MAX, ROOM_CODE_LENGTH, ROOM_NAME_MAX, defaultRoomName, type Ack, type JoinResult, type LobbyListUpdate, type Visibility } from '@wtc/shared';
 import { getSocket, call } from '@/lib/socket';
 import { session } from '@/lib/session';
+import { roomHref } from '@/lib/portal';
 import { Rope } from '../ui/western';
 
 type View = 'menu' | 'create' | 'code' | 'find';
@@ -46,7 +49,7 @@ export function PlayPanel({ start = 'menu', onTitle }: { start?: View; onTitle?:
     setBusy(false);
     if (!r.ok) return setError(r.error);
     session.setToken(r.code, r.token);
-    router.push(`/r/${r.code}`);
+    router.push(roomHref(r.code));
   };
 
   return (
@@ -108,7 +111,7 @@ export function PlayPanel({ start = 'menu', onTitle }: { start?: View; onTitle?:
 const VIS_KEY = 'wtc:room-visibility';
 const lastVisibility = (): Visibility => {
   try {
-    return localStorage.getItem(VIS_KEY) === 'public' ? 'public' : 'private';
+    return kv.get(VIS_KEY) === 'public' ? 'public' : 'private';
   } catch {
     return 'private';
   }
@@ -121,7 +124,7 @@ function CreateRoom({ busy, hostName, create }: { busy: boolean; hostName: strin
   const pick = (v: Visibility) => {
     setVisibility(v);
     try {
-      localStorage.setItem(VIS_KEY, v);
+      kv.set(VIS_KEY, v);
     } catch {}
   };
   return (

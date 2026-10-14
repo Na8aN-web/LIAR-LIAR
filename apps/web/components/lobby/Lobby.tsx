@@ -24,10 +24,12 @@ import {
   type RoomSettings,
 } from '@wtc/shared';
 import { call } from '@/lib/socket';
+import { homeHref, portal, usePortal } from '@/lib/portal';
+import { rememberLook } from '@/lib/portal/look';
 import { useStreamerMode } from '@/lib/streamer';
 import { session } from '@/lib/session';
 import { useGame } from '@/lib/store';
-import { ChatPanel } from '../game/ChatPanel';
+import { ChatPanel, useVisibleChat } from '../game/ChatPanel';
 import { AudioSettings } from '../ui/AudioSettings';
 import { BrightnessSlider } from '../ui/BrightnessSlider';
 import { GraphicsSetting } from '../ui/GraphicsSetting';
@@ -37,6 +39,25 @@ import { Walkthrough, hasSeenWalkthrough } from '../howto/Walkthrough';
 import { AutoFillSetting, FillOffer, VisibilitySwitch } from './RoomControls';
 
 const FILL_TO = 10;
+
+/** Quick-start lobby (a portal's one-tap Play): "Starting in 0:24", bots take the empty seats. */
+function AutoStartNote() {
+  const at = useGame((s) => s.view?.room.autoStartAt ?? null);
+  const offset = useGame((s) => s.clockOffset);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!at) return;
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [at]);
+  if (!at) return null;
+  const left = Math.max(0, Math.ceil((at - (now + offset)) / 1000));
+  return (
+    <p className="autostart-note" role="status">
+      The hunt starts in <b>{left}s</b>. Bots take any empty seats; anyone who rides in takes a bot&rsquo;s place.
+    </p>
+  );
+}
 
 export function Lobby() {
   const view = useGame((s) => s.view)!;
@@ -50,11 +71,14 @@ export function Lobby() {
   const [intro, setIntro] = useState(false);
   // Phones: fold the lobby down to a small bar so the campfire and everyone's scarecrow show.
   const [peek, setPeek] = useState(false);
-  useEffect(() => setIntro(!hasSeenWalkthrough()), []);
+  // Portals: no pop-up walkthrough (onboarding there must never block); the in-game prompts teach.
+  const ownMenus = usePortal().features.ownMenus;
+  useEffect(() => setIntro(ownMenus && !hasSeenWalkthrough()), [ownMenus]);
 
   const streamer = useStreamerMode();
-  const inviteLink = typeof window !== 'undefined' ? `${location.origin}/r/${view.code}` : '';
   const share = async () => {
+    // A portal's own invite link (it opens the game on the portal, in this room), else ours.
+    const inviteLink = portal().inviteLink(view.code) ?? `${location.origin}/r/${view.code}`;
     try {
       if (navigator.share) await navigator.share({ title: 'Wanted: True Colors', url: inviteLink });
       else {
@@ -75,7 +99,8 @@ export function Lobby() {
   const leave = () => {
     call('room:leave');
     session.setToken(view.code, null);
-    router.push('/');
+    portal().updateRoom(null);
+    router.push(homeHref());
   };
 
   const posseRows = (
@@ -200,6 +225,7 @@ export function Lobby() {
           )}
         </div>
 
+        <AutoStartNote />
         <FillOffer />
 
         {/* Folded on phones, open on desktop. */}
@@ -267,7 +293,7 @@ function Fold({ title, open, children }: { title: React.ReactNode; open: boolean
 
 /** Lobby chat that folds into a bar with an unread count. */
 function LobbyChat({ open: startOpen }: { open: boolean }) {
-  const count = useGame((s) => s.chat.length);
+  const count = useVisibleChat().length;
   const [open, setOpen] = useState(startOpen);
   const [seen, setSeen] = useState(count);
   useEffect(() => {
@@ -316,7 +342,13 @@ function LookPicker() {
         <span className="label">Your garment</span>
         <div className="segmented">
           {ITEM_TYPES.map((it) => (
-            <button key={it} className={it === you.item ? 'on' : ''} onClick={() => call('lobby:setLook', { item: it })}>
+            <button
+              key={it}
+              className={it === you.item ? 'on' : ''}
+              onClick={async () => {
+                if ((await call('lobby:setLook', { item: it })).ok) rememberLook({ item: it });
+              }}
+            >
               {it}
             </button>
           ))}
@@ -364,6 +396,7 @@ function CosmeticsPicker() {
   const set = async (next: Partial<Cosmetics>) => {
     const res = await call('lobby:setLook', { cosmetics: next });
     if (!res.ok) toast(res.error);
+    else rememberLook({ cosmetics: next });
   };
   if (!mine) return null;
   return (

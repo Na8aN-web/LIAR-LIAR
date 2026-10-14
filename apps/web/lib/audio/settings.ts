@@ -1,8 +1,10 @@
 'use client';
 
+import { kv, onStorageReset } from '@/lib/portal/storage';
+
 import { useSyncExternalStore } from 'react';
 
-// Per-device audio settings, in localStorage. Volumes are 0..1 per bus.
+// Audio settings (lib/portal/storage: this browser, or the portal's save). Volumes are 0..1 per bus.
 export interface AudioSettings {
   music: number;
   effects: number;
@@ -18,10 +20,10 @@ const listeners = new Set<() => void>();
 
 function read(): AudioSettings {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = kv.get(KEY);
     const s = raw ? { ...AUDIO_DEFAULTS, ...JSON.parse(raw) } : { ...AUDIO_DEFAULTS };
     // Older builds stored only a mute flag.
-    if (!raw && localStorage.getItem('wtc:muted') === '1') s.muted = true;
+    if (!raw && kv.get('wtc:muted') === '1') s.muted = true;
     for (const k of ['music', 'effects', 'ambience'] as const) s[k] = Math.min(1, Math.max(0, Number(s[k]) || 0));
     s.muted = !!s.muted;
     return s;
@@ -30,6 +32,12 @@ function read(): AudioSettings {
   }
 }
 
+// A portal's save took over: read the settings from there.
+onStorageReset(() => {
+  settings = read();
+  listeners.forEach((l) => l());
+});
+
 export function getAudioSettings(): AudioSettings {
   return settings;
 }
@@ -37,7 +45,7 @@ export function getAudioSettings(): AudioSettings {
 export function setAudioSettings(patch: Partial<AudioSettings>) {
   settings = { ...settings, ...patch };
   try {
-    localStorage.setItem(KEY, JSON.stringify(settings));
+    kv.set(KEY, JSON.stringify(settings));
   } catch {
     /* ignore */
   }

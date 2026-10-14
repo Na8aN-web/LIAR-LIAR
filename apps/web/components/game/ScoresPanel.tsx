@@ -47,9 +47,9 @@ export function ScoreList() {
     <>
       <div className="ledger-title">Bounty Ledger</div>
       <p className="hint worth-note">
-        Everyone&rsquo;s money is hidden until the last poster. Your purse: <b>${game.myScore}</b>
+        Everyone&rsquo;s money is hidden until the last poster.{!view.spectating && <> Your purse: <b>${game.myScore}</b></>}
       </p>
-      <div className="worth-buy">
+      <div className="worth-buy" hidden={view.spectating}>
         <button className="btn small" data-tut="worth" disabled={busy || game.worthBoughtThisPoster || game.myScore < price} onClick={look}>
           {game.worthBoughtThisPoster ? 'Looked this poster' : worth ? `Get a fresh look · $${price}` : `See everyone's worth · $${price}`}
         </button>

@@ -1,5 +1,7 @@
 'use client';
 
+import { kv } from '@/lib/portal/storage';
+
 import type { HowtoStatus } from '@wtc/shared';
 import { call } from './socket';
 
@@ -12,10 +14,10 @@ const RANK: HowtoStatus[] = ['never', 'skipped', 'finished'];
 
 export function getHowtoStatus(): HowtoStatus {
   try {
-    const v = localStorage.getItem(KEY) as HowtoStatus | null;
+    const v = kv.get(KEY) as HowtoStatus | null;
     if (v && RANK.includes(v)) return v;
     // Older builds only remembered that the walkthrough had been seen.
-    return localStorage.getItem('wtc:howto-seen') === '1' ? 'skipped' : 'never';
+    return kv.get('wtc:howto-seen') === '1' ? 'skipped' : 'never';
   } catch {
     return 'never';
   }
@@ -24,7 +26,7 @@ export function getHowtoStatus(): HowtoStatus {
 export function setHowtoStatus(status: HowtoStatus) {
   if (RANK.indexOf(status) <= RANK.indexOf(getHowtoStatus())) return;
   try {
-    localStorage.setItem(KEY, status);
+    kv.set(KEY, status);
   } catch {
     /* ignore */
   }

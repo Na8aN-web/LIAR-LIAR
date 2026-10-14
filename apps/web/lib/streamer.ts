@@ -1,10 +1,12 @@
 'use client';
 
+import { kv, onStorageReset } from '@/lib/portal/storage';
+
 import { useSyncExternalStore } from 'react';
 
 // Streamer mode (Settings): hides what viewers mustn't see when you stream the game. Your own
 // color (the top-bar badge, your glow, your item's real color, color-change telegrams, the swap
-// panel) and the room code. Per device, in localStorage.
+// panel) and the room code. Kept in lib/portal/storage.
 const KEY = 'wtc:streamer';
 
 let on = read();
@@ -12,16 +14,21 @@ const listeners = new Set<() => void>();
 
 function read(): boolean {
   try {
-    return localStorage.getItem(KEY) === '1';
+    return kv.get(KEY) === '1';
   } catch {
     return false;
   }
 }
 
+onStorageReset(() => {
+  on = read();
+  listeners.forEach((l) => l());
+});
+
 export function setStreamerMode(v: boolean) {
   on = v;
   try {
-    localStorage.setItem(KEY, v ? '1' : '0');
+    kv.set(KEY, v ? '1' : '0');
   } catch {
     /* ignore */
   }

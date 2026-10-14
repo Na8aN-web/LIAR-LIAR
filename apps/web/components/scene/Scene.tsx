@@ -7,6 +7,7 @@ import { OrbitControls } from '@react-three/drei';
 import { colorInfo, searchedThisPoster, type GameView, type Phase, type PlayerView } from '@wtc/shared';
 import { useBrightness } from '@/lib/brightness';
 import { reportSag, useQuality } from '@/lib/quality';
+import { useAdBreak } from '@/lib/portal/ads';
 import { useGame, useGameCountdown } from '@/lib/store';
 import { useStreamerMode } from '@/lib/streamer';
 import { fitCircle, measureInsets, type Insets } from './framing';
@@ -119,6 +120,7 @@ export interface SceneTrailer {
 
 export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
   const view = useGame((s) => s.view);
+  const adBreak = useAdBreak();
   const selectedId = useGame((s) => s.selectedId);
   const select = useGame((s) => s.select);
   const brightness = useBrightness();
@@ -167,7 +169,8 @@ export default function Scene({ trailer }: { trailer?: SceneTrailer } = {}) {
       <Canvas
         className="scene"
         dpr={trailer?.canvas?.dpr ?? (smooth ? 1 : [1, 1.75])}
-        frameloop={trailer?.canvas?.frameloop ?? (smooth ? 'demand' : 'always')}
+        // During a portal's ad break the scene stands still.
+        frameloop={trailer?.canvas?.frameloop ?? (adBreak ? 'never' : smooth ? 'demand' : 'always')}
         shadows={trailer?.canvas?.shadows ? 'soft' : undefined}
         camera={{ position: [0, 6.6, radius + 6.5], fov: 50 }}
         gl={{ antialias, powerPreference: 'high-performance', preserveDrawingBuffer: !!trailer?.canvas }}

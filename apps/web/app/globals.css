@@ -1140,3 +1140,35 @@ body:has(.trailer) nextjs-portal { display: none !important; }
 
 /* Vote panel: the line that discourages piling on. */
 .vote-cut { margin: 4px 0 0; font-size: 0.8rem; font-weight: 700; color: var(--oxblood); letter-spacing: 0.02em; }
+
+/* ---------------------------------------------------------------- game portals (/play/<portal>) */
+.portal-boot { position: fixed; inset: 0; background: #0b0806; }
+.portal-name { margin: -4px 0 12px; color: var(--cream-soft); font-size: 0.9rem; }
+.btn.portal-play { width: 100%; font-size: 1.25rem; padding: 12px 18px; margin: 4px 0 6px; }
+.privacy-notice {
+  position: fixed; z-index: 60; left: 50%; bottom: calc(10px + var(--safe-bottom)); transform: translateX(-50%);
+  width: min(560px, calc(100% - 2 * var(--gutter))); display: flex; align-items: center; gap: 8px; margin: 0;
+  padding: 8px 10px; border-radius: 4px; background: rgba(12, 9, 6, 0.88); color: var(--cream-soft); font-size: 0.8rem; line-height: 1.35;
+}
+.privacy-notice a { color: var(--brass-light); }
+.privacy-notice .icon-btn { margin-left: auto; color: var(--cream-soft); }
+.autostart-note { margin: 0 0 10px; padding: 8px 10px; border: 1.5px dashed var(--oxblood); border-radius: 4px; font-size: 0.85rem; }
+.ad-break { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; background: rgba(5, 4, 3, 0.75); color: var(--cream-soft); font-size: 1rem; letter-spacing: 0.08em; }
+
+/* Watching a game (joined mid-game). */
+.spectator-banner {
+  position: relative; z-index: 25; pointer-events: auto; align-self: center; margin: 8px var(--gutter) 0;
+  max-width: 560px; padding: 7px 12px; border-radius: 4px; background: rgba(243, 230, 196, 0.94); color: #2b2016;
+  border: 2px solid var(--brass); font-size: 0.88rem; text-align: center;
+}
+.you-badge.watching { letter-spacing: 0.12em; font-weight: 700; color: var(--brass-light); }
+
+/* Quick chat: phrases, then a player and/or a color. */
+.quick-chat { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; }
+.quick-chat.picking { flex-direction: column; flex-wrap: nowrap; }
+.quick-head { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+.quick-options { display: flex; flex-wrap: wrap; gap: 6px; max-height: 148px; overflow-y: auto; }
+.quick-color i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; border: 1px solid rgba(0, 0, 0, 0.5); vertical-align: -1px; }
+.btn.quick-toggle { padding-left: 10px; padding-right: 10px; }
+.btn.quick-toggle.on { background: var(--oxblood); color: var(--cream); }
+.chat-note { margin: 6px 0 0; }

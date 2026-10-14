@@ -2,6 +2,7 @@
 
 import { setAudioSettings, useAudioSettings, type AudioSettings as Settings } from '@/lib/audio/settings';
 import { playSfx } from '@/lib/audio/sfx';
+import { usePortalSettings } from '@/lib/portal';
 
 const SLIDERS: { key: 'music' | 'effects' | 'ambience'; label: string; hint: string }[] = [
   { key: 'music', label: 'Music', hint: 'The score. Quieter while you search, tense near the end.' },
@@ -12,8 +13,11 @@ const SLIDERS: { key: 'music' | 'effects' | 'ambience'; label: string; hint: str
 /** Mute switch plus a volume slider per bus. Saved on this device; applies live. */
 export function AudioSettings() {
   const s = useAudioSettings();
+  // The site you're playing on muted the game: that wins, and the switch can't undo it.
+  const portalMuted = usePortalSettings().muted;
   return (
     <div className="audio-settings">
+      {portalMuted && <p className="hint">Sound is off in the settings of the site you&rsquo;re playing on.</p>}
       <label className="sound-switch">
         <span className="grow">
           <b>Sound</b>
