@@ -39,7 +39,8 @@ export function TargetCard({
   const searched = searchedThisPoster(game.log, game.posterIndex).has(targetId);
 
   const f = findingsAbout(game, targetId);
-  const cleared = f.possible !== null && !f.possible.includes(game.posterColor);
+  // Only this poster's findings can clear someone: older ones may predate a color change or a cover.
+  const cleared = f.current && f.possible !== null && !f.possible.includes(game.posterColor);
 
   const othersCount = new Set(others.map((e) => e.inspectorId)).size;
 
@@ -63,7 +64,11 @@ export function TargetCard({
       <div className="target-body">
         {f.possible && (
           <div className="target-section">
-            {f.possible.length === 1 ? (
+            {!f.current ? (
+              <p className="small-text muted">
+                Your findings are from poster {(f.poster ?? 0) + 1}. They may have changed color or covered their tracks since: search them again.
+              </p>
+            ) : f.possible.length === 1 ? (
               <p className="known small-text">
                 They wear <ColorChip color={f.possible[0]} strong />
               </p>
@@ -75,17 +80,19 @@ export function TargetCard({
               </p>
             )}
             {f.entries.map((e, i) => (
-              <div key={e.id} className={`result-row${i >= f.agreeing ? ' stale' : ''}`}>
+              <div key={e.id} className={`result-row${i >= f.agreeing || !f.current ? ' stale' : ''}`}>
                 <span className="log-poster-tag">{e.poster === game.posterIndex ? 'This poster' : `Poster ${e.poster + 1}`}</span>
                 {e.inspectorId !== me && <span className="tag">bought</span>}
                 <span className="chip-row tight">
                   {game.myResults[e.id].map((c) => (
-                    <ColorChip key={c} color={c} strong={c === game.posterColor} dim={i >= f.agreeing} />
+                    <ColorChip key={c} color={c} strong={c === game.posterColor} dim={i >= f.agreeing || !f.current} />
                   ))}
                 </span>
               </div>
             ))}
-            {f.agreeing < f.entries.length && <p className="hint">Faded findings don&rsquo;t match the newer ones: they probably changed color.</p>}
+            {f.current && f.agreeing < f.entries.length && (
+              <p className="hint">Faded findings are from earlier posters: they may have changed color or covered their tracks since.</p>
+            )}
           </div>
         )}
 

@@ -11,3 +11,4 @@ export * from './tutorial';
 export * from './badges';
 export * from './quickChat';
 export * from './portal';
+export * from './findings';

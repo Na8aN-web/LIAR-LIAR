@@ -1,4 +1,4 @@
-import type { ColorId, GameView, InspectLogEntry, PlayerId } from '@wtc/shared';
+import type { GameView, InspectLogEntry, PlayerId } from '@wtc/shared';
 
 // Client-side views over the public inspect log. Uses only data this client already has.
 
@@ -37,44 +37,5 @@ export function byPosterDesc(entries: InspectLogEntry[]): [number, InspectLogEnt
     .map(([p, es]) => [p, es.slice().sort((x, y) => y.at - x.at)]);
 }
 
-export interface Findings {
-  /** Your own and bought results about this player, newest first. */
-  entries: InspectLogEntry[];
-  /** Colors that fit every finding in the newest run that agrees (null: no findings). */
-  possible: ColorId[] | null;
-  /** How many of the newest findings agree; older ones contradict them (a likely color change). */
-  agreeing: number;
-}
-
-/**
- * What this player's own findings (their searches and ones they bought) say about one player.
- * Color changes are secret, so findings are read newest first: every result includes the real
- * color, so they keep combining while they agree. An older result that leaves nothing in common
- * means that player probably changed color since; it and anything older stop counting.
- */
-export function findingsAbout(game: GameView, targetId: PlayerId): Findings {
-  // The log is in the order things happened; newest last.
-  const entries = game.log.filter((e) => e.targetId === targetId && game.myResults[e.id]).reverse();
-  if (!entries.length) return { entries, possible: null, agreeing: 0 };
-  let possible = game.myResults[entries[0].id].slice();
-  let agreeing = 1;
-  for (; agreeing < entries.length; agreeing++) {
-    const next = possible.filter((c) => game.myResults[entries[agreeing].id].includes(c));
-    if (!next.length) break;
-    possible = next;
-  }
-  return { entries, possible, agreeing };
-}
-
-export type Suspicion = 'ruledOut' | 'possible';
-
-/**
- * Whether this player's findings rule a suspect out for the current poster color: every search
- * result includes the real color, so a poster color missing from the agreeing findings rules
- * them out. Nothing searched: null.
- */
-export function suspicion(game: GameView, targetId: PlayerId): Suspicion | null {
-  const { possible } = findingsAbout(game, targetId);
-  if (!possible) return null;
-  return possible.includes(game.posterColor) ? 'possible' : 'ruledOut';
-}
+// Combining findings lives in @wtc/shared (findings.ts), where it's tested.
+export { findingsAbout, suspicion, type Findings, type Suspicion } from '@wtc/shared';

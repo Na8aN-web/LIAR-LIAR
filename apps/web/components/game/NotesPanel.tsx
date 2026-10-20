@@ -62,13 +62,14 @@ export function NotesPanel() {
 
   return (
     <div className="notebook">
-      <p className="hint log-hint">Newest first. A color that shows up in every search of someone is their real color.</p>
+      <p className="hint log-hint">Newest first. A color that shows up in every search of someone this poster is their color.</p>
       <ul className="feed">
         {feed.map((e) => {
           const f = findings(e.targetId);
           const index = f.entries.findIndex((x) => x.id === e.id);
           const newest = index === 0;
-          const stale = index >= f.agreeing;
+          // Older posters' findings are history: a color change or a cover may have come since.
+          const stale = index >= f.agreeing || !f.current;
           const name = nameOf(e.targetId);
           return (
             <li
@@ -88,7 +89,14 @@ export function NotesPanel() {
                   ))}
                 </span>
               </div>
-              {newest && f.possible && (
+              {newest && f.possible && !f.current && (
+                <div className="feed-sum">
+                  <p className="muted">
+                    From poster {(f.poster ?? 0) + 1}. {name} may have changed color or covered their tracks since: search them again this poster.
+                  </p>
+                </div>
+              )}
+              {newest && f.possible && f.current && (
                 <div className="feed-sum">
                   {f.possible.length === 1 ? (
                     <p>
@@ -104,7 +112,7 @@ export function NotesPanel() {
                         ))}
                       </span>{' '}
                       <span className="muted">
-                        ({f.possible.length} left{f.agreeing > 1 ? ` after ${f.agreeing} searches` : ''})
+                        ({f.possible.length} left{f.agreeing > 1 ? ` after ${f.agreeing} searches this poster` : ''})
                       </span>
                     </p>
                   )}
@@ -115,7 +123,7 @@ export function NotesPanel() {
                       <p className="feed-clear">Not {poster.name}: {name} looks clear this poster.</p>
                     ))}
                   {f.agreeing < f.entries.length && (
-                    <p className="muted">Older findings about {name} don&rsquo;t match these: they probably changed color, so those are faded.</p>
+                    <p className="muted">Older findings about {name} are from earlier posters, so they&rsquo;re faded: a color change or a cover may have come since.</p>
                   )}
                 </div>
               )}
