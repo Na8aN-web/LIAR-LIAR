@@ -143,6 +143,12 @@ export interface GameView {
   log: InspectLogEntry[];
   /** Inspect results this player owns or bought, by log entry id. */
   myResults: Record<string, ColorId[]>;
+  /**
+   * Your own searches only: after each one, the colors still possible (the server's narrowing).
+   * It carries over between posters while the target's shown color is the same, and starts over
+   * after a color change or a cover.
+   */
+  myNarrowed: Record<string, ColorId[]>;
   /** Log entry ids whose result was bought (subset of myResults). */
   boughtEntryIds: string[];
   offersOut: OfferView[];

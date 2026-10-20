@@ -76,6 +76,44 @@ describe('combining findings', () => {
     }
   });
 
+  it('narrowing carries over to the next poster while their color is the same (one search finishes it)', () => {
+    for (let trial = 0; trial < 200; trial++) {
+      const g = game();
+      for (let i = 0; i < 3; i++) engine.inspect(g, 'p0', 'p1', secureRng);
+      // Three searches: two colors left.
+      expect(findingsAbout(viewOf(g, 'p0'), 'p1').possible).toHaveLength(2);
+      nextPoster(g);
+      engine.inspect(g, 'p0', 'p1', secureRng);
+      const f = findingsAbout(viewOf(g, 'p0'), 'p1');
+      expect(f.current).toBe(true);
+      expect(f.possible).toEqual([g.colors.p1]);
+    }
+  });
+
+  it('after a color change the narrowing starts over (and still holds their color)', () => {
+    for (let trial = 0; trial < 200; trial++) {
+      const g = game();
+      for (let i = 0; i < 3; i++) engine.inspect(g, 'p0', 'p1', secureRng);
+      engine.swapColor(g, 'p1', secureRng);
+      nextPoster(g);
+      engine.inspect(g, 'p0', 'p1', secureRng);
+      const f = findingsAbout(viewOf(g, 'p0'), 'p1');
+      expect(f.possible).toHaveLength(4);
+      expect(f.possible).toContain(g.colors.p1);
+    }
+  });
+
+  it('you only get the narrowing of your own searches, never a seller’s', () => {
+    const g = game();
+    for (let i = 0; i < 2; i++) engine.inspect(g, 'p3', 'p2', secureRng);
+    const sold = g.log.at(-1)!;
+    g.bought.p0 = [sold.id];
+    const v = viewOf(g, 'p0');
+    expect(v.myResults[sold.id]).toBeDefined();
+    expect(v.myNarrowed).toEqual({});
+    expect(Object.keys(viewOf(g, 'p3').myNarrowed)).toHaveLength(2);
+  });
+
   it('only this poster’s findings say "looks clear"; older ones only say "search again"', () => {
     const g = game();
     const target = g.playerIds.find((p) => p !== 'p0' && p !== engine.wantedId(g))!;

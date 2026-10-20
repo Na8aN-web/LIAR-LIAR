@@ -52,6 +52,11 @@ export interface GameState {
   narrow: Record<string, ColorId[]>;
   /** Target's real color at the time of each inspect, by log entry id. Server-only. */
   realAt: Record<string, ColorId>;
+  /**
+   * After each search, the colors still possible for that searcher (the narrowing, see
+   * s.narrow): sent only to the searcher, so their findings never have to be guessed.
+   */
+  narrowedAt: Record<string, ColorId[]>;
   /** Escape bonuses earned but not paid yet. Paid at the end of the game, so the public
    *  ledger never shows a lone +$50 next to the outlaw. Only the earner sees their own. */
   heldEscapeBonus: Record<PlayerId, number>;
@@ -130,6 +135,7 @@ export function createGame(
     colorChanges: [0],
     narrow: {},
     realAt: {},
+    narrowedAt: {},
     heldEscapeBonus: perPlayer(ids, () => 0),
     finished: false,
     pots: order.map(() => rules.basePot),
@@ -297,6 +303,7 @@ export function inspect(
   s.log.push(entry);
   s.results[entry.id] = result;
   s.realAt[entry.id] = s.colors[targetId];
+  s.narrowedAt[entry.id] = s.narrow[key].slice();
   return { ok: true, entry, result };
 }
 
@@ -543,7 +550,12 @@ export function buildReplay(s: GameState): ReplayView {
 export function gameViewFor(s: GameState, me: PlayerId): GameView {
   const myResults: Record<string, ColorId[]> = {};
   const bought = s.bought[me] ?? [];
-  for (const e of s.log) if (e.inspectorId === me || bought.includes(e.id)) myResults[e.id] = s.results[e.id];
+  const myNarrowed: Record<string, ColorId[]> = {};
+  for (const e of s.log) {
+    if (e.inspectorId === me || bought.includes(e.id)) myResults[e.id] = s.results[e.id];
+    // Your own searches only: a seller's narrowing would tell a buyer about searches they didn't buy.
+    if (e.inspectorId === me) myNarrowed[e.id] = s.narrowedAt[e.id] ?? s.results[e.id];
+  }
   return {
     posterIndex: s.posterIndex,
     posterCount: s.order.length,
@@ -556,6 +568,7 @@ export function gameViewFor(s: GameState, me: PlayerId): GameView {
     purchasesUsed: s.purchases[me] ?? 0,
     log: s.log,
     myResults,
+    myNarrowed,
     boughtEntryIds: bought.slice(),
     offersOut: s.offers.filter((o) => o.buyerId === me),
     offersIn: s.offers.filter((o) => o.sellerId === me),

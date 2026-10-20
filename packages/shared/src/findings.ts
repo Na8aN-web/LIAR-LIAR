@@ -24,23 +24,27 @@ export interface Findings {
   current: boolean;
 }
 
-type FindingsView = Pick<GameView, 'log' | 'myResults' | 'posterIndex'>;
+type FindingsView = Pick<GameView, 'log' | 'myResults' | 'posterIndex'> & Partial<Pick<GameView, 'myNarrowed'>>;
 
 export function findingsAbout(game: FindingsView, targetId: PlayerId): Findings {
   // The log is in the order things happened; newest last.
   const entries = game.log.filter((e) => e.targetId === targetId && game.myResults[e.id]).reverse();
   if (!entries.length) return { entries, possible: null, agreeing: 0, poster: null, current: false };
   const poster = entries[0].poster;
-  let possible = game.myResults[entries[0].id].slice();
-  let agreeing = 1;
-  for (; agreeing < entries.length && entries[agreeing].poster === poster; agreeing++) {
-    const next = possible.filter((c) => game.myResults[entries[agreeing].id].includes(c));
+  // That poster's results (newest first; the log is in order, so they're the first ones).
+  const group = entries.filter((e) => e.poster === poster);
+  // Your own newest search in that poster carries the server's narrowing (which already counts
+  // your earlier searches, from earlier posters too while their color hasn't changed).
+  const ownNewest = game.myNarrowed ? group.find((e) => game.myNarrowed![e.id]) : undefined;
+  let possible = (ownNewest ? game.myNarrowed![ownNewest.id] : game.myResults[group[0].id]).slice();
+  for (const e of group) {
+    const next = possible.filter((c) => game.myResults[e.id].includes(c));
     // Same poster, nothing in common: only possible for a stand-in's own wearer who bought a
     // covered player's result (they're shown a different stand-in). Keep what we had.
-    if (!next.length) break;
+    if (!next.length) continue;
     possible = next;
   }
-  return { entries, possible, agreeing, poster, current: poster === game.posterIndex };
+  return { entries, possible, agreeing: group.length, poster, current: poster === game.posterIndex };
 }
 
 export type Suspicion = 'ruledOut' | 'possible';
