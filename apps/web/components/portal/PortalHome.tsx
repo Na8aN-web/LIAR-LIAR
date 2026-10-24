@@ -10,6 +10,7 @@ import { Walkthrough } from '@/components/howto/Walkthrough';
 import { Modal } from '@/components/Modal';
 import { SceneCurtain } from '@/components/SceneCurtain';
 import { ServerBanner } from '@/components/ServerBanner';
+import { Toast } from '@/components/Toast';
 import { AudioSettings } from '@/components/ui/AudioSettings';
 import { BrightnessSlider } from '@/components/ui/BrightnessSlider';
 import { GraphicsSetting } from '@/components/ui/GraphicsSetting';
@@ -78,6 +79,7 @@ export function PortalHome() {
     if (started.current) return;
     started.current = true;
     const invited = portal().inviteRoom();
+    console.info(`[Wanted] portal start: ${invited ? `invited to ${invited}` : 'no invite'}`);
     if (invited) {
       router.replace(roomHref(invited));
       return;
@@ -135,6 +137,7 @@ export function PortalHome() {
         )}
       </nav>
       <PrivacyNotice />
+      <Toast />
 
       {panel === 'how' && <Walkthrough onClose={() => setPanel(null)} onPractice={() => void practice()} />}
       {panel === 'settings' && (

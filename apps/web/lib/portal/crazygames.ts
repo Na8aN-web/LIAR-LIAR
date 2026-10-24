@@ -173,12 +173,20 @@ export const crazyGamesPortal: PortalAdapter = {
   onJoinRoom(l) {
     const listener = (params: Record<string, string>) => {
       const code = roomFromInvite(params);
-      if (code) l(code);
+      console.info('[Wanted] CrazyGames join room listener called with', params, code ? `-> room ${code}` : '-> no room code in it');
+      l(code, params);
     };
     safe((s) => s.game.addJoinRoomListener(listener), undefined);
     return () => safe((s) => s.game.removeJoinRoomListener(listener), undefined);
   },
-  instantMultiplayer: () => safe((s) => !!s.game.isInstantMultiplayer, false),
+  instantMultiplayer() {
+    // The SDK sets this from instantJoin=true in this frame's URL; read the URL too, in case the
+    // SDK isn't up (the flag must never be lost: it's how the portal's multiplayer button launches).
+    const fromSdk = safe((s) => !!s.game.isInstantMultiplayer, false);
+    const fromUrl = new URLSearchParams(location.search).get('instantJoin') === 'true';
+    console.info(`[Wanted] instant multiplayer: sdk ${fromSdk}, url ${fromUrl}`);
+    return fromSdk || fromUrl;
+  },
 
   midgameAd(started) {
     if (!sdk) return Promise.resolve();

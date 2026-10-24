@@ -62,8 +62,11 @@ export interface PortalAdapter {
   inviteLink(code: string): string | null;
   /** The room this launch was invited to, or null. */
   inviteRoom(): string | null;
-  /** A friend's invite was accepted while the game is open: go to that room. */
-  onJoinRoom(l: (code: string) => void): () => void;
+  /**
+   * A friend's invite was accepted while the game is open: go to that room. `code` is null when
+   * the invite's parameters don't name a room (shown to the player, not ignored).
+   */
+  onJoinRoom(l: (code: string | null, params: unknown) => void): () => void;
   /** Launched from the portal's multiplayer button: straight into a new private room. */
   instantMultiplayer(): boolean;
 

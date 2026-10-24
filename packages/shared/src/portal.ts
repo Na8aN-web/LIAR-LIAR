@@ -32,11 +32,17 @@ export function portalRoomPath(portal: PortalId, code: string): string {
 const CODE_RE = new RegExp(`^[A-HJKMNP-Z2-9]{${ROOM_CODE_LENGTH}}$`);
 
 /** The room an invite points at (a portal's invite parameters: { room: CODE }), or null. */
+/** Invite parameter names we read the room from: ours is `room`; the others are what people type by hand. */
+export const INVITE_ROOM_KEYS = ['room', 'roomId', 'roomCode', 'code', 'roomName'] as const;
+
 export function roomFromInvite(params: Record<string, unknown> | null | undefined): string | null {
-  const raw = params?.room;
-  if (typeof raw !== 'string') return null;
-  const code = raw.trim().toUpperCase();
-  return CODE_RE.test(code) ? code : null;
+  for (const key of INVITE_ROOM_KEYS) {
+    const raw = params?.[key];
+    if (typeof raw !== 'string') continue;
+    const code = raw.trim().toUpperCase();
+    if (CODE_RE.test(code)) return code;
+  }
+  return null;
 }
 
 /** What a portal's friends features (Join, Invite) are told about the room you're in. */

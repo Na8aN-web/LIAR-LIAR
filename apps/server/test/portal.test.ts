@@ -34,6 +34,11 @@ describe('invites', () => {
     expect(roomFromInvite({ room: 'OIL01' })).toBeNull();
     expect(roomFromInvite({ room: '../admin' })).toBeNull();
     expect(roomFromInvite({ room: 12345 as unknown as string })).toBeNull();
+    // Names people type by hand in the QA tool work too; ours (room) wins.
+    expect(roomFromInvite({ roomName: 'abcde' })).toBe('ABCDE');
+    expect(roomFromInvite({ roomId: 'ABCDE' })).toBe('ABCDE');
+    expect(roomFromInvite({ room: 'HJKMN', roomName: 'ABCDE' })).toBe('HJKMN');
+    expect(roomFromInvite({ roomName: '123' })).toBeNull();
   });
 });
 
