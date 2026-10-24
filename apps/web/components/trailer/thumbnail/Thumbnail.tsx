@@ -92,11 +92,21 @@ const POSTER_CAM_PRESETS: Record<string, Cam> = {
   High: { rotate: 0, distance: 7.8, height: 4.6, lookY: 0.2, fov: 36, shiftX: 0, shiftY: 0 },
 };
 // Covers: a clean, centered view with room for the title on top.
+/** CrazyGames' no-go zone for covers (their labels sit there), from the top-left corner. */
+const COVER_NO_GO: Record<CoverShape, { w: number; h: number }> = {
+  landscape: { w: 0.4, h: 0.2 },
+  portrait: { w: 0.4, h: 0.12 },
+  square: { w: 0.35, h: 0.3 },
+};
+/** Where the title's ink starts (fraction of the height): below the no-go zone, with a margin. */
+const COVER_TITLE_TOP: Record<CoverShape, number> = { landscape: 0.25, portrait: 0.26, square: 0.35 };
+
 const COVER_CAM_PRESETS: Record<CoverShape, Cam> = {
-  landscape: { rotate: 0, distance: 8.8, height: 2.9, lookY: 0.7, fov: 38, shiftX: 0, shiftY: -0.1 },
+  // The title takes the middle band (below CrazyGames' label zone): the circle sits under it.
+  landscape: { rotate: 0, distance: 14.5, height: 6.6, lookY: 0, fov: 34, shiftX: 0, shiftY: -0.36 },
   // Tall and square frames: from higher up, the circle reads rounder and fits the width.
-  portrait: { rotate: 0, distance: 11.8, height: 9.5, lookY: 0, fov: 46, shiftX: 0, shiftY: -0.15 },
-  square: { rotate: 0, distance: 11, height: 6.2, lookY: 0.2, fov: 42, shiftX: 0, shiftY: -0.12 },
+  portrait: { rotate: 0, distance: 11.8, height: 9.5, lookY: 0, fov: 46, shiftX: 0, shiftY: -0.2 },
+  square: { rotate: 0, distance: 16.5, height: 5.4, lookY: 0, fov: 34, shiftX: 0, shiftY: -0.4 },
 };
 type CamSlot = 'scene' | 'poster' | `cover-${CoverShape}`;
 const camSlot = (s: Settings): CamSlot => (s.layout === 'cover' ? `cover-${s.coverShape}` : s.layout);
@@ -750,6 +760,8 @@ function composeCover(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement | 
   ctx.fillRect(0, 0, W, H);
 
   // The title: two lines, as big as fits (about 88% of the width), "Wanted:" centered on its letters.
+  // CrazyGames puts labels ("New", "Hot") over the top-left corner, so the title starts below
+  // that no-go zone (COVER_NO_GO) with a margin; a soft dark band keeps it readable over the ground.
   if (s.show.title) {
     const maxW = W * 0.88;
     const fit = (text: string, size: number) => {
@@ -758,15 +770,34 @@ function composeCover(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement | 
     };
     const b = fit('True Colors', m * (W < H ? 0.17 : 0.16));
     const a = Math.min(b * 0.82, fit('Wanted:', b));
-    const top = H * (W < H ? 0.05 : 0.045);
     ctx.textBaseline = 'alphabetic';
     ctx.font = `${a}px ${fonts.display}`;
+    const wanted = ctx.measureText('Wanted:');
     const wantedW = ctx.measureText('Wanted').width;
+    ctx.font = `${b}px ${fonts.display}`;
+    const colors = ctx.measureText('True Colors');
+    // Ink reaches past the glyphs by half the outline and the drop shadow's blur.
+    const pad = a * 0.16 * 0.5 + a * 0.35;
+    const inkTop = H * COVER_TITLE_TOP[s.coverShape];
+    const base1 = inkTop + pad + wanted.actualBoundingBoxAscent;
+    const base2 = base1 + b * 0.98;
+    const inkBottom = base2 + colors.actualBoundingBoxDescent + pad;
+    const cy = (inkTop + inkBottom) / 2;
+    const band = ctx.createLinearGradient(0, inkTop - H * 0.06, 0, inkBottom + H * 0.06);
+    band.addColorStop(0, 'rgba(6,4,10,0)');
+    band.addColorStop(0.3, 'rgba(6,4,10,0.55)');
+    band.addColorStop(0.7, 'rgba(6,4,10,0.55)');
+    band.addColorStop(1, 'rgba(6,4,10,0)');
+    ctx.fillStyle = band;
+    ctx.fillRect(0, inkTop - H * 0.06, W, inkBottom - inkTop + H * 0.12);
+    ctx.font = `${a}px ${fonts.display}`;
     ctx.textAlign = 'left';
-    outlined(ctx, 'Wanted:', W / 2 - wantedW / 2, top + a, a, '#f1d78f', 0.16);
+    outlined(ctx, 'Wanted:', W / 2 - wantedW / 2, base1, a, '#f1d78f', 0.16);
     ctx.font = `${b}px ${fonts.display}`;
     ctx.textAlign = 'center';
-    outlined(ctx, 'True Colors', W / 2, top + a + b * 0.98, b, '#f3e6c4', 0.15);
+    outlined(ctx, 'True Colors', W / 2, base2, b, '#f3e6c4', 0.15);
+    // For checking the layout from the console/scripts.
+    (window as unknown as { __coverTitle?: object }).__coverTitle = { inkTop: inkTop / H, inkBottom: inkBottom / H, center: cy / H, noGo: COVER_NO_GO[s.coverShape] };
   }
   ctx.restore();
 }
