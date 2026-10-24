@@ -1205,3 +1205,27 @@ body:has(.trailer) nextjs-portal { display: none !important; }
   .lobby-actions { margin-top: 8px; }
   .center-card .card.payout { padding-top: 10px; padding-bottom: 10px; }
 }
+
+/* ---------------------------------------------------------------- portal frames
+   A portal shows the game in a frame (CrazyGames: down to 800x450). Nothing may scroll the page:
+   the menu fits the frame's height, shrinking its type and spacing as the frame gets shorter. */
+html.portal, html.portal body { overflow: hidden; height: 100%; }
+.menu.portal-menu { height: 100dvh; min-height: 0; }
+@media (max-height: 820px) {
+  .menu.portal-menu { padding-top: clamp(8px, 3dvh, 48px); padding-bottom: clamp(8px, 3dvh, 48px); }
+  .portal-menu .game-title { font-size: clamp(1.5rem, 6.4dvh, 3.4rem); margin-bottom: clamp(4px, 1.4dvh, 14px); }
+  .portal-menu .game-title span { font-size: clamp(1.1rem, 4.2dvh, 2.2rem); }
+  .portal-menu .tagline { margin: 0 0 clamp(2px, 1dvh, 14px); font-size: clamp(0.78rem, 2.2dvh, 1.15rem); }
+  .portal-menu .portal-name { margin: 0 0 clamp(2px, 1dvh, 12px); font-size: clamp(0.75rem, 2dvh, 0.9rem); }
+  .portal-menu .btn.portal-play { padding-top: clamp(4px, 1.4dvh, 12px); padding-bottom: clamp(4px, 1.4dvh, 12px); font-size: clamp(1rem, 3.4dvh, 1.25rem); margin: 0 0 clamp(2px, 0.6dvh, 6px); }
+  .portal-menu .menu-item { padding-top: clamp(2px, 1.1dvh, 12px); padding-bottom: clamp(2px, 1.1dvh, 12px); font-size: clamp(0.95rem, 3.4dvh, 1.4rem); }
+  .portal-menu .menu-nav .rope { margin: 1px 0; height: 4px; }
+  .portal-menu .menu-social { margin-top: clamp(4px, 1.4dvh, 14px); font-size: clamp(0.75rem, 2dvh, 0.9rem); }
+}
+/* The privacy line never covers the menu: beside it on wide frames, above it on narrow ones. */
+@media (min-width: 700px) {
+  .privacy-notice { left: auto; right: var(--gutter); transform: none; width: min(420px, calc(100% - 460px)); }
+}
+@media (max-width: 699px) {
+  .privacy-notice { top: calc(10px + var(--safe-top)); bottom: auto; }
+}

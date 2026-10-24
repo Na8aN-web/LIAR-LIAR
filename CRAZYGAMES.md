@@ -55,6 +55,10 @@ within 20 s. Music loads later, after the first tap. Locally the SDK answers at 
 CrazyGames frame it waits up to 7 s before switching itself off, so opening `/play/crazygames`
 directly shows a dark screen for that long (inside their frame it doesn't wait).
 
+**Load size and time in their QA tool** stay on "waiting" until the first `gameplayStart`, which
+is when the SDK sends them: tap **Play** (or join a room) and they fill in. The events go
+`loadingStart` (SDK ready) → `loadingStop` (menu and scene ready) → `gameplayStart` (in a room).
+
 ### Quick chat (all versions)
 
 A phrase menu next to the chat box: *I'm clear · Not me! · It's [player]! · [player] is [color] ·
@@ -85,9 +89,10 @@ purpose: lying is the game.
 
 ### 3. Submit the game (Developer Portal → Submit a game)
 
-- **Engine:** HTML5. **Upload the `portals/crazygames` folder** (one `index.html`). It shows
-  `https://wantedtruecolors.com/play/crazygames` full size and passes CrazyGames' launch
-  parameters (invites, instant multiplayer) through. The game and the SDK run on our server, so
+- **Engine:** HTML5. **Upload the `portals/crazygames` folder** (one `index.html`). It sends
+  CrazyGames' game frame straight to `https://wantedtruecolors.com/play/crazygames` (a redirect,
+  not a frame inside their frame), keeping their launch parameters (invites, instant
+  multiplayer). The game and the SDK run on our server, so
   game updates never need a new upload.
 - **Progress save:** "Yes, using the Data Module from the CrazyGames SDK".
 - **Game options:** supports mobile devices; online multiplayer; supports CrazyGames muting audio

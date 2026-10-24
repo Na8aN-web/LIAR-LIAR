@@ -22,6 +22,11 @@ export function PortalBoot({ portal, children }: { portal: Exclude<PortalId, 'we
   useEffect(() => {
     void bootPortal(portal);
   }, [portal]);
+  // A portal shows the game in a frame of its own size: the page never scrolls (see globals.css).
+  useEffect(() => {
+    document.documentElement.classList.add('portal');
+    return () => document.documentElement.classList.remove('portal');
+  }, []);
   if (!ready) return <div className="portal-boot" aria-busy="true" />;
   return <>{children}</>;
 }
