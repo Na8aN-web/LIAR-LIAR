@@ -50,9 +50,13 @@ your **Render** and **GitHub** logins: turn on two-factor sign-in for both.
 
 ## 3. Render, with Postgres
 
-1. Create a Postgres database outside this service and copy its connection string. Render's own
-   free database is deleted 30 days after creation unless you upgrade it, so a host with a
-   lasting free plan is the better fit.
+1. Create a Neon project (neon.com, region near the Render service) and copy its **direct**
+   connection string (the host without `-pooler`): this server keeps its own small pool. Change
+   the end to `?sslmode=verify-full`. Render's own free database is deleted 30 days after creation
+   unless you upgrade it. Put the string in `apps/server/.env.local` as `DATABASE_URL` (git ignores
+   that file) and run `pnpm db:import` to create the tables. Moving from another host:
+   `pnpm db:import -- --from "postgres://..."` copies a Postgres database, or
+   `--from path/to/logs` a file store's folder, into the empty database.
 2. render.com → sign in with GitHub → **New → Web Service** → `Na8aN-web/LIAR-LIAR`, branch
    `master`. Choose **Language: Node** (Render may suggest Docker because the repo has a
    `Dockerfile`), **Instance Type: Free**, and enter:
@@ -69,7 +73,6 @@ your **Render** and **GitHub** logins: turn on two-factor sign-in for both.
    | --- | --- |
    | `ANALYTICS_STORE` | `postgres` |
    | `DATABASE_URL` | the connection string from step 1 |
-   | `DATABASE_SSL` | `1` if that database requires TLS (hosted ones outside Render's network do) |
    | `ADMIN_PASSWORD_HASH` | from step 2 (copy what's between the quotes) |
    | `ADMIN_TOTP_SECRET` | from step 2 |
    | `SENTRY_DSN` | from step 5 (add later) |

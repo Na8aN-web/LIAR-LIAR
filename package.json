@@ -25,7 +25,8 @@
     "playtest:check": "pnpm --filter @wtc/server playtest:check",
     "admin:setup": "pnpm --filter @wtc/server admin:setup",
     "admin:seed": "pnpm --filter @wtc/server admin:seed",
-    "db:schema": "pnpm --filter @wtc/server db:schema"
+    "db:schema": "pnpm --filter @wtc/server db:schema",
+    "db:import": "pnpm --filter @wtc/server db:import"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",

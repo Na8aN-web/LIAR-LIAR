@@ -17,6 +17,7 @@
     "feedback": "tsx scripts/feedback.ts",
     "playtest:check": "tsx scripts/playtest-check.ts",
     "db:schema": "node scripts/gen-schema.mjs",
+    "db:import": "tsx scripts/db-import.ts",
     "admin:setup": "tsx scripts/admin-setup.ts",
     "admin:seed": "tsx scripts/admin-seed.ts"
   },

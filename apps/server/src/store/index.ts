@@ -23,7 +23,12 @@ export async function createStore(env: NodeJS.ProcessEnv = process.env): Promise
       connectionString: env.DATABASE_URL,
       max: 5,
       ssl: env.DATABASE_SSL === '1' ? { rejectUnauthorized: true } : undefined,
+      // A database that sleeps when idle (Neon) needs a moment to wake.
+      connectionTimeoutMillis: 15_000,
     });
+    // The database closing an idle connection (Neon suspends after 5 quiet minutes) isn't a
+    // failure: the pool replaces it. Without a listener Node would treat it as a crash.
+    pool.on('error', (err) => console.warn('Database connection closed:', err.message));
     store = new PostgresStore(pool);
   } else if (kind === 'file') {
     store = new FileStore(env.DATA_DIR ?? 'logs');
