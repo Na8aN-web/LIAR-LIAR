@@ -9,15 +9,15 @@ export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 let socket: GameSocket | null = null;
 
 /**
- * Where the game server lives. Set NEXT_PUBLIC_SERVER_URL to a URL, or to
- * "same-origin" when a proxy/tunnel serves /socket.io on the page's own origin.
- * Unset: local dev (page on :3000 -> server on :3001), otherwise same-origin.
+ * Where the game server lives: the page's own origin (socket.io turns https into wss). Local
+ * dev runs them apart (page on :3000, server on :3001). NEXT_PUBLIC_SERVER_URL overrides it
+ * with a URL, for a game server on another host.
  */
 export function serverUrl() {
   const env = process.env.NEXT_PUBLIC_SERVER_URL;
   if (env === 'same-origin') return location.origin;
   if (env) return env;
-  return location.port === '3000' ? `${location.protocol}//${location.hostname}:3001` : location.origin;
+  return process.env.NODE_ENV === 'development' && location.port === '3000' ? `${location.protocol}//${location.hostname}:3001` : location.origin;
 }
 
 /**

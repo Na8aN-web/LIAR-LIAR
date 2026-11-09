@@ -79,12 +79,12 @@ purpose: lying is the game.
 
 ### 2. Make the portal pages live
 
-1. Merge the `feature/crazygames` branch to `master` and deploy (Railway).
+1. Push to `master` so the host (see DEPLOY.md) deploys it.
 2. Open **https://wantedtruecolors.com/play/crazygames** in a normal browser tab. The menu should
    load within about 7 seconds (outside CrazyGames the SDK waits, then switches itself off).
 3. If the Preview shows a blank page and the browser console mentions `frame-ancestors` (the
    uploaded page is served from a CrazyGames host our headers don't list yet),
-   add the origin it names to `CRAZYGAMES_FRAME_ANCESTORS` (space-separated) in Railway's build
+   add the origin it names to `CRAZYGAMES_FRAME_ANCESTORS` (space-separated) in the host's build
    variables, and redeploy. Their mobile app origins aren't documented, so this is the likely case.
 
 ### 3. Submit the game (Developer Portal → Submit a game)

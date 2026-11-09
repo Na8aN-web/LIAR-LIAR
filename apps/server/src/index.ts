@@ -21,6 +21,8 @@ const devMode = process.argv.includes('--dev') && !production;
 if (process.argv.includes('--dev') && production) console.warn('Ignoring --dev: NODE_ENV is production');
 
 const port = Number(process.env.PORT ?? 3001);
+// tools/start-prod.mjs keeps this server private behind its proxy (HOST=127.0.0.1).
+const host = process.env.HOST || undefined;
 const minPlayers = devMode ? Number(process.env.MIN_PLAYERS ?? 2) : MIN_PLAYERS;
 
 // Production: which sites may connect. ALLOWED_ORIGINS=https://a.example,https://b.example;
@@ -81,6 +83,7 @@ console.log(
 );
 const server = createGameServer({
   port,
+  host,
   timeouts,
   devMode,
   minPlayers,

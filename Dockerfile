@@ -1,11 +1,12 @@
 # Production image: game server + web app + proxy on one port (tools/start-prod.mjs).
-# Railway builds this automatically; locally: docker build -t wtc . && docker run -p 8080:8080 wtc
+# Render doesn't need this (it runs the app as a Node service, see DEPLOY.md). For local checks and
+# container hosts: docker build -t wtc . && docker run -p 8080:8080 wtc
 
 FROM node:22-slim AS build
 WORKDIR /app
 ENV CI=1 NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable
-# Browser error reports: Railway passes service variables to the build as build args.
+# Browser error reports: the DSN is baked into the page at build time, so pass it as a build arg.
 ARG NEXT_PUBLIC_SENTRY_DSN
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 COPY . .

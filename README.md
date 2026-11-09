@@ -146,11 +146,11 @@ Security and Cloudflare Access: [SECURITY.md](SECURITY.md#admin-dashboard-admin)
 
 **Security:** see [SECURITY.md](SECURITY.md) for what the server enforces, the limits, and how to deploy safely (HTTPS, origins).
 
-Web: `GAME_SERVER_INTERNAL_URL` (default `http://127.0.0.1:3001`): where the web server forwards `/admin/api` and `/billboards` (server to server). `NEXT_PUBLIC_SERVER_URL`: a URL, or `same-origin`. Unset: port 3001 on the same host when the page is on :3000 (local dev), otherwise the page's own origin (tunnel/proxy, `tools/proxy.mjs`).
+Web: `GAME_SERVER_INTERNAL_URL` (default `http://127.0.0.1:3001`): where the web server forwards `/admin/api` and `/billboards` (server to server). `NEXT_PUBLIC_SERVER_URL`: a URL, or `same-origin`. Unset: the page's own origin (in `next dev` on :3000, port 3001 on the same host).
 
 Playtesting, including the remote setup (`pnpm playtest`, Cloudflare Tunnel): see [PLAYTEST.md](PLAYTEST.md).
 
-Going live (Railway, Postgres, Cloudflare, Sentry, admin login): see [DEPLOY.md](DEPLOY.md). Production runs from the `Dockerfile` via `tools/start-prod.mjs`.
+Going live (Render, Postgres, Cloudflare, Sentry, admin login): see [DEPLOY.md](DEPLOY.md). Production runs `tools/start-prod.mjs` (`pnpm start`) after `pnpm build`.
 
 ## Rules of the code
 

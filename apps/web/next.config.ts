@@ -10,8 +10,8 @@ function gameServerSources(): string[] {
     const u = new URL(env);
     out.push(u.origin, `${u.protocol === 'https:' ? 'wss' : 'ws'}://${u.host}`);
   }
-  // Local and LAN playtests: page on :3000, game server on :3001 of the same machine.
-  out.push('http://*:3001', 'ws://*:3001');
+  // Local dev: page on :3000, game server on :3001 of the same machine.
+  if (isDev) out.push('http://*:3001', 'ws://*:3001');
   return out;
 }
 

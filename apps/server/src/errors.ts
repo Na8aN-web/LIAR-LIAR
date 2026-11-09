@@ -11,7 +11,7 @@ export function initErrorReporting() {
   Sentry.init({
     dsn,
     environment: process.env.NODE_ENV ?? 'development',
-    release: process.env.RAILWAY_GIT_COMMIT_SHA,
+    release: process.env.RENDER_GIT_COMMIT,
     // Nothing personal: no user info, cookies, headers, bodies, query strings or local variables.
     dataCollection: { userInfo: false, cookies: false, httpHeaders: false, httpBodies: [], urlQueryParams: false, databaseQueryData: false, stackFrameVariables: false },
     tracesSampleRate: 0,

@@ -1,4 +1,4 @@
-// Production entry point (Railway, Docker): the whole game on one public port.
+// Production entry point (Render, or any Node host or container): the whole game on one public port.
 //
 //   game server   127.0.0.1:3001   (Socket.io + /health + admin API)
 //   web app       127.0.0.1:3000   (Next.js)
@@ -6,7 +6,7 @@
 //
 // One origin for everything, the same layout `pnpm playtest` uses, so the browser never needs
 // cross-site settings. If either app exits, this exits too and the host restarts the container.
-// Expects the apps already built (Dockerfile). Usage: node tools/start-prod.mjs
+// Expects the apps already built (`pnpm build`). Usage: node tools/start-prod.mjs (or `pnpm start`)
 
 import { spawn } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
@@ -44,7 +44,7 @@ process.on('SIGINT', () => shutdown(0));
 // The game server reads PORT; give it its own, not the public one.
 run('game server', process.execPath, ['dist/index.js'], {
   cwd: join(root, 'apps/server'),
-  env: { PORT: String(SERVER_PORT), TRUST_PROXY: process.env.TRUST_PROXY ?? '1' },
+  env: { PORT: String(SERVER_PORT), HOST: '127.0.0.1', TRUST_PROXY: process.env.TRUST_PROXY ?? '1' },
 });
 run('web app', process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(WEB_PORT), '-H', '127.0.0.1'], {
   cwd: join(root, 'apps/web'),

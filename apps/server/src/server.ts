@@ -46,6 +46,8 @@ type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, {}, SocketD
 
 export interface GameServerOptions {
   port: number;
+  /** Address to bind (default: every interface). */
+  host?: string;
   /** Dev tools on (bots, phase skipping, small lobbies). Never in production. */
   devMode: boolean;
   minPlayers: number;
@@ -646,7 +648,7 @@ export function createGameServer(opts: GameServerOptions) {
     monitor,
     listen: async () => {
       await control.load();
-      return new Promise<number>((resolve) => http.listen(opts.port, () => resolve((http.address() as { port: number }).port)));
+      return new Promise<number>((resolve) => http.listen(opts.port, opts.host, () => resolve((http.address() as { port: number }).port)));
     },
     close: async () => {
       clearInterval(sweep);
