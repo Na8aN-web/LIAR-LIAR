@@ -1,0 +1,12 @@
+// The "waking up" Worker in front of wantedtruecolors.com (see README.md next to this file).
+// Deploy: npx wrangler deploy (from this folder).
+{
+  "name": "wtc-waking",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "routes": [
+    { "pattern": "wantedtruecolors.com/*", "zone_name": "wantedtruecolors.com" },
+    { "pattern": "www.wantedtruecolors.com/*", "zone_name": "wantedtruecolors.com" }
+  ],
+  "observability": { "enabled": true }
+}
